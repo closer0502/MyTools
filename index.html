@@ -7,18 +7,30 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header>
-        <h1>JS便利ツール</h1>
-    </header>
-    <main>
-        <!-- ここにツールの内容を追加してください -->
-        <ul>
-            <li><a href="tools/text-counter/index.html">テキスト文字数カウンター</a></li>
-        </ul>
-    </main>
-    <footer>
-        <p>&copy; 2025 JS便利ツール</p>
-    </footer>
-    <script src="script.js"></script>
+    <div class="page-shell">
+        <header class="page-header">
+            <div class="page-title">
+                <span class="eyebrow">Toolkit</span>
+                <h1>JS便利ツール</h1>
+                <p class="lede">シンプルなJSツールをダークモードでまとめています。</p>
+            </div>
+        </header>
+
+        <main>
+            <div class="tool-list">
+                <article class="tool-card">
+                    <div class="tool-meta">
+                        <h2>テキスト文字数カウンター</h2>
+                        <p>入力したテキストの文字数をリアルタイムで表示します。</p>
+                    </div>
+                    <a class="pill-button" href="tools/text-counter/index.html">開く</a>
+                </article>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 JS便利ツール</p>
+        </footer>
+    </div>
 </body>
 </html>
