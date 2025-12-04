@@ -1,0 +1,98 @@
+.app {
+    max-width: 720px;
+    margin: 48px auto;
+    padding: 0 24px 32px;
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    color: #1f2933;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.header h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.header p {
+    margin: 0;
+    color: #4a5561;
+}
+
+.input-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-area label {
+    font-weight: 600;
+    color: #2f3b48;
+}
+
+textarea {
+    width: 100%;
+    min-height: 240px;
+    padding: 14px 16px;
+    border: 1px solid #d4d9df;
+    border-radius: 10px;
+    resize: vertical;
+    font-size: 16px;
+    line-height: 1.5;
+    font-family: "Consolas", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.stats {
+    margin-top: 20px;
+    display: flex;
+    gap: 16px;
+}
+
+.stat {
+    flex: 1;
+    background: linear-gradient(135deg, #f6f8fb 0%, #eef1f6 100%);
+    border: 1px solid #dce2eb;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stat .label {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #5c6673;
+}
+
+.stat .value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+@media (max-width: 640px) {
+    .app {
+        margin: 32px 0;
+        padding: 0 16px 24px;
+    }
+
+    .header h1 {
+        font-size: 24px;
+    }
+
+    textarea {
+        min-height: 180px;
+    }
+}

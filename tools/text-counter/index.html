@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Counter</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <h1>Text Counter</h1>
+            <p>Type or paste any text to see the live character count.</p>
+        </header>
+
+        <section class="input-area">
+            <label for="textInput">Your text</label>
+            <textarea id="textInput" placeholder="Start typing here..."></textarea>
+        </section>
+
+        <section class="stats">
+            <div class="stat">
+                <span class="label">Characters</span>
+                <span class="value" id="charCount">0</span>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
