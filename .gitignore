@@ -1,0 +1,86 @@
+# General .gitignore for Windows projects
+# OS generated files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.env
+venv/
+ENV/
+env/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Visual Studio Code
+.vscode/
+
+# Logs
+*.log
+
+# IDEs
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Misc
+.DS_Store
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Build
+build/
+dist/
+*.exe
+*.dll
+*.obj
+*.o
+*.so
+*.out
+*.class
+*.jar
+*.war
+*.apk
+*.app
+*.ipa
+
+# Coverage
+coverage/
+*.cover
+*.coverage
+
+# Test
+*.test
+*.spec
+
+# Others
+*.lock
+*.orig
+*.rej
+*.bin
+*.dat
+*.csv
+*.tsv
+*.db
+*.sqlite
+*.zip
+*.tar
+*.gz
+*.tgz
+*.7z
+*.rar
+*.bak
+*.tmp
+*.swp
+*.swo
