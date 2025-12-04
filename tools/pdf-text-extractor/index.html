@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDFテキスト抽出ツール</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- PDF.js CDN (3.11.174) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">PDFテキスト抽出</span>
+            <h1>PDF Text Extractor</h1>
+            <p>ローカルPDFからテキストを抽出してコピー／ダウンロードできます。目安サイズ上限は30MBです。</p>
+        </header>
+
+        <div class="card">
+            <div class="drop-row">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-inner">
+                        <p class="primary">ここにPDFをドロップ</p>
+                        <p class="secondary">またはファイルを選択（20〜30MB以内推奨）</p>
+                        <button class="ghost-button" type="button" id="fileSelect">ファイルを選択</button>
+                        <input id="fileInput" type="file" accept="application/pdf" hidden>
+                        <p class="hint">ドラッグ＆ドロップはローカルのみ。URLは非対応です。</p>
+                    </div>
+                </div>
+                <div class="file-info" id="fileInfo">
+                    <div class="label">ファイル</div>
+                    <div class="value" id="fileName">未選択</div>
+                    <div class="meta" id="fileMeta">サイズ上限の目安: 30MB</div>
+                    <div class="label">ページ数</div>
+                    <div class="value" id="pageCount">-</div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="status" id="status">準備完了</div>
+                <div class="actions">
+                    <button class="pill-button" type="button" id="copyButton" disabled>コピー</button>
+                    <button class="pill-button" type="button" id="downloadButton" disabled>テキストを保存</button>
+                    <button class="ghost-button" type="button" id="clearButton">リセット</button>
+                </div>
+            </div>
+
+            <div id="errorBanner" class="error-banner hidden" role="alert"></div>
+            <div class="progress" id="progressBar">
+                <div id="progressFill"></div>
+            </div>
+
+            <div class="output-wrapper">
+                <div class="output-header">
+                    <span class="section-label">抽出結果</span>
+                    <span class="hint">ページ番号と区切り線を付けて表示します</span>
+                </div>
+                <pre id="output" class="output" aria-live="polite"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
