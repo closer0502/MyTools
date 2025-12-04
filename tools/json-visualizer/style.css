@@ -109,7 +109,7 @@ body {
 
 textarea {
     width: 100%;
-    min-height: 200px;
+    height: 260px;
     padding: var(--space-3);
     border-radius: var(--radius);
     border: 1px solid var(--border);
@@ -117,7 +117,7 @@ textarea {
     color: var(--text);
     font-size: 15px;
     font-family: var(--font-mono);
-    resize: vertical;
+    resize: none;
 }
 
 textarea:focus-visible {
@@ -132,6 +132,34 @@ textarea:focus-visible {
     gap: var(--space-3);
     flex-wrap: wrap;
     margin-top: var(--space-2);
+}
+
+.options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    color: var(--text);
+}
+
+.checkbox input {
+    accent-color: var(--accent);
+    width: 18px;
+    height: 18px;
+}
+
+.option-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
 }
 
 .indent-control {
@@ -181,12 +209,13 @@ input[type="range"] {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: var(--space-3);
-    overflow: auto;
+    overflow-x: auto;
+    overflow-y: auto;
     white-space: pre;
     font-family: var(--font-mono);
     font-size: 14px;
     line-height: 1.6;
-    min-height: 180px;
+    height: 260px;
 }
 
 .code-block .string { color: #8ef9d8; }
@@ -202,6 +231,16 @@ input[type="range"] {
     border: 1px solid rgba(248, 113, 113, 0.35);
     background: rgba(248, 113, 113, 0.08);
     color: #fecdd3;
+    font-size: 14px;
+}
+
+.notice-banner {
+    margin-top: var(--space-2);
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.08);
+    color: #fef3c7;
     font-size: 14px;
 }
 

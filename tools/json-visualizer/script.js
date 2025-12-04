@@ -7,8 +7,10 @@ const indentRange = document.getElementById("indentRange");
 const indentValue = document.getElementById("indentValue");
 const output = document.getElementById("output");
 const errorBanner = document.getElementById("errorBanner");
+const noticeBanner = document.getElementById("noticeBanner");
 const copyButton = document.getElementById("copyButton");
 const statusLabel = document.getElementById("statusLabel");
+const allowTrailingCommaFix = document.getElementById("allowTrailingCommaFix");
 
 function updateIndentLabel() {
     const value = Number(indentRange.value);
@@ -40,10 +42,41 @@ function showError(message) {
     statusLabel.textContent = "パース失敗";
 }
 
+function showNotice(message) {
+    noticeBanner.textContent = message;
+    noticeBanner.classList.remove("hidden");
+}
+
 function clearError() {
     errorBanner.textContent = "";
     errorBanner.classList.add("hidden");
     statusLabel.textContent = "準備完了";
+}
+
+function clearNotice() {
+    noticeBanner.textContent = "";
+    noticeBanner.classList.add("hidden");
+}
+
+function safeParse(source) {
+    try {
+        return { parsed: JSON.parse(source), fixed: false, cleaned: source, originalError: null };
+    } catch (originalError) {
+        if (!allowTrailingCommaFix.checked) {
+            throw originalError;
+        }
+
+        const cleaned = source.replace(/,\s*(?=[}\]])/g, "");
+        if (cleaned === source) {
+            throw originalError;
+        }
+
+        try {
+            return { parsed: JSON.parse(cleaned), fixed: true, cleaned, originalError };
+        } catch {
+            throw originalError;
+        }
+    }
 }
 
 function formatAndRender(auto = false) {
@@ -58,21 +91,31 @@ function formatAndRender(auto = false) {
         output.textContent = "";
         statusLabel.textContent = "入力待ち";
         clearError();
+        clearNotice();
         return;
     }
 
     try {
         const indent = Number(indentRange.value);
-        const parsed = JSON.parse(source);
+        const { parsed, fixed, cleaned } = safeParse(source);
+        if (fixed) {
+            jsonInput.value = cleaned;
+            showNotice("警告: トレーリングカンマを除去して表示しています。元データも確認してください。");
+            statusLabel.textContent = "自動修正して表示中";
+        } else {
+            clearNotice();
+            statusLabel.textContent = "表示中";
+        }
+
         const formatted = JSON.stringify(parsed, null, indent);
         output.innerHTML = syntaxHighlight(formatted);
         clearError();
-        statusLabel.textContent = "表示中";
         if (!auto) {
             output.scrollTop = 0;
         }
     } catch (err) {
         output.textContent = "";
+        clearNotice();
         showError(`パースに失敗しました: ${err.message}`);
     }
 }

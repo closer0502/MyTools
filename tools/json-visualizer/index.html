@@ -35,6 +35,13 @@
                             <span class="indent-value" id="indentValue">2スペース</span>
                         </div>
                     </div>
+                    <div class="options">
+                        <label class="checkbox">
+                            <input type="checkbox" id="allowTrailingCommaFix" checked>
+                            <span>トレーリングカンマを自動で除去（エラー時のみ）</span>
+                        </label>
+                        <p class="option-note">エラーになったときだけ試します。自動修正した場合は警告を表示します。</p>
+                    </div>
                     <button class="pill-button" type="button" id="formatButton">整形して表示</button>
                 </section>
             </div>
@@ -48,6 +55,7 @@
                     <button class="ghost-button" type="button" id="copyButton">コピー</button>
                 </div>
                 <pre id="output" class="code-block" aria-live="polite"></pre>
+                <div id="noticeBanner" class="notice-banner hidden" role="status"></div>
                 <div id="errorBanner" class="error-banner hidden" role="alert"></div>
                 <div class="status-bar">
                     <span class="status-dot"></span>
