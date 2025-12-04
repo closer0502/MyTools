@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSONビジュアライザー</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">JSON可視化</span>
+            <h1>JSONビジュアライザー</h1>
+            <p>ペーストまたはファイルをドロップして、好きなインデントでJSONを整形・表示します。</p>
+        </header>
+
+        <div class="card">
+            <div class="input-grid">
+                <section>
+                    <span class="section-label">入力</span>
+                    <div class="drop-zone" id="dropZone">
+                        <p class="primary">ここにJSONファイルをドロップ</p>
+                        <p class="secondary">クリックして選択、または下のテキスト欄に貼り付けてもOK</p>
+                        <button class="ghost-button" type="button" id="fileSelect">ファイルを選択</button>
+                        <input id="fileInput" type="file" accept=".json,application/json" hidden>
+                    </div>
+                    <textarea id="jsonInput" placeholder="{\n    \"name\": \"sample\",\n    \"items\": [1, 2, 3]\n}"></textarea>
+                </section>
+
+                <section class="controls">
+                    <div>
+                        <span class="section-label">インデント</span>
+                        <div class="indent-control">
+                            <input id="indentRange" type="range" min="0" max="8" value="2" aria-label="インデント幅">
+                            <span class="indent-value" id="indentValue">2スペース</span>
+                        </div>
+                    </div>
+                    <button class="pill-button" type="button" id="formatButton">整形して表示</button>
+                </section>
+            </div>
+
+            <div class="output-section">
+                <div class="section-header">
+                    <div>
+                        <span class="section-label">出力</span>
+                        <p class="hint">パースできたJSONをハイライト付きで表示します。</p>
+                    </div>
+                    <button class="ghost-button" type="button" id="copyButton">コピー</button>
+                </div>
+                <pre id="output" class="code-block" aria-live="polite"></pre>
+                <div id="errorBanner" class="error-banner hidden" role="alert"></div>
+                <div class="status-bar">
+                    <span class="status-dot"></span>
+                    <span id="statusLabel">準備完了</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
