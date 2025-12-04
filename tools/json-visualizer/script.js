@@ -15,6 +15,10 @@ function updateIndentLabel() {
     indentValue.textContent = value === 0 ? "0 (圧縮)" : `${value}スペース`;
 }
 
+function normalizeSmartQuotes(text) {
+    return text.replace(/[“”]/g, "\"");
+}
+
 function syntaxHighlight(json) {
     const escaped = json.replace(/[&<>]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
     return escaped.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, match => {
@@ -43,7 +47,13 @@ function clearError() {
 }
 
 function formatAndRender(auto = false) {
-    const source = jsonInput.value.trim();
+    const raw = jsonInput.value.trim();
+    const source = normalizeSmartQuotes(raw);
+
+    if (source !== raw) {
+        jsonInput.value = source;
+    }
+
     if (!source) {
         output.textContent = "";
         statusLabel.textContent = "入力待ち";
@@ -72,7 +82,8 @@ function handleFiles(files) {
     if (!file) return;
 
     file.text().then(text => {
-        jsonInput.value = text;
+        const normalized = normalizeSmartQuotes(text);
+        jsonInput.value = normalized;
         formatAndRender();
     }).catch(() => {
         showError("ファイルの読み込みに失敗しました。別のファイルでお試しください。");
