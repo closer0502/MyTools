@@ -27,7 +27,8 @@ const viewState = {
   panY: 0,
 };
 const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 8;
+const DEFAULT_MAX_ZOOM = 8;
+let dynamicMaxZoom = DEFAULT_MAX_ZOOM;
 const ZOOM_STEP = 0.2;
 let isPanning = false;
 let panStart = { x: 0, y: 0 };
@@ -42,7 +43,7 @@ const Status = {
 };
 
 function clampZoom(value) {
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+  return Math.min(dynamicMaxZoom, Math.max(MIN_ZOOM, value));
 }
 
 function setZoomControlsEnabled(enabled) {
@@ -74,10 +75,9 @@ function centerView(nextZoom = viewState.zoom) {
 function setInitialView() {
   if (!img || !canvasFrame) return;
   const frameRect = canvasFrame.getBoundingClientRect();
-  const fitScale = Math.min(frameRect.width / img.width, frameRect.height / img.height);
-  const baseScale = clampZoom(fitScale || 1);
-  const smallImage = img.width < frameRect.width * 0.7 && img.height < frameRect.height * 0.7;
-  const initialZoom = smallImage ? clampZoom(Math.min(baseScale * 1.5, 3)) : baseScale;
+  const fitScale = Math.min(frameRect.width / img.width, frameRect.height / img.height) || 1;
+  const initialZoom = Math.max(MIN_ZOOM, fitScale);
+  dynamicMaxZoom = Math.max(DEFAULT_MAX_ZOOM, initialZoom * 2);
   centerView(initialZoom);
 }
 
@@ -162,7 +162,7 @@ function loadImage(src) {
     resetBtn.disabled = false;
     setZoomControlsEnabled(true);
     setInitialView();
-    helperText.textContent = "キャンバスをクリックして透過する色を指定してください。";
+    helperText.textContent = "画像をクリックで透過色指定、ドラッグで移動、ホイールでズームできます。";
     setStatus("透過したい色をクリックしてください。", Status.ready);
   };
   image.onerror = () => {
@@ -198,14 +198,14 @@ function applyTransparency() {
   ctx.putImageData(imageData, 0, 0);
   downloadBtn.disabled = false;
   setStatus("透過処理を適用しました。", Status.applied);
-  helperText.textContent = "別の色をクリックすると再計算します。";
+  helperText.textContent = "別の色をクリックすると再計算します。ドラッグで移動、ホイールでズームできます。";
 }
 
 function resetImage() {
   if (!img) return;
   ctx.drawImage(img, 0, 0);
   setSelectedColor(null);
-  helperText.textContent = "キャンバスをクリックして透過する色を指定してください。";
+  helperText.textContent = "画像をクリックで透過色指定、ドラッグで移動、ホイールでズームできます。";
   setStatus("元の画像に戻しました。色を選択してください。", Status.ready);
 }
 
@@ -324,7 +324,11 @@ viewResetBtn.addEventListener("click", setInitialView);
 
 window.addEventListener("resize", () => {
   if (!img) return;
-  centerView(viewState.zoom);
+  const frameRect = canvasFrame?.getBoundingClientRect();
+  const fitScale =
+    frameRect && img ? Math.min(frameRect.width / img.width, frameRect.height / img.height) || 1 : 1;
+  dynamicMaxZoom = Math.max(DEFAULT_MAX_ZOOM, fitScale * 2);
+  centerView(clampZoom(viewState.zoom));
 });
 
 setZoomControlsEnabled(false);
