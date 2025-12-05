@@ -127,7 +127,13 @@ function resetImage() {
 }
 
 // Event bindings
-fileSelect.addEventListener("click", () => fileInput.click());
+fileSelect.addEventListener("click", (e) => {
+  // Prevent bubbling to the drop zone so the file dialog doesn't open twice
+  e.stopPropagation();
+  // Clear value so picking the same file again still triggers change
+  fileInput.value = "";
+  fileInput.click();
+});
 
 fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
 
@@ -155,7 +161,11 @@ dropZone.addEventListener("drop", (e) => {
   handleFiles(files);
 });
 
-dropZone.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener("click", () => {
+  // Clear value so picking the same file again still triggers change
+  fileInput.value = "";
+  fileInput.click();
+});
 
 canvas.addEventListener("click", (e) => {
   if (!img) return;
