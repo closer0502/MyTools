@@ -251,6 +251,30 @@ input[type="range"] {
     align-items: center;
 }
 
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.zoom-display {
+    min-width: 54px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+}
+
+.icon-button {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    line-height: 1;
+}
+
 .pill-button:disabled,
 .ghost-button:disabled {
     opacity: 0.5;
@@ -280,13 +304,22 @@ input[type="range"] {
 }
 
 canvas {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     display: block;
-    max-width: 100%;
+    max-width: none;
     height: auto;
+    width: auto;
     z-index: 1;
     cursor: crosshair;
     image-rendering: pixelated;
+    transform-origin: top left;
+    transition: transform 0.08s ease-out;
+}
+
+canvas.is-panning {
+    cursor: grabbing;
 }
 
 @media (max-width: 960px) {

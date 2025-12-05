@@ -6,6 +6,11 @@ const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("thresholdValue");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const canvasFrame = document.getElementById("canvasFrame");
+const zoomInBtn = document.getElementById("zoomInBtn");
+const zoomOutBtn = document.getElementById("zoomOutBtn");
+const viewResetBtn = document.getElementById("viewResetBtn");
+const zoomDisplay = document.getElementById("zoomDisplay");
 const selectedColorChip = document.getElementById("selectedColor");
 const selectedColorLabel = document.getElementById("selectedColorLabel");
 const downloadBtn = document.getElementById("downloadBtn");
@@ -16,6 +21,18 @@ const helperText = document.getElementById("helperText");
 
 let img = null;
 let targetColor = null;
+const viewState = {
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+};
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 8;
+const ZOOM_STEP = 0.2;
+let isPanning = false;
+let panStart = { x: 0, y: 0 };
+let hasPanned = false;
+let suppressClick = false;
 
 const Status = {
   idle: "idle",
@@ -23,6 +40,69 @@ const Status = {
   applied: "applied",
   error: "error",
 };
+
+function clampZoom(value) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
+function setZoomControlsEnabled(enabled) {
+  zoomInBtn.disabled = !enabled;
+  zoomOutBtn.disabled = !enabled;
+  viewResetBtn.disabled = !enabled;
+}
+
+function updateZoomDisplay() {
+  zoomDisplay.textContent = `${Math.round(viewState.zoom * 100)}%`;
+}
+
+function applyViewTransform() {
+  canvas.style.transform = `translate(${viewState.panX}px, ${viewState.panY}px) scale(${viewState.zoom})`;
+  updateZoomDisplay();
+}
+
+function centerView(nextZoom = viewState.zoom) {
+  if (!img || !canvasFrame) return;
+  const frameRect = canvasFrame.getBoundingClientRect();
+  viewState.zoom = clampZoom(nextZoom);
+  const scaledWidth = canvas.width * viewState.zoom;
+  const scaledHeight = canvas.height * viewState.zoom;
+  viewState.panX = (frameRect.width - scaledWidth) / 2;
+  viewState.panY = (frameRect.height - scaledHeight) / 2;
+  applyViewTransform();
+}
+
+function setInitialView() {
+  if (!img || !canvasFrame) return;
+  const frameRect = canvasFrame.getBoundingClientRect();
+  const fitScale = Math.min(frameRect.width / img.width, frameRect.height / img.height);
+  const baseScale = clampZoom(fitScale || 1);
+  const smallImage = img.width < frameRect.width * 0.7 && img.height < frameRect.height * 0.7;
+  const initialZoom = smallImage ? clampZoom(Math.min(baseScale * 1.5, 3)) : baseScale;
+  centerView(initialZoom);
+}
+
+function setZoom(nextZoom, anchor) {
+  if (!img || !canvasFrame) return;
+  const frameRect = canvasFrame.getBoundingClientRect();
+  const pointer = anchor || {
+    clientX: frameRect.left + frameRect.width / 2,
+    clientY: frameRect.top + frameRect.height / 2,
+  };
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) {
+    centerView(nextZoom);
+    return;
+  }
+
+  const targetZoom = clampZoom(nextZoom);
+  const imageX = ((pointer.clientX - rect.left) / rect.width) * canvas.width;
+  const imageY = ((pointer.clientY - rect.top) / rect.height) * canvas.height;
+
+  viewState.zoom = targetZoom;
+  viewState.panX = pointer.clientX - frameRect.left - imageX * viewState.zoom;
+  viewState.panY = pointer.clientY - frameRect.top - imageY * viewState.zoom;
+  applyViewTransform();
+}
 
 function setStatus(message, state = Status.idle) {
   statusLabel.textContent = message;
@@ -80,11 +160,14 @@ function loadImage(src) {
 
     setSelectedColor(null);
     resetBtn.disabled = false;
+    setZoomControlsEnabled(true);
+    setInitialView();
     helperText.textContent = "キャンバスをクリックして透過する色を指定してください。";
     setStatus("透過したい色をクリックしてください。", Status.ready);
   };
   image.onerror = () => {
     setStatus("画像の読み込みに失敗しました。", Status.error);
+    setZoomControlsEnabled(false);
   };
   image.src = src;
 }
@@ -167,7 +250,49 @@ dropZone.addEventListener("click", () => {
   fileInput.click();
 });
 
+canvasFrame.addEventListener(
+  "wheel",
+  (e) => {
+    if (!img) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -1 : 1;
+    const factor = 1 + ZOOM_STEP * delta;
+    setZoom(viewState.zoom * factor, { clientX: e.clientX, clientY: e.clientY });
+  },
+  { passive: false }
+);
+
+canvasFrame.addEventListener("mousedown", (e) => {
+  if (!img || e.button !== 0) return;
+  isPanning = true;
+  hasPanned = false;
+  panStart = { x: e.clientX - viewState.panX, y: e.clientY - viewState.panY };
+  canvas.classList.add("is-panning");
+  e.preventDefault();
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!isPanning) return;
+  viewState.panX = e.clientX - panStart.x;
+  viewState.panY = e.clientY - panStart.y;
+  hasPanned = true;
+  applyViewTransform();
+});
+
+window.addEventListener("mouseup", () => {
+  if (!isPanning) return;
+  isPanning = false;
+  canvas.classList.remove("is-panning");
+  if (hasPanned) {
+    suppressClick = true;
+  }
+});
+
 canvas.addEventListener("click", (e) => {
+  if (suppressClick) {
+    suppressClick = false;
+    return;
+  }
   if (!img) return;
 
   const rect = canvas.getBoundingClientRect();
@@ -193,4 +318,14 @@ downloadBtn.addEventListener("click", () => {
 
 resetBtn.addEventListener("click", resetImage);
 
+zoomInBtn.addEventListener("click", () => setZoom(viewState.zoom * (1 + ZOOM_STEP)));
+zoomOutBtn.addEventListener("click", () => setZoom(viewState.zoom * (1 - ZOOM_STEP)));
+viewResetBtn.addEventListener("click", setInitialView);
+
+window.addEventListener("resize", () => {
+  if (!img) return;
+  centerView(viewState.zoom);
+});
+
+setZoomControlsEnabled(false);
 setStatus("画像を読み込んでください。", Status.idle);

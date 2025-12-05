@@ -74,11 +74,17 @@
                             <p class="hint" id="helperText">読み込んだ画像がここに表示されます。</p>
                         </div>
                         <div class="button-row">
+                            <div class="zoom-controls">
+                                <button class="ghost-button icon-button" type="button" id="zoomOutBtn" disabled aria-label="ズームアウト">-</button>
+                                <span class="zoom-display" id="zoomDisplay">100%</span>
+                                <button class="ghost-button icon-button" type="button" id="zoomInBtn" disabled aria-label="ズームイン">+</button>
+                                <button class="ghost-button" type="button" id="viewResetBtn" disabled>ビューリセット</button>
+                            </div>
                             <button class="ghost-button" type="button" id="resetBtn" disabled>リセット</button>
                             <button class="pill-button" type="button" id="downloadBtn" disabled>透過PNGをダウンロード</button>
                         </div>
                     </div>
-                    <div class="canvas-frame">
+                    <div class="canvas-frame" id="canvasFrame">
                         <div class="checkerboard"></div>
                         <canvas id="canvas" aria-label="透過プレビューキャンバス"></canvas>
                     </div>
