@@ -65,11 +65,15 @@
                             <span class="toggle-knob"></span>
                         </label>
                     </div>
+                    <div class="unit-row" aria-disabled="true" id="resizeUnitRow">
+                        <label><input type="radio" name="resizeUnit" value="px" checked disabled> ピクセル指定</label>
+                        <label><input type="radio" name="resizeUnit" value="percent" disabled> パーセント指定</label>
+                    </div>
                     <div class="resize-grid" aria-disabled="true" id="resizeGrid">
-                        <label>幅(px)
+                        <label>幅
                             <input type="number" id="resizeWidth" min="1" inputmode="numeric" disabled>
                         </label>
-                        <label>高さ(px)
+                        <label>高さ
                             <input type="number" id="resizeHeight" min="1" inputmode="numeric" disabled>
                         </label>
                         <label class="aspect">
@@ -91,7 +95,7 @@
                 </div>
 
                 <div class="option">
-                    <div class="option-header">
+                    <div class="option-header option-header--stack">
                         <span class="option-label">出力ファイル名</span>
                         <span class="option-hint">拡張子は自動付与</span>
                     </div>
@@ -102,7 +106,8 @@
             <div class="controls">
                 <div class="status" id="status">準備完了</div>
                 <div class="actions">
-                    <button class="pill-button" type="button" id="convertButton">変換してダウンロード</button>
+                    <button class="pill-button" type="button" id="previewButton">プレビュー生成</button>
+                    <button class="pill-button" type="button" id="downloadButton">ダウンロード</button>
                     <button class="ghost-button" type="button" id="clearButton">リセット</button>
                 </div>
             </div>

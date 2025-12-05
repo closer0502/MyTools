@@ -164,6 +164,11 @@ body {
     gap: 10px;
 }
 
+.option-header--stack {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
 .option-label {
     font-weight: 700;
 }
@@ -243,7 +248,26 @@ body {
     opacity: 0.6;
 }
 
+.unit-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    opacity: 0.6;
+}
+
+.unit-row label {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    font-weight: 600;
+    font-size: 14px;
+}
+
 .resize-grid[aria-disabled="false"] {
+    opacity: 1;
+}
+
+.unit-row[aria-disabled="false"] {
     opacity: 1;
 }
 

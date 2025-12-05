@@ -6,13 +6,16 @@ const fileMetaEl = document.getElementById("fileMeta");
 const fileDimsEl = document.getElementById("fileDims");
 const statusEl = document.getElementById("status");
 const errorBanner = document.getElementById("errorBanner");
-const convertButton = document.getElementById("convertButton");
+const previewButton = document.getElementById("previewButton");
+const downloadButton = document.getElementById("downloadButton");
 const clearButton = document.getElementById("clearButton");
 const qualityInput = document.getElementById("quality");
 const qualityValueEl = document.getElementById("qualityValue");
 const formatRadios = document.querySelectorAll("input[name='format']");
 const resizeToggle = document.getElementById("resizeToggle");
 const resizeGrid = document.getElementById("resizeGrid");
+const resizeUnitRow = document.getElementById("resizeUnitRow");
+const resizeUnitRadios = document.querySelectorAll("input[name='resizeUnit']");
 const resizeWidth = document.getElementById("resizeWidth");
 const resizeHeight = document.getElementById("resizeHeight");
 const lockRatio = document.getElementById("lockRatio");
@@ -28,6 +31,15 @@ const ACCEPT_TYPES = ["image/webp", "image/png", "image/jpeg", "image/jpg"];
 
 let currentImage = null; // { file, width, height, objectUrl, bitmap? }
 let outputUrl = null;
+let outputBlob = null;
+
+function invalidateOutput() {
+    revokeUrl(outputUrl);
+    outputUrl = null;
+    outputBlob = null;
+    outputImageEl.src = "";
+    outputInfoEl.textContent = "-";
+}
 
 function setStatus(message) {
     statusEl.textContent = message;
@@ -66,9 +78,8 @@ function revokeUrl(url) {
 
 function resetUI() {
     revokeUrl(currentImage?.objectUrl);
-    revokeUrl(outputUrl);
+    invalidateOutput();
     currentImage = null;
-    outputUrl = null;
     fileNameEl.textContent = "未選択";
     fileMetaEl.textContent = "WEBP / PNG / JPG のみ";
     fileDimsEl.textContent = "-";
@@ -82,9 +93,13 @@ function resetUI() {
     resizeHeight.value = "";
     lockRatio.checked = true;
     resizeGrid.setAttribute("aria-disabled", "true");
+    resizeUnitRow.setAttribute("aria-disabled", "true");
     resizeWidth.disabled = true;
     resizeHeight.disabled = true;
     lockRatio.disabled = true;
+    resizeUnitRadios.forEach(r => r.disabled = true);
+    resizeUnitRadios.forEach(r => r.checked = r.value === "px");
+    updateResizePlaceholders();
     clearError();
     setStatus("準備完了");
 }
@@ -122,22 +137,39 @@ function updateBgColorLabel() {
 
 function toggleResize(enable) {
     resizeGrid.setAttribute("aria-disabled", enable ? "false" : "true");
+    resizeUnitRow.setAttribute("aria-disabled", enable ? "false" : "true");
     resizeWidth.disabled = !enable;
     resizeHeight.disabled = !enable;
     lockRatio.disabled = !enable;
+    resizeUnitRadios.forEach(r => r.disabled = !enable);
+    if (enable) updateResizePlaceholders();
+}
+
+function updateResizePlaceholders() {
+    const unit = Array.from(resizeUnitRadios).find(r => r.checked)?.value || "px";
+    resizeWidth.placeholder = unit === "percent" ? "例: 50" : "例: 800";
+    resizeHeight.placeholder = unit === "percent" ? "例: 50" : "例: 600";
 }
 
 function handleRatioLockChange(changedInput) {
     if (!lockRatio.checked || !currentImage) return;
     const { width, height } = currentImage;
-    const baseW = Number(resizeWidth.value) || width;
-    const baseH = Number(resizeHeight.value) || height;
+    const unit = Array.from(resizeUnitRadios).find(r => r.checked)?.value || "px";
+    const toPixels = (value, base) => unit === "percent" ? base * (value / 100) : value;
+    const toUnit = (valuePx, base) => unit === "percent" ? Math.round((valuePx / base) * 100) : Math.round(valuePx);
+
+    const inputW = Number(resizeWidth.value);
+    const inputH = Number(resizeHeight.value);
     const ratio = width / height;
 
     if (changedInput === "width") {
-        resizeHeight.value = Math.round(baseW / ratio);
+        const targetWpx = inputW > 0 ? toPixels(inputW, width) : width;
+        const targetHpx = targetWpx / ratio;
+        resizeHeight.value = toUnit(targetHpx, height);
     } else if (changedInput === "height") {
-        resizeWidth.value = Math.round(baseH * ratio);
+        const targetHpx = inputH > 0 ? toPixels(inputH, height) : height;
+        const targetWpx = targetHpx * ratio;
+        resizeWidth.value = toUnit(targetWpx, width);
     }
 }
 
@@ -184,23 +216,34 @@ function computeTargetSize() {
     const ratio = origW / origH;
     const wVal = Number(resizeWidth.value);
     const hVal = Number(resizeHeight.value);
+    const unit = Array.from(resizeUnitRadios).find(r => r.checked)?.value || "px";
+
+    const toPixels = (value, base) => {
+        if (unit === "percent") {
+            return Math.round(base * (value / 100));
+        }
+        return value;
+    };
 
     if (lockRatio.checked) {
         if (wVal > 0 && !hVal) {
-            return { width: wVal, height: Math.round(wVal / ratio) };
+            const targetW = toPixels(wVal, origW);
+            return { width: targetW, height: Math.round(targetW / ratio) };
         }
         if (hVal > 0 && !wVal) {
-            return { width: Math.round(hVal * ratio), height: hVal };
+            const targetH = toPixels(hVal, origH);
+            return { width: Math.round(targetH * ratio), height: targetH };
         }
         if (wVal > 0 && hVal > 0) {
-            return { width: wVal, height: Math.round(wVal / ratio) };
+            const targetW = toPixels(wVal, origW);
+            return { width: targetW, height: Math.round(targetW / ratio) };
         }
         return { width: origW, height: origH };
     }
 
     return {
-        width: wVal > 0 ? wVal : origW,
-        height: hVal > 0 ? hVal : origH,
+        width: wVal > 0 ? toPixels(wVal, origW) : origW,
+        height: hVal > 0 ? toPixels(hVal, origH) : origH,
     };
 }
 
@@ -236,18 +279,18 @@ function extensionFromFormat(format) {
     return "webp";
 }
 
-async function convertImage() {
+async function generateOutput() {
     clearError();
     if (!currentImage) {
         showError("まず画像を選択してください。");
-        return;
+        return null;
     }
 
     const format = getSelectedFormat();
     const size = computeTargetSize();
     if (!size || size.width <= 0 || size.height <= 0) {
         showError("リサイズ値が正しくありません。");
-        return;
+        return null;
     }
 
     setStatus("変換中...");
@@ -256,7 +299,7 @@ async function convertImage() {
     if (!canvas) {
         showError("描画に失敗しました。");
         setStatus("失敗");
-        return;
+        return null;
     }
 
     const quality = qualityValue(format);
@@ -268,14 +311,33 @@ async function convertImage() {
     if (!blob) {
         showError("出力の生成に失敗しました。");
         setStatus("失敗");
-        return;
+        return null;
     }
 
     revokeUrl(outputUrl);
     outputUrl = URL.createObjectURL(blob);
+    outputBlob = blob;
     outputImageEl.src = outputUrl;
     outputInfoEl.textContent = `${formatDims(size.width, size.height)} | ${formatBytes(blob.size)}`;
+    setStatus("プレビュー生成完了");
+    return { blob, format, size };
+}
 
+async function handlePreview() {
+    await generateOutput();
+}
+
+async function handleDownload() {
+    let result = null;
+    if (!outputBlob) {
+        result = await generateOutput();
+    } else {
+        result = { blob: outputBlob, format: getSelectedFormat(), size: computeTargetSize() };
+    }
+    if (!result) return;
+
+    const { blob } = result;
+    const format = getSelectedFormat();
     const baseName = (fileBaseNameInput.value || basenameWithoutExt(currentImage.name)).trim() || "converted-image";
     const ext = extensionFromFormat(format);
     const filename = `${baseName}.${ext}`;
@@ -284,8 +346,7 @@ async function convertImage() {
     a.href = outputUrl;
     a.download = filename;
     a.click();
-
-    setStatus("変換完了");
+    setStatus("ダウンロード完了");
 }
 
 // Event bindings
@@ -317,10 +378,14 @@ dropZone.addEventListener("drop", event => {
     });
 });
 
-formatRadios.forEach(radio => radio.addEventListener("change", updateQualityHint));
+formatRadios.forEach(radio => radio.addEventListener("change", () => {
+    updateQualityHint();
+    invalidateOutput();
+}));
 
 qualityInput.addEventListener("input", () => {
-    qualityValueEl.textContent = `${qualityInput.value}%`;
+    updateQualityHint();
+    invalidateOutput();
 });
 
 resizeToggle.addEventListener("change", () => {
@@ -330,15 +395,22 @@ resizeToggle.addEventListener("change", () => {
         resizeWidth.value = "";
         resizeHeight.value = "";
     }
+    invalidateOutput();
 });
 
-resizeWidth.addEventListener("input", () => handleRatioLockChange("width"));
-resizeHeight.addEventListener("input", () => handleRatioLockChange("height"));
-lockRatio.addEventListener("change", () => handleRatioLockChange("lock"));
+resizeUnitRadios.forEach(radio => radio.addEventListener("change", () => {
+    updateResizePlaceholders();
+    invalidateOutput();
+}));
 
-bgColorInput.addEventListener("input", updateBgColorLabel);
+resizeWidth.addEventListener("input", () => { handleRatioLockChange("width"); invalidateOutput(); });
+resizeHeight.addEventListener("input", () => { handleRatioLockChange("height"); invalidateOutput(); });
+lockRatio.addEventListener("change", () => { handleRatioLockChange("lock"); invalidateOutput(); });
 
-convertButton.addEventListener("click", convertImage);
+bgColorInput.addEventListener("input", () => { updateBgColorLabel(); invalidateOutput(); });
+
+previewButton.addEventListener("click", handlePreview);
+downloadButton.addEventListener("click", handleDownload);
 clearButton.addEventListener("click", resetUI);
 
 updateQualityHint();
