@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>透過PNGメーカー</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Image Utility</span>
+            <h1>透過PNGメーカー</h1>
+            <p class="lede">画像をドロップまたは選択して、クリックした色をしきい値付きで一括透過し、PNGとして保存します。</p>
+            <div class="steps">
+                <span class="step-pill">1. 画像を追加</span>
+                <span class="step-pill">2. キャンバスをクリック</span>
+                <span class="step-pill">3. PNGをダウンロード</span>
+            </div>
+        </header>
+
+        <div class="card">
+            <div class="layout">
+                <section class="upload-panel">
+                    <div class="section-heading">
+                        <span class="section-label">画像の読み込み</span>
+                        <p class="hint">PNG / JPG / WebP などに対応。透過したい色をキャンバス上でクリックしてください。</p>
+                    </div>
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-inner">
+                            <p class="primary">ここに画像をドロップ</p>
+                            <p class="secondary">または</p>
+                            <button class="ghost-button" type="button" id="fileSelect">ファイルを選ぶ</button>
+                            <input type="file" id="fileInput" accept="image/*" hidden>
+                            <p class="file-name" id="fileName">ファイル未選択</p>
+                        </div>
+                    </div>
+
+                    <div class="control-stack">
+                        <label class="control">
+                            <div class="label-row">
+                                <span>しきい値</span>
+                                <span class="muted">近い色をまとめて透過</span>
+                            </div>
+                            <input type="range" id="threshold" min="0" max="100" value="10">
+                            <div class="control-meta">
+                                <span class="range-value" id="thresholdValue">10</span>
+                                <span class="range-hint">値が大きいほど広い範囲を透過</span>
+                            </div>
+                        </label>
+
+                        <div class="color-readout">
+                            <div class="chip" id="selectedColor"></div>
+                            <div>
+                                <div class="label-row">
+                                    <span>選択色</span>
+                                    <span class="muted">キャンバスをクリック</span>
+                                </div>
+                                <div class="readout-value" id="selectedColorLabel">未選択</div>
+                            </div>
+                        </div>
+
+                        <div class="status-box">
+                            <span class="status-dot" id="statusDot"></span>
+                            <span id="statusLabel">画像を読み込んでください。</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="preview-panel">
+                    <div class="canvas-header">
+                        <div>
+                            <span class="section-label">プレビュー</span>
+                            <p class="hint" id="helperText">読み込んだ画像がここに表示されます。</p>
+                        </div>
+                        <div class="button-row">
+                            <button class="ghost-button" type="button" id="resetBtn" disabled>リセット</button>
+                            <button class="pill-button" type="button" id="downloadBtn" disabled>透過PNGをダウンロード</button>
+                        </div>
+                    </div>
+                    <div class="canvas-frame">
+                        <div class="checkerboard"></div>
+                        <canvas id="canvas" aria-label="透過プレビューキャンバス"></canvas>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
