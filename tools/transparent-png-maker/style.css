@@ -62,6 +62,7 @@ body {
     display: grid;
     grid-template-columns: 0.9fr 1.1fr;
     gap: var(--space-4);
+    align-items: stretch;
 }
 
 .section-heading {
@@ -235,6 +236,8 @@ input[type="range"] {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+    height: 100%;
+    min-height: 0;
 }
 
 .canvas-header {
@@ -288,6 +291,7 @@ input[type="range"] {
     background: #0d1525;
     overflow: hidden;
     min-height: 260px;
+    flex: 1;
 }
 
 .checkerboard {
