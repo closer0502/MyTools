@@ -84,13 +84,17 @@
                 </div>
 
                 <div class="option">
-                    <div class="option-header">
-                        <span class="option-label">透過の背景色</span>
-                        <span class="option-hint">JPG 変換時などに使用</span>
+                    <div class="option-header option-header--stack">
+                        <span class="option-label">非透過時の背景色</span>
+                        <span class="option-hint">透過部分に色を敷きたいときに使います（JPG/PNG/WEBP対応）</span>
                     </div>
-                    <div class="color-row">
+                    <div class="color-row color-row--stack">
                         <input type="color" id="bgColor" value="#0b1220">
                         <span class="mono" id="bgColorValue">#0b1220</span>
+                        <label class="apply-bg">
+                            <input type="checkbox" id="applyBgToggle">
+                            <span>非透過PNGにする</span>
+                        </label>
                     </div>
                 </div>
 

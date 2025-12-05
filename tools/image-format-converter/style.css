@@ -299,6 +299,11 @@ body {
     gap: 12px;
 }
 
+.color-row--stack {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
 .color-row input[type="color"] {
     width: 48px;
     height: 36px;
@@ -306,6 +311,14 @@ body {
     border-radius: 10px;
     background: transparent;
     padding: 0;
+}
+
+.apply-bg {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
 }
 
 input[type="text"] {

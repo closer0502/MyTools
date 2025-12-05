@@ -21,6 +21,7 @@ const resizeHeight = document.getElementById("resizeHeight");
 const lockRatio = document.getElementById("lockRatio");
 const bgColorInput = document.getElementById("bgColor");
 const bgColorValue = document.getElementById("bgColorValue");
+const applyBgToggle = document.getElementById("applyBgToggle");
 const fileBaseNameInput = document.getElementById("fileBaseName");
 const inputImageEl = document.getElementById("inputImage");
 const outputImageEl = document.getElementById("outputImage");
@@ -129,6 +130,14 @@ function updateQualityHint() {
     const isLossy = format === "image/jpeg" || format === "image/webp";
     qualityInput.disabled = !isLossy;
     qualityValueEl.textContent = `${qualityInput.value}%` + (isLossy ? "" : " (非適用)");
+
+    // JPEGは必ず背景を適用。PNG/WEBPはユーザー設定に任せるが、切り替え時の状態を自然にする。
+    if (format === "image/jpeg") {
+        applyBgToggle.checked = true;
+        applyBgToggle.disabled = true;
+    } else {
+        applyBgToggle.disabled = false;
+    }
 }
 
 function updateBgColorLabel() {
@@ -201,6 +210,7 @@ async function handleFile(file) {
         inputImageEl.src = loaded.objectUrl;
         inputInfoEl.textContent = `${formatDims(loaded.width, loaded.height)} | ${file.type || ""}`;
         setStatus("読み込み完了");
+        updateQualityHint();
     } catch (err) {
         console.error(err);
         showError("画像の読み込みに失敗しました。");
@@ -254,7 +264,8 @@ function canvasFromSource(targetSize) {
     const ctx = canvas.getContext("2d");
 
     const format = getSelectedFormat();
-    if (format === "image/jpeg") {
+    const shouldApplyBg = applyBgToggle.checked || format === "image/jpeg";
+    if (shouldApplyBg) {
         ctx.fillStyle = bgColorInput.value;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     } else {
@@ -408,6 +419,7 @@ resizeHeight.addEventListener("input", () => { handleRatioLockChange("height"); 
 lockRatio.addEventListener("change", () => { handleRatioLockChange("lock"); invalidateOutput(); });
 
 bgColorInput.addEventListener("input", () => { updateBgColorLabel(); invalidateOutput(); });
+applyBgToggle.addEventListener("change", invalidateOutput);
 
 previewButton.addEventListener("click", handlePreview);
 downloadButton.addEventListener("click", handleDownload);
