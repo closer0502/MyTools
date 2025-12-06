@@ -34,7 +34,8 @@
                             <label><input type="radio" name="newline" value="lf">LF</label>
                             <label><input type="radio" name="newline" value="crlf">CRLF</label>
                         </div>
-                        <input type="file" id="fileInput" accept=".txt,.csv,.log,.md" />
+                        <input type="file" id="fileInput" accept=".txt,.csv,.log,.md" hidden />
+                        <button class="pill-btn" id="fileButton" type="button">ファイル選択</button>
                         <button class="pill-btn" id="clearBtn" type="button">クリア</button>
                     </div>
 
@@ -66,6 +67,7 @@
                     </div>
                 </div>
                 <p class="small" id="decodedEncodingLabel">エンコード: -</p>
+                <p class="small" id="decodedNewlineLabel">改行: -</p>
                 <div class="output-area" id="decodedOutput"></div>
             </div>
         </div>

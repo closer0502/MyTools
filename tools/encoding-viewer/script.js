@@ -16,6 +16,8 @@ const copyHexBtn = document.getElementById('copyHex');
 const downloadHexBtn = document.getElementById('downloadHex');
 const newlineRadios = document.querySelectorAll('input[name="newline"]');
 const decodedEncodingLabel = document.getElementById('decodedEncodingLabel');
+const decodedNewlineLabel = document.getElementById('decodedNewlineLabel');
+const fileButton = document.getElementById('fileButton');
 
 let lastArrayBuffer = new ArrayBuffer(0);
 let lastEncoding = 'auto';
@@ -129,6 +131,24 @@ function mapForEncodingJs(name = '') {
     return name;
 }
 
+function detectNewlineStyle(text = '') {
+    if (!text) return '-';
+    const hasCRLF = /\r\n/.test(text);
+    const hasCR = /\r(?!\n)/.test(text);
+    const hasLF = /\n/.test(text);
+    if (hasCRLF) return 'CRLF (\\r\\n)';
+    if (hasCR) return 'CR (\\r)';
+    if (hasLF) return 'LF (\\n)';
+    return 'なし';
+}
+
+function newlineModeLabel(mode, originalText) {
+    if (mode === 'lf') return 'LF (\\n)';
+    if (mode === 'crlf') return 'CRLF (\\r\\n)';
+    // 保持の場合は実際に検出した改行種別を表示
+    return detectNewlineStyle(originalText);
+}
+
 function updateMeta(info, buffer, bom) {
     detectedEncoding.textContent = info.display || info.name;
     confidenceEl.textContent = info.confidence ? `${info.confidence}%` : '-';
@@ -152,6 +172,7 @@ function handleBuffer(buffer, name = 'output') {
     lastText = normalized;
     decodedOutput.textContent = normalized;
     decodedEncodingLabel.textContent = `エンコード: ${selected === 'auto' ? (detected.display || detected.name) : selected}`;
+    decodedNewlineLabel.textContent = `改行: ${newlineModeLabel(newlineMode, decoded)}`;
 
     // Mirror decoded text into the textarea without triggering a new decode
     skipNextTextInput = true;
@@ -203,6 +224,8 @@ fileInput.addEventListener('change', (e) => {
     if (file) readFile(file);
 });
 
+fileButton.addEventListener('click', () => fileInput.click());
+
 dropzone.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropzone.classList.add('dragover');
@@ -226,6 +249,8 @@ clearBtn.addEventListener('click', () => {
     bomInfo.textContent = '-';
     byteLengthEl.textContent = '0';
     lineCountEl.textContent = '0';
+    decodedEncodingLabel.textContent = 'エンコード: -';
+    decodedNewlineLabel.textContent = '改行: -';
     lastArrayBuffer = new ArrayBuffer(0);
     lastHexFull = '';
     lastText = '';
