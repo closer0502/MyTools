@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ピッチシフター (再生速度維持)</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Pitch</span>
+            <h1>ピッチシフター</h1>
+            <p>再生速度はそのままに、ピッチのみを ±24 半音まで滑らかに変更します。ローカル音声ファイルをドラッグ＆ドロップまたは選択して利用できます。</p>
+        </header>
+
+        <div class="uploader card" id="dropzone">
+            <div class="uploader-inner">
+                <div>
+                    <p class="small muted">対応: audio/* (mp3, wav, m4a など)</p>
+                    <h2>ここにファイルをドロップ</h2>
+                    <p>または</p>
+                    <button id="fileButton" type="button" class="pill-btn">ファイルを選択</button>
+                    <input id="fileInput" type="file" accept="audio/*" hidden>
+                </div>
+                <div class="tip">ドラッグ中は縁が光ります</div>
+            </div>
+        </div>
+
+        <div class="card controls" aria-live="polite">
+            <div class="now-playing">
+                <div class="file-name" id="fileName">ファイル未読み込み</div>
+                <div class="time">
+                    <span id="currentTime">0:00</span>
+                    <span class="muted">/</span>
+                    <span id="totalTime">0:00</span>
+                </div>
+            </div>
+            <div class="control-row">
+                <button id="playBtn" class="pill-btn" type="button" disabled>再生</button>
+                <button id="resetBtn" class="ghost-btn" type="button" disabled>リセット</button>
+                <label class="slider-label" for="pitchRange">ピッチ (±24 半音)</label>
+                <input type="range" id="pitchRange" min="-24" max="24" step="0.1" value="0" disabled>
+                <div class="pitch-readout"><span id="pitchValue">0.0</span> st</div>
+            </div>
+        </div>
+
+        <div class="card waveform-card">
+            <div class="wave-header">
+                <div class="section-title"><span class="badge">波形</span> 簡易プログレス</div>
+                <div class="hint muted">クリック / ドラッグでシーク</div>
+            </div>
+            <div class="wave-wrapper" id="waveWrapper">
+                <canvas id="waveCanvas" height="120"></canvas>
+                <div class="progress-overlay">
+                    <div class="progress-fill" id="progressFill"></div>
+                    <div class="progress-thumb" id="progressThumb"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card tips">
+            <h3>使い方メモ</h3>
+            <ul>
+                <li>再生速度は常に 1.0、ピッチのみを変更します。</li>
+                <li>ピッチを元に戻すには「リセット」かスライダー中央をダブルクリック。</li>
+                <li>シーク後に再生ボタンでその位置から再開します。</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
