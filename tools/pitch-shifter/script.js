@@ -4,6 +4,9 @@ let audioBuffer = null;
 let playing = false;
 let waveformData = [];
 let PitchShifterCtor = null;
+let soundtouchLib = null;
+let lameLib = null;
+let isExporting = false;
 
 const fileInput = document.getElementById('fileInput');
 const fileButton = document.getElementById('fileButton');
@@ -21,6 +24,10 @@ const waveCanvas = document.getElementById('waveCanvas');
 const waveWrapper = document.getElementById('waveWrapper');
 const progressFill = document.getElementById('progressFill');
 const progressThumb = document.getElementById('progressThumb');
+const exportDownloadBtn = document.getElementById('exportDownload');
+const exportStatus = document.getElementById('exportStatus');
+
+let inputFormat = null; // 'wav' or 'mp3'
 
 fileButton.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', evt => {
@@ -47,11 +54,13 @@ dropzone.addEventListener('drop', e => {
 });
 
 playBtn.addEventListener('click', () => {
+    if (isExporting) return;
     if (!shifter) return;
     playing ? pause() : play();
 });
 
 resetBtn.addEventListener('click', () => {
+    if (isExporting) return;
     if (!shifter) return;
     pause();
     shifter.percentagePlayed = 0;
@@ -74,6 +83,8 @@ pitchRange.addEventListener('dblclick', () => {
 minusBtn.addEventListener('click', () => nudgePitch(-0.1));
 plusBtn.addEventListener('click', () => nudgePitch(0.1));
 
+exportDownloadBtn.addEventListener('click', () => handleExport());
+
 waveWrapper.addEventListener('pointerdown', onSeekStart);
 
 window.addEventListener('resize', () => {
@@ -91,9 +102,10 @@ function ensureContext() {
 }
 
 async function ensureLibrary() {
-    if (PitchShifterCtor) return;
+    if (PitchShifterCtor && soundtouchLib) return;
     const mod = await import('https://cdn.jsdelivr.net/npm/soundtouchjs@0.2.1/dist/soundtouch.min.js');
     PitchShifterCtor = mod.PitchShifter;
+    soundtouchLib = mod;
     if (!PitchShifterCtor) throw new Error('SoundTouchJS が読み込めませんでした。');
 }
 
@@ -105,12 +117,25 @@ function loadFile(file) {
             await ensureLibrary();
             const arrayBuffer = reader.result;
             const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+            inputFormat = detectFormat(file);
+            if (!inputFormat) {
+                alert('WAV または MP3 のみ対応しています。');
+                return;
+            }
             setupShifter(decoded, file.name);
         } catch (err) {
             alert('音声の読み込みに失敗しました: ' + err.message);
         }
     };
     reader.readAsArrayBuffer(file);
+}
+
+function detectFormat(file) {
+    const type = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+    if (type.includes('wav') || name.endsWith('.wav')) return 'wav';
+    if (type.includes('mpeg') || type.includes('mp3') || name.endsWith('.mp3')) return 'mp3';
+    return null;
 }
 
 function setupShifter(buffer, name) {
@@ -137,6 +162,8 @@ function setupShifter(buffer, name) {
     pitchValue.textContent = '0.0';
     playing = false;
     playBtn.textContent = '再生';
+    setExportStatus('未処理');
+    updateExportAvailability();
 }
 
 function play() {
@@ -178,6 +205,7 @@ function updateProgress(percent) {
 }
 
 function onSeekStart(e) {
+    if (isExporting) return;
     if (!shifter || !audioBuffer) return;
     const rect = waveWrapper.getBoundingClientRect();
     const move = evt => {
@@ -238,15 +266,202 @@ function drawWaveform(buffer) {
 }
 
 function enableControls() {
+    if (isExporting) return;
     playBtn.disabled = false;
     resetBtn.disabled = false;
     pitchRange.disabled = false;
     minusBtn.disabled = false;
     plusBtn.disabled = false;
+    updateExportAvailability();
 }
 
 function formatTime(sec) {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
+}
+
+function updateExportAvailability() {
+    const ready = Boolean(audioBuffer);
+    exportDownloadBtn.disabled = !ready;
+}
+
+function setExporting(state) {
+    isExporting = state;
+    document.body.classList.toggle('exporting', state);
+
+    const disabled = state || !audioBuffer;
+    playBtn.disabled = disabled;
+    resetBtn.disabled = disabled;
+    pitchRange.disabled = disabled;
+    minusBtn.disabled = disabled;
+    plusBtn.disabled = disabled;
+    fileButton.disabled = state; // 防止: 書き出し中の別ファイル投入
+    exportDownloadBtn.disabled = disabled;
+}
+
+async function handleExport() {
+    if (!audioBuffer) {
+        alert('先に音声ファイルを読み込んでください。');
+        return;
+    }
+    if (!inputFormat) {
+        alert('入力形式の判定に失敗しました。');
+        return;
+    }
+    pause(); // 再生中なら止める
+    setExporting(true);
+    setExportStatus(`書き出し中... (${inputFormat.toUpperCase()})`);
+    try {
+        if (inputFormat === 'wav') {
+            const data = await renderProcessed();
+            const blob = encodeWav(data);
+            downloadBlob(blob, `pitch-shifted.wav`);
+            setExportStatus('WAV ダウンロード完了');
+        } else if (inputFormat === 'mp3') {
+            await ensureLame();
+            const data = await renderProcessed();
+            const blob = encodeMp3(data);
+            downloadBlob(blob, `pitch-shifted.mp3`);
+            setExportStatus('MP3 ダウンロード完了');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('書き出しに失敗しました: ' + err.message);
+        setExportStatus('エラーが発生しました');
+    } finally {
+        setExporting(false);
+    }
+}
+
+function setExportStatus(text) {
+    exportStatus.textContent = text;
+}
+
+async function ensureLame() {
+    if (lameLib) return;
+    await loadScript('https://cdn.jsdelivr.net/npm/lamejs@1.2.0/lame.min.js');
+    lameLib = window.lamejs;
+    if (!lameLib) throw new Error('lamejs の読み込みに失敗しました');
+}
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Script load error'));
+        document.head.appendChild(s);
+    });
+}
+
+function floatTo16BitPCM(float32Array) {
+    const output = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        output[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return output;
+}
+
+function interleave(left, right) {
+    const length = Math.min(left.length, right.length);
+    const interleaved = new Float32Array(length * 2);
+    for (let i = 0; i < length; i++) {
+        interleaved[2 * i] = left[i];
+        interleaved[2 * i + 1] = right[i];
+    }
+    return interleaved;
+}
+
+function encodeWav({ left, right, sampleRate }) {
+    const interleaved = interleave(left, right);
+    const buffer = new ArrayBuffer(44 + interleaved.length * 2);
+    const view = new DataView(buffer);
+
+    // RIFF identifier
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + interleaved.length * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // PCM
+    view.setUint16(20, 1, true);  // linear PCM
+    view.setUint16(22, 2, true);  // channels
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 4, true); // byte rate
+    view.setUint16(32, 4, true); // block align
+    view.setUint16(34, 16, true); // bits per sample
+    writeString(view, 36, 'data');
+    view.setUint32(40, interleaved.length * 2, true);
+
+    const pcm = floatTo16BitPCM(interleaved);
+    for (let i = 0; i < pcm.length; i++) {
+        view.setInt16(44 + i * 2, pcm[i], true);
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
+function encodeMp3({ left, right, sampleRate }) {
+    const samplesLeft = floatTo16BitPCM(left);
+    const samplesRight = floatTo16BitPCM(right);
+    const encoder = new lameLib.Mp3Encoder(2, sampleRate, 192);
+    const mp3Data = [];
+    const block = 1152;
+    for (let i = 0; i < samplesLeft.length; i += block) {
+        const sliceL = samplesLeft.subarray(i, i + block);
+        const sliceR = samplesRight.subarray(i, i + block);
+        const buf = encoder.encodeBuffer(sliceL, sliceR);
+        if (buf.length) mp3Data.push(buf);
+    }
+    const end = encoder.flush();
+    if (end.length) mp3Data.push(end);
+    return new Blob(mp3Data, { type: 'audio/mpeg' });
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+async function renderProcessed() {
+    await ensureLibrary();
+    const { SoundTouch, SimpleFilter, WebAudioBufferSource } = soundtouchLib;
+    const st = new SoundTouch();
+    st.pitchSemitones = parseFloat(pitchValue.textContent);
+    st.rate = 1;
+    st.tempo = 1;
+    if (st.stretch && typeof st.stretch.setParameters === 'function') {
+        st.stretch.setParameters(audioBuffer.sampleRate, 0, 0, 8);
+    }
+
+    const source = new WebAudioBufferSource(audioBuffer);
+    const filter = new SimpleFilter(source, st);
+
+    const chunk = 4096;
+    const temp = new Float32Array(chunk * 2);
+    const left = [];
+    const right = [];
+    let frames;
+    while ((frames = filter.extract(temp, chunk)) > 0) {
+        for (let i = 0; i < frames; i++) {
+            left.push(temp[2 * i]);
+            right.push(temp[2 * i + 1]);
+        }
+    }
+    return {
+        left: new Float32Array(left),
+        right: new Float32Array(right),
+        sampleRate: audioBuffer.sampleRate
+    };
 }

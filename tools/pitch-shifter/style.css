@@ -185,6 +185,10 @@ input[type="range"] {
     font-variant-numeric: tabular-nums;
 }
 
+.export-card {
+    margin-bottom: var(--space-3);
+}
+
 .waveform-card {
     margin-bottom: var(--space-3);
 }
@@ -194,6 +198,59 @@ input[type="range"] {
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--space-2);
+}
+
+.export-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.export-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.export-status {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 0.01em;
+}
+
+@keyframes export-pulse {
+    0% { opacity: 0.6; transform: scale(0.98); text-shadow: 0 0 10px rgba(56,189,248,0.35); }
+    50% { opacity: 1; transform: scale(1); text-shadow: 0 0 18px rgba(56,189,248,0.55); }
+    100% { opacity: 0.7; transform: scale(0.99); text-shadow: 0 0 12px rgba(34,211,238,0.45); }
+}
+
+/* エクスポート中は全体をロックして誤操作を防ぐ */
+.exporting .pill-btn,
+.exporting .ghost-btn,
+.exporting .icon-btn,
+.exporting input[type="range"] {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.exporting .wave-wrapper,
+.exporting #dropzone {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.exporting .export-status {
+    color: var(--accent-strong);
+    animation: export-pulse 1s ease-in-out infinite;
+}
+
+.exporting .export-card {
+    border-color: rgba(34, 211, 238, 0.7);
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.4), 0 12px 36px rgba(34, 211, 238, 0.18);
 }
 
 .wave-wrapper {
@@ -287,6 +344,11 @@ input[type="range"] {
     }
 
     .now-playing {
+        align-items: flex-start;
+    }
+
+    .export-header {
+        flex-direction: column;
         align-items: flex-start;
     }
 }
