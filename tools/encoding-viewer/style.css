@@ -1,0 +1,249 @@
+@import "../../style.css";
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+}
+
+.app {
+    max-width: 1080px;
+    margin: 48px auto;
+    padding: 0 var(--space-3) var(--space-5);
+}
+
+.header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: var(--space-4);
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 30px;
+    letter-spacing: 0.01em;
+}
+
+.header p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.panel-grid {
+    display: grid;
+    gap: var(--space-3);
+    grid-template-columns: 1.1fr 0.9fr;
+}
+
+.card {
+    background: linear-gradient(140deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: var(--space-3);
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 var(--space-2);
+    font-size: 16px;
+    letter-spacing: 0.01em;
+}
+
+.section-title .badge {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+textarea {
+    width: 100%;
+    min-height: 240px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    resize: vertical;
+    font-size: 15px;
+    line-height: 1.5;
+    font-family: var(--font-mono);
+    background: var(--bg-alt);
+    color: var(--text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: rgba(56, 189, 248, 0.7);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    background: #0e192c;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+select, input[type="file"], .pill-btn {
+    background: var(--bg-alt);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+}
+
+select:focus, input[type="file"]:focus {
+    outline: none;
+    border-color: rgba(56, 189, 248, 0.7);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+.pill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(34, 211, 238, 0.26));
+    border: 1px solid rgba(56, 189, 248, 0.55);
+    color: #e6faff;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    text-decoration: none;
+}
+
+.pill-btn:hover {
+    transform: translateY(-1px);
+    border-color: rgba(34, 211, 238, 0.8);
+    box-shadow: 0 8px 24px rgba(34, 211, 238, 0.24);
+}
+
+.dropzone {
+    border: 1px dashed rgba(56, 189, 248, 0.6);
+    border-radius: var(--radius);
+    padding: var(--space-3);
+    text-align: center;
+    color: var(--muted);
+    background: rgba(56, 189, 248, 0.05);
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.dropzone.dragover {
+    border-color: rgba(34, 211, 238, 0.9);
+    background: rgba(34, 211, 238, 0.08);
+    color: var(--text);
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.meta-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-2);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.meta-label {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.meta-value {
+    font-weight: 700;
+}
+
+.output-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.output-area {
+    background: var(--bg-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-2);
+    font-family: var(--font-mono);
+    white-space: pre-wrap;
+    max-height: 320px;
+    overflow: auto;
+}
+
+.output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--muted);
+}
+
+.toggle-group {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.toggle-group label {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.bytes-area {
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre;
+}
+
+.small {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+@media (max-width: 900px) {
+    .panel-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .app {
+        margin: 32px 0;
+        padding: 0 var(--space-3) var(--space-4);
+    }
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    select, input[type="file"], .pill-btn {
+        width: 100%;
+    }
+}

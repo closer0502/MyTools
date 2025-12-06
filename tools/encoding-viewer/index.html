@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文字コードビューア</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Encoding</span>
+            <h1>文字コードビューア</h1>
+            <p>UTF-8 / Shift_JIS / EUC-JP / ISO-2022-JP / Windows-31J を自動判別・変換して表示。BOM確認や改行変換、コピー & ダウンロードにも対応。</p>
+        </header>
+
+        <div class="panel-grid">
+            <div class="card">
+                <h2 class="section-title"><span class="badge">入力</span> テキスト / ファイル</h2>
+                <div class="input-wrap">
+                    <div class="controls">
+                        <label class="small" for="encodingSelect">エンコード指定</label>
+                        <select id="encodingSelect">
+                            <option value="auto">自動判別</option>
+                            <option value="UTF-8">UTF-8</option>
+                            <option value="Shift_JIS">Shift_JIS</option>
+                            <option value="EUC-JP">EUC-JP</option>
+                            <option value="ISO-2022-JP">ISO-2022-JP</option>
+                            <option value="Windows-31J">Windows-31J</option>
+                        </select>
+                        <div class="toggle-group" aria-label="改行コード">
+                            <span class="small">改行</span>
+                            <label><input type="radio" name="newline" value="keep" checked>保持</label>
+                            <label><input type="radio" name="newline" value="lf">LF</label>
+                            <label><input type="radio" name="newline" value="crlf">CRLF</label>
+                        </div>
+                        <input type="file" id="fileInput" accept=".txt,.csv,.log,.md" />
+                        <button class="pill-btn" id="clearBtn" type="button">クリア</button>
+                    </div>
+
+                    <textarea id="textInput" placeholder="テキストを貼り付けるか、上でファイルを選択 / 下のドロップ領域にドラッグ & ドロップしてください"></textarea>
+
+                    <div class="dropzone" id="dropzone">ここに .txt / .csv をドラッグ & ドロップ</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="section-title"><span class="badge">情報</span> 検出メタデータ</h2>
+                <div class="meta-grid">
+                    <div class="meta-item"><span class="meta-label">判定結果</span><span class="meta-value" id="detectedEncoding">-</span></div>
+                    <div class="meta-item"><span class="meta-label">信頼度</span><span class="meta-value" id="confidence">-</span></div>
+                    <div class="meta-item"><span class="meta-label">BOM</span><span class="meta-value" id="bomInfo">-</span></div>
+                    <div class="meta-item"><span class="meta-label">バイト長</span><span class="meta-value" id="byteLength">0</span></div>
+                    <div class="meta-item"><span class="meta-label">行数</span><span class="meta-value" id="lineCount">0</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-3);">
+            <div class="output-stack">
+                <div class="output-header">
+                    <div class="section-title" style="margin:0"><span class="badge">テキスト</span> デコード結果</div>
+                    <div class="controls" style="gap:10px;">
+                        <button class="pill-btn" id="copyText" type="button">コピー</button>
+                        <button class="pill-btn" id="downloadText" type="button">TXT保存</button>
+                    </div>
+                </div>
+                <div class="output-area" id="decodedOutput"></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: var(--space-3);">
+            <div class="output-stack">
+                <div class="output-header">
+                    <div class="section-title" style="margin:0"><span class="badge">Bytes</span> 生バイト / Hex</div>
+                    <div class="controls" style="gap:10px;">
+                        <button class="pill-btn" id="copyHex" type="button">Hexコピー</button>
+                        <button class="pill-btn" id="downloadHex" type="button">Hex保存</button>
+                    </div>
+                </div>
+                <div class="output-area bytes-area" id="hexOutput"></div>
+                <p class="small">先頭から最大64KBまで表示。ファイル全体は保存で取得できます。</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="encoding.min.js"></script>
+    <script src="jschardet.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
