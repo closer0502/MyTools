@@ -158,7 +158,7 @@ function updateMeta(info, buffer, bom) {
     lineCountEl.textContent = text ? text.split(/\n/).length : 0;
 }
 
-function handleBuffer(buffer, name = 'output') {
+function handleBuffer(buffer, name = 'output', mirrorToInput = true) {
     lastArrayBuffer = buffer;
     lastFileName = name.replace(/\.[^.]+$/, '') || 'output';
     const selected = encodingSelect.value;
@@ -174,9 +174,11 @@ function handleBuffer(buffer, name = 'output') {
     decodedEncodingLabel.textContent = `エンコード: ${selected === 'auto' ? (detected.display || detected.name) : selected}`;
     decodedNewlineLabel.textContent = `改行: ${newlineModeLabel(newlineMode, decoded)}`;
 
-    // Mirror decoded text into the textarea without triggering a new decode
-    skipNextTextInput = true;
-    textInput.value = normalized;
+    if (mirrorToInput) {
+        // Mirror decoded text into the textarea without triggering a new decode
+        skipNextTextInput = true;
+        textInput.value = normalized;
+    }
 
     updateMeta(detected, buffer, bom);
     const hex = bufferToHexPreview(buffer);
@@ -188,12 +190,12 @@ function handleTextInput(text) {
     // For pasted text, we assume UTF-8 input because raw bytes are unavailable.
     const encoder = new TextEncoder();
     const buffer = encoder.encode(text).buffer;
-    handleBuffer(buffer, 'pasted');
+    handleBuffer(buffer, 'pasted', false);
 }
 
 function readFile(file) {
     const reader = new FileReader();
-    reader.onload = () => handleBuffer(reader.result, file.name);
+    reader.onload = () => handleBuffer(reader.result, file.name, true);
     reader.onerror = () => alert('ファイル読み込みに失敗しました');
     reader.readAsArrayBuffer(file);
 }
@@ -207,15 +209,24 @@ textInput.addEventListener('input', (e) => {
     handleTextInput(textInput.value);
 });
 
+// IME確定（Enter含む）時に確実にデコードを走らせる
+textInput.addEventListener('compositionend', () => {
+    if (skipNextTextInput) {
+        skipNextTextInput = false;
+        return;
+    }
+    handleTextInput(textInput.value);
+});
+
 encodingSelect.addEventListener('change', () => {
     if (lastArrayBuffer.byteLength) {
-        handleBuffer(lastArrayBuffer, lastFileName);
+        handleBuffer(lastArrayBuffer, lastFileName, true);
     }
 });
 
 newlineRadios.forEach(radio => radio.addEventListener('change', () => {
     if (lastArrayBuffer.byteLength) {
-        handleBuffer(lastArrayBuffer, lastFileName);
+        handleBuffer(lastArrayBuffer, lastFileName, true);
     }
 }));
 
