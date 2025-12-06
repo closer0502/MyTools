@@ -233,6 +233,8 @@ newlineRadios.forEach(radio => radio.addEventListener('change', () => {
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     if (file) readFile(file);
+    // 同じファイルを続けて選んでも change が発火するようにリセット
+    e.target.value = '';
 });
 
 fileButton.addEventListener('click', () => fileInput.click());
