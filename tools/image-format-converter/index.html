@@ -15,14 +15,20 @@
         </header>
 
         <div class="card">
+            <div class="mode-toggle" role="group" aria-label="処理モード">
+                <button type="button" class="mode-btn is-active" data-mode="single" id="singleModeBtn">単一ファイル</button>
+                <button type="button" class="mode-btn" data-mode="batch" id="batchModeBtn">バッチ（フォルダ）</button>
+                <span class="mode-hint" id="modeHint">プレビュー付きで1枚ずつ確認</span>
+            </div>
             <div class="drop-row">
                 <div class="drop-zone" id="dropZone">
                     <div class="drop-inner">
-                        <p class="primary">ここに画像をドロップ</p>
-                        <p class="secondary">またはファイルを選択（WEBP / PNG / JPG）</p>
+                        <p class="primary" id="dropPrimary">ここに画像をドロップ</p>
+                        <p class="secondary" id="dropSecondary">またはファイルを選択（WEBP / PNG / JPG）</p>
                         <button class="ghost-button" type="button" id="fileSelect">ファイルを選択</button>
                         <input id="fileInput" type="file" accept="image/webp,image/png,image/jpeg" hidden>
-                        <p class="hint">ローカルファイルのみ対応。複数指定は先頭1枚を使用します。</p>
+                        <input id="folderInput" type="file" webkitdirectory multiple hidden>
+                        <p class="hint" id="dropHint">ローカルファイルのみ対応。複数指定は先頭1枚を使用します。</p>
                     </div>
                 </div>
                 <div class="file-info" id="fileInfo">
@@ -31,6 +37,15 @@
                     <div class="meta" id="fileMeta">WEBP / PNG / JPG のみ</div>
                     <div class="label">解像度</div>
                     <div class="value" id="fileDims">-</div>
+                </div>
+                <div class="file-info hidden" id="batchInfo">
+                    <div class="label">フォルダ</div>
+                    <div class="value" id="folderName">未選択</div>
+                    <div class="label">画像枚数</div>
+                    <div class="value" id="batchCount">0 枚</div>
+                    <div class="label">合計サイズ</div>
+                    <div class="value" id="batchSize">-</div>
+                    <div class="meta" id="batchMeta">WEBP / PNG / JPG のみを対象。サブフォルダも含めます。</div>
                 </div>
             </div>
 
@@ -98,7 +113,7 @@
                     </div>
                 </div>
 
-                <div class="option">
+                <div class="option" id="fileNameOption">
                     <div class="option-header option-header--stack">
                         <span class="option-label">出力ファイル名</span>
                         <span class="option-hint">拡張子は自動付与</span>
@@ -140,6 +155,7 @@
             </div>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
