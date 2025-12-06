@@ -15,12 +15,14 @@ const downloadTextBtn = document.getElementById('downloadText');
 const copyHexBtn = document.getElementById('copyHex');
 const downloadHexBtn = document.getElementById('downloadHex');
 const newlineRadios = document.querySelectorAll('input[name="newline"]');
+const decodedEncodingLabel = document.getElementById('decodedEncodingLabel');
 
 let lastArrayBuffer = new ArrayBuffer(0);
 let lastEncoding = 'auto';
 let lastHexFull = '';
 let lastText = '';
 let lastFileName = 'output';
+let skipNextTextInput = false; // avoid re-decoding when we programmatically set textarea
 
 function detectEncoding(buffer) {
     if (!buffer || buffer.byteLength === 0) return { name: '-', confidence: 0 };
@@ -149,6 +151,11 @@ function handleBuffer(buffer, name = 'output') {
     const normalized = convertNewlines(decoded, newlineMode);
     lastText = normalized;
     decodedOutput.textContent = normalized;
+    decodedEncodingLabel.textContent = `エンコード: ${selected === 'auto' ? (detected.display || detected.name) : selected}`;
+
+    // Mirror decoded text into the textarea without triggering a new decode
+    skipNextTextInput = true;
+    textInput.value = normalized;
 
     updateMeta(detected, buffer, bom);
     const hex = bufferToHexPreview(buffer);
@@ -172,6 +179,10 @@ function readFile(file) {
 
 textInput.addEventListener('input', (e) => {
     if (e.isComposing) return;
+    if (skipNextTextInput) {
+        skipNextTextInput = false;
+        return;
+    }
     handleTextInput(textInput.value);
 });
 
