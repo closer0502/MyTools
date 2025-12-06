@@ -143,10 +143,40 @@ body {
     color: var(--muted);
 }
 
+.slider-pack {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 240px;
+}
+
 input[type="range"] {
     accent-color: var(--accent);
     flex: 1;
-    min-width: 200px;
+    min-width: 180px;
+}
+
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-weight: 700;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.icon-btn:hover:not(:disabled) {
+    border-color: rgba(56, 189, 248, 0.7);
+    box-shadow: 0 4px 16px rgba(56, 189, 248, 0.2);
+}
+
+.icon-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .pitch-readout {
@@ -252,9 +282,8 @@ input[type="range"] {
         align-items: flex-start;
     }
 
-    input[type="range"] {
+    .slider-pack {
         width: 100%;
-        min-width: 0;
     }
 
     .now-playing {

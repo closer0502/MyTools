@@ -11,6 +11,8 @@ const dropzone = document.getElementById('dropzone');
 const playBtn = document.getElementById('playBtn');
 const resetBtn = document.getElementById('resetBtn');
 const pitchRange = document.getElementById('pitchRange');
+const minusBtn = document.getElementById('minusBtn');
+const plusBtn = document.getElementById('plusBtn');
 const pitchValue = document.getElementById('pitchValue');
 const fileNameEl = document.getElementById('fileName');
 const currentTimeEl = document.getElementById('currentTime');
@@ -68,6 +70,9 @@ pitchRange.addEventListener('dblclick', () => {
     pitchRange.value = 0;
     pitchRange.dispatchEvent(new Event('input'));
 });
+
+minusBtn.addEventListener('click', () => nudgePitch(-0.1));
+plusBtn.addEventListener('click', () => nudgePitch(0.1));
 
 waveWrapper.addEventListener('pointerdown', onSeekStart);
 
@@ -154,6 +159,18 @@ function applyPitch(semitone) {
     shifter.pitchSemitones = semitone;
 }
 
+function nudgePitch(delta) {
+    const current = parseFloat(pitchValue.textContent);
+    const next = clamp(current + delta, -24, 24);
+    pitchValue.textContent = next.toFixed(1);
+    pitchRange.value = Math.round(next); // sliderは1刻み
+    applyPitch(next);
+}
+
+function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+}
+
 function updateProgress(percent) {
     const clamped = Math.max(0, Math.min(100, percent));
     progressFill.style.width = `${clamped}%`;
@@ -224,6 +241,8 @@ function enableControls() {
     playBtn.disabled = false;
     resetBtn.disabled = false;
     pitchRange.disabled = false;
+    minusBtn.disabled = false;
+    plusBtn.disabled = false;
 }
 
 function formatTime(sec) {
