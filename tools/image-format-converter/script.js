@@ -2,6 +2,8 @@ const dropZone = document.getElementById("dropZone");
 const fileInput = document.getElementById("fileInput");
 const folderInput = document.getElementById("folderInput");
 const fileSelect = document.getElementById("fileSelect");
+const batchPicker = document.getElementById("batchPicker");
+const batchSelect = document.getElementById("batchSelect");
 const fileNameEl = document.getElementById("fileName");
 const fileMetaEl = document.getElementById("fileMeta");
 const fileDimsEl = document.getElementById("fileDims");
@@ -29,6 +31,9 @@ const outputImageEl = document.getElementById("outputImage");
 const inputInfoEl = document.getElementById("inputInfo");
 const outputInfoEl = document.getElementById("outputInfo");
 const previewRow = document.getElementById("previewRow");
+const batchThumbs = document.getElementById("batchThumbs");
+const thumbGrid = document.getElementById("thumbGrid");
+const thumbCount = document.getElementById("thumbCount");
 const singleModeBtn = document.getElementById("singleModeBtn");
 const batchModeBtn = document.getElementById("batchModeBtn");
 const modeHintEl = document.getElementById("modeHint");
@@ -44,12 +49,14 @@ const batchMetaEl = document.getElementById("batchMeta");
 const fileNameOption = document.getElementById("fileNameOption");
 
 const ACCEPT_TYPES = ["image/webp", "image/png", "image/jpeg", "image/jpg"];
+const ACCEPT_EXTS = [".webp", ".png", ".jpg", ".jpeg"];
 
 let currentImage = null; // { file, width, height, objectUrl, bitmap? }
 let outputUrl = null;
 let outputBlob = null;
 let mode = "single"; // single | batch
 let batchFiles = [];
+let batchThumbUrls = [];
 
 function invalidateOutput() {
     revokeUrl(outputUrl);
@@ -121,11 +128,14 @@ function switchMode(nextMode) {
     fileNameOption.classList.toggle("hidden", isBatch);
     previewButton.classList.toggle("hidden", isBatch);
     previewRow.classList.toggle("hidden", isBatch);
+    batchThumbs.classList.toggle("hidden", !isBatch);
+    dropZone.classList.toggle("hidden", isBatch);
+    batchPicker.classList.toggle("hidden", !isBatch);
 
-    dropPrimary.textContent = isBatch ? "ここにフォルダをドロップ" : "ここに画像をドロップ";
-    dropSecondary.textContent = isBatch ? "またはフォルダを選択（サブフォルダ含む）" : "またはファイルを選択（WEBP / PNG / JPG）";
-    dropHint.textContent = isBatch ? "WEBP / PNG / JPG のみ対象。フォルダごと処理します。" : "ローカルファイルのみ対応。複数指定は先頭1枚を使用します。";
-    modeHintEl.textContent = isBatch ? "まとめて変換。プレビューなし。" : "プレビュー付きで1枚ずつ確認";
+    dropPrimary.textContent = isBatch ? "フォルダのドラッグ＆ドロップは使用できません" : "ここに画像をドロップ";
+    dropSecondary.textContent = isBatch ? "「フォルダを選択」ボタンから指定してください" : "またはファイルを選択（WEBP / PNG / JPG）";
+    dropHint.textContent = isBatch ? "ローカルセキュリティ制約のためドロップ不可" : "ローカルファイルのみ対応。複数指定は先頭1枚を使用します。";
+    modeHintEl.textContent = isBatch ? "フォルダ選択で一括変換（ドロップ不可）" : "プレビュー付きで1枚ずつ確認";
     statusEl.textContent = isBatch ? "フォルダを選択してください" : "準備完了";
     downloadButton.textContent = isBatch ? "一括変換してZIP保存" : "ダウンロード";
 
@@ -166,6 +176,10 @@ function resetUI() {
 
 function resetBatchUI() {
     batchFiles = [];
+    batchThumbUrls.forEach(url => URL.revokeObjectURL(url));
+    batchThumbUrls = [];
+    thumbGrid.innerHTML = "";
+    thumbCount.textContent = "0 件";
     revokeUrl(currentImage?.objectUrl);
     invalidateOutput();
     currentImage = null;
@@ -209,6 +223,91 @@ function updateBatchInfoBox(files, label) {
     batchCountEl.textContent = `${count} 枚`;
     batchSizeEl.textContent = count ? formatBytes(totalSize) : "-";
     batchMetaEl.textContent = count ? "サブフォルダを含めて処理します。" : "WEBP / PNG / JPG のみを対象。サブフォルダも含めます。";
+}
+
+function renderBatchThumbs(files) {
+    batchThumbUrls.forEach(url => URL.revokeObjectURL(url));
+    batchThumbUrls = [];
+    thumbGrid.innerHTML = "";
+    thumbCount.textContent = `${files.length} 件`;
+
+    files.forEach(file => {
+        const url = URL.createObjectURL(file);
+        batchThumbUrls.push(url);
+        const item = document.createElement("div");
+        item.className = "thumb-item";
+
+        const img = document.createElement("img");
+        img.src = url;
+        img.alt = file.name;
+
+        const name = document.createElement("div");
+        name.className = "thumb-name";
+        name.textContent = file.webkitRelativePath || file.name;
+
+        const meta = document.createElement("div");
+        meta.className = "thumb-meta";
+        meta.textContent = formatBytes(file.size || 0);
+
+        item.append(img, name, meta);
+        thumbGrid.appendChild(item);
+    });
+}
+
+function isSupportedImage(file) {
+    if (!file) return false;
+    if (ACCEPT_TYPES.includes(file.type)) return true;
+    const name = (file.name || "").toLowerCase();
+    return ACCEPT_EXTS.some(ext => name.endsWith(ext));
+}
+
+async function filesFromDataTransferItems(items) {
+    const files = [];
+
+    const readAllEntries = reader => new Promise(resolve => {
+        const entries = [];
+        const readBatch = () => {
+            reader.readEntries(batch => {
+                if (!batch.length) return resolve(entries);
+                entries.push(...batch);
+                readBatch();
+            }, () => resolve(entries));
+        };
+        readBatch();
+    });
+
+    const walkEntry = async (entry, path = "") => {
+        if (entry.isFile) {
+            try {
+                const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+                if (!file.webkitRelativePath) {
+                    Object.defineProperty(file, "webkitRelativePath", { value: path + file.name });
+                }
+                files.push(file);
+            } catch (err) {
+                console.error("[batch] failed to read file entry", path, err);
+            }
+            return;
+        }
+        if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const children = await readAllEntries(reader);
+            for (const child of children) {
+                await walkEntry(child, `${path}${entry.name}/`);
+            }
+        }
+    };
+
+    for (const item of items) {
+        const entry = item.webkitGetAsEntry?.();
+        if (entry) {
+            await walkEntry(entry, "");
+        } else {
+            console.warn("[batch] entry missing from item", item);
+        }
+    }
+
+    return files;
 }
 
 function updateQualityHint() {
@@ -308,8 +407,11 @@ async function handleFile(file) {
 
 function handleBatchFiles(fileList, label) {
     resetBatchUI();
-    const files = Array.from(fileList || []).filter(f => ACCEPT_TYPES.includes(f.type));
+    const all = Array.from(fileList || []);
+    console.log("[batch] dropped/selected items", all.map(f => ({ name: f.name, type: f.type, size: f.size, rel: f.webkitRelativePath })));
+    const files = all.filter(isSupportedImage);
     if (!files.length) {
+        console.warn("[batch] no supported files after filter", all.length);
         showError("対象フォーマットの画像が見つかりませんでした。");
         setStatus("未選択");
         return;
@@ -317,6 +419,8 @@ function handleBatchFiles(fileList, label) {
 
     batchFiles = files;
     updateBatchInfoBox(files, label);
+    renderBatchThumbs(files);
+    previewRow.classList.add("hidden");
     clearError();
     setStatus(`${files.length} 件を読み込みました`);
 }
@@ -495,6 +599,8 @@ fileSelect.addEventListener("click", () => {
     }
 });
 
+batchSelect.addEventListener("click", () => folderInput.click());
+
 fileInput.addEventListener("change", event => {
     if (mode !== "single") return;
     const [file] = event.target.files || [];
@@ -518,12 +624,41 @@ dropZone.addEventListener("dragleave", () => dropZone.classList.remove("is-drago
 dropZone.addEventListener("drop", event => {
     event.preventDefault();
     dropZone.classList.remove("is-dragover");
-    if (event.dataTransfer?.files?.length) {
-        if (mode === "batch") {
-            handleBatchFiles(event.dataTransfer.files, "ドロップされたフォルダ/ファイル");
+
+    const items = event.dataTransfer?.items;
+    const files = event.dataTransfer?.files;
+
+    if (mode === "batch") {
+        if (items?.length && items[0].webkitGetAsEntry) {
+            console.log("[batch] using webkitGetAsEntry path");
+            filesFromDataTransferItems(items).then(collected => {
+                console.log("[batch] collected via entry", collected.length);
+                if (collected.length > 0) {
+                    handleBatchFiles(collected, "ドロップされたフォルダ/ファイル");
+                } else if (files?.length) {
+                    console.warn("[batch] entry collection empty, fallback to dataTransfer.files", files.length);
+                    handleBatchFiles(files, "ドロップされたフォルダ/ファイル");
+                } else {
+                    console.error("[batch] entry collection empty and no files on dataTransfer");
+                    showError("ドロップ内容を読み取れませんでした。");
+                }
+            }).catch(err => {
+                console.error("[batch] entry walk failed, fallback to files", err);
+                if (files?.length) {
+                    handleBatchFiles(files, "ドロップされたフォルダ/ファイル");
+                } else {
+                    showError("ドロップ内容を読み取れませんでした。");
+                }
+            });
+        } else if (files?.length) {
+            console.log("[batch] fallback to dataTransfer.files", files.length);
+            handleBatchFiles(files, "ドロップされたフォルダ/ファイル");
         } else {
-            handleFile(event.dataTransfer.files[0]);
+            console.warn("[batch] drop with no items/files");
+            showError("フォルダを読み取れませんでした。");
         }
+    } else if (files?.length) {
+        handleFile(files[0]);
     }
 });
 

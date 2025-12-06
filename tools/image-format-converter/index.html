@@ -31,6 +31,11 @@
                         <p class="hint" id="dropHint">ローカルファイルのみ対応。複数指定は先頭1枚を使用します。</p>
                     </div>
                 </div>
+                <div class="batch-picker hidden" id="batchPicker">
+                    <p class="primary">フォルダを選択して一括変換</p>
+                    <p class="secondary">ドラッグ＆ドロップには対応していません</p>
+                    <button class="ghost-button" type="button" id="batchSelect">フォルダを選択</button>
+                </div>
                 <div class="file-info" id="fileInfo">
                     <div class="label">ファイル</div>
                     <div class="value" id="fileName">未選択</div>
@@ -152,6 +157,14 @@
                         <img id="outputImage" alt="出力プレビュー" />
                     </div>
                 </div>
+            </div>
+
+            <div class="thumbs hidden" id="batchThumbs" aria-live="polite">
+                <div class="thumbs-header">
+                    <span class="section-label">フォルダ内ファイル</span>
+                    <span class="mono" id="thumbCount">0 件</span>
+                </div>
+                <div class="thumb-grid" id="thumbGrid"></div>
             </div>
         </div>
     </div>
