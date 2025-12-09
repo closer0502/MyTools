@@ -435,10 +435,16 @@ canvas.is-grabbing {
     gap: 10px;
 }
 
+.thumbs-note {
+    font-size: 12px;
+    color: var(--muted);
+}
+
 .thumb-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
     gap: 10px;
+    overflow-y: auto;
 }
 
 .thumb-card {

@@ -512,6 +512,7 @@
         thumbs: $("resizeThumbs"),
         thumbGrid: $("resizeThumbGrid"),
         thumbCount: $("resizeThumbCount"),
+        thumbNote: $("resizeThumbNote"),
         modeControls: {
             px: $("pxControls"),
             percent: $("percentControls"),
@@ -546,15 +547,58 @@
         resizeEls.fileButton.textContent = isFolder ? "フォルダを選択" : "ファイルを選択";
     };
 
+    const clampThumbGridRows = () => {
+        const grid = resizeEls.thumbGrid;
+        if (!grid) return;
+        const cards = grid.querySelectorAll(".thumb-card");
+        if (!cards.length) {
+            grid.style.maxHeight = "";
+            grid.style.overflowY = "";
+            return;
+        }
+        const firstCard = cards[0].getBoundingClientRect();
+        const rowGap = Number.parseFloat(getComputedStyle(grid).rowGap || "0") || 0;
+        const rows = 2;
+        const maxHeight = firstCard.height * rows + rowGap * (rows - 1);
+        grid.style.maxHeight = `${Math.ceil(maxHeight)}px`;
+        grid.style.overflowY = "auto";
+    };
+
+    let clampThumbsTimer;
+    const clampThumbGridRowsDebounced = () => {
+        clearTimeout(clampThumbsTimer);
+        clampThumbsTimer = setTimeout(clampThumbGridRows, 120);
+    };
+
+    const MAX_VISIBLE_THUMBS = 40;
+    const MAX_VISIBLE_ROWS = 2;
+    const estimateThumbLimit = () => {
+        const grid = resizeEls.thumbGrid;
+        if (!grid) return MAX_VISIBLE_THUMBS;
+        const approxWidth = grid.clientWidth || grid.parentElement?.clientWidth || 0;
+        const minCardWidth = 90; // 72px min + gapの目安
+        const cols = Math.max(1, Math.floor(approxWidth / minCardWidth));
+        const rowCap = cols * MAX_VISIBLE_ROWS;
+        return Math.max(1, Math.min(MAX_VISIBLE_THUMBS, rowCap || MAX_VISIBLE_THUMBS));
+    };
+
     const renderResizeThumbs = (items) => {
         if (!items || !items.length) {
             resizeEls.thumbs.classList.add("hidden");
             resizeEls.thumbGrid.innerHTML = "";
             resizeEls.thumbCount.textContent = "0 件";
+            if (resizeEls.thumbNote) {
+                resizeEls.thumbNote.textContent = "";
+                resizeEls.thumbNote.classList.add("hidden");
+            }
+            clampThumbGridRows();
             return;
         }
         resizeEls.thumbs.classList.remove("hidden");
-        resizeEls.thumbGrid.innerHTML = items
+        const limit = estimateThumbLimit();
+        const visibleItems = items.slice(0, limit);
+        const hiddenCount = Math.max(0, items.length - visibleItems.length);
+        resizeEls.thumbGrid.innerHTML = visibleItems
             .map(
                 (item) => `
                 <div class="thumb-card">
@@ -569,7 +613,19 @@
             `
             )
             .join("");
-        resizeEls.thumbCount.textContent = `${items.length} 件`;
+        resizeEls.thumbCount.textContent = hiddenCount
+            ? `${visibleItems.length}/${items.length} 件`
+            : `${items.length} 件`;
+        if (resizeEls.thumbNote) {
+            if (hiddenCount > 0) {
+                resizeEls.thumbNote.textContent = `他${hiddenCount}件のサムネイルは省略しています`;
+                resizeEls.thumbNote.classList.remove("hidden");
+            } else {
+                resizeEls.thumbNote.textContent = "";
+                resizeEls.thumbNote.classList.add("hidden");
+            }
+        }
+        clampThumbGridRows();
     };
 
     const loadImages = async (files) => {
@@ -882,6 +938,8 @@
         resizeEls.lock.addEventListener("change", updateResizePreview);
 
         resizeEls.btnDownload.addEventListener("click", downloadResize);
+
+        window.addEventListener("resize", clampThumbGridRowsDebounced);
 
         updateResizeModeUI();
         updateResizeSourceUI();
