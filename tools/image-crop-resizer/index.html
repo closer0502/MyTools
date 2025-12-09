@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crop & Resize Studio</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">画像クロップ & リサイズ</span>
+            <h1>Crop & Resize Studio</h1>
+            <p class="lede">ドラッグと数値指定でクロップ、比率プリセットに合わせた調整、ピクセル・パーセント・辺合わせリサイズを1ページで完結。</p>
+            <div class="steps">
+                <span class="step-pill">ステップ1: クロップ</span>
+                <span class="step-pill">ステップ2: リサイズ</span>
+            </div>
+        </header>
+
+        <section class="card" id="cropSection">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">Crop</span>
+                    <h2>クロップエリア</h2>
+                </div>
+                <p class="hint">ドラッグ＆ドロップと数値入力の両方に対応。選択範囲はアスペクト比プリセットで拡縮できます。</p>
+            </div>
+            <div class="layout layout--split">
+                <div class="panel">
+                    <div class="drop-zone" id="cropDropZone">
+                        <div class="drop-inner">
+                            <p class="primary">ここに画像をドロップ</p>
+                            <p class="secondary">またはファイルを選択（PNG / JPG / WEBP）</p>
+                            <button class="ghost-button" type="button" id="cropFileButton">ファイルを選択</button>
+                            <input type="file" id="cropFileInput" accept="image/png,image/jpeg,image/webp" hidden>
+                            <p class="hint small">入力と出力のファイル形式は同じです。</p>
+                        </div>
+                    </div>
+                    <div class="file-meta">
+                        <div class="meta-row">
+                            <span class="label">ファイル</span>
+                            <span class="value" id="cropFileName">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">解像度</span>
+                            <span class="value" id="cropFileDims">-</span>
+                        </div>
+                    </div>
+
+                    <div class="control-grid">
+                        <div class="control">
+                            <div class="label-row">
+                                <span>アスペクト比</span>
+                                <span class="muted">固定してリサイズ</span>
+                            </div>
+                            <div class="aspect-grid" id="aspectGrid">
+                                <label><input type="radio" name="aspect" value="free" checked> 自由</label>
+                                <label><input type="radio" name="aspect" value="1:1"> 1:1</label>
+                                <label><input type="radio" name="aspect" value="4:3"> 4:3</label>
+                                <label><input type="radio" name="aspect" value="16:9"> 16:9</label>
+                                <label><input type="radio" name="aspect" value="3:2"> 3:2</label>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>座標とサイズ</span>
+                                <span class="muted mono" id="cropSelectionInfo">-</span>
+                            </div>
+                            <div class="inputs-quad">
+                                <label>X
+                                    <input type="number" id="inputX" min="0" step="1">
+                                </label>
+                                <label>Y
+                                    <input type="number" id="inputY" min="0" step="1">
+                                </label>
+                                <label>幅
+                                    <input type="number" id="inputW" min="1" step="1">
+                                </label>
+                                <label>高さ
+                                    <input type="number" id="inputH" min="1" step="1">
+                                </label>
+                            </div>
+                            <p class="hint">キャンバス上のドラッグでも、数値入力でも編集できます。</p>
+                        </div>
+
+                        <div class="control control-actions">
+                            <div class="status-box" id="cropStatus">
+                                <span class="status-dot"></span>
+                                <span id="cropStatusText">ファイル待機中</span>
+                            </div>
+                            <div class="button-row">
+                                <button class="ghost-button" type="button" id="cropReset">リセット</button>
+                                <button class="pill-button" type="button" id="cropPreviewBtn" disabled>プレビュー更新</button>
+                                <button class="pill-button" type="button" id="cropDownloadBtn" disabled>クロップを保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="preview-stack">
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">入力プレビュー</span>
+                                    <div class="muted mono" id="cropInputInfo">-</div>
+                                </div>
+                                <span class="hint">ドラッグで選択、ハンドルで拡縮</span>
+                            </div>
+                            <div class="canvas-frame">
+                                <div class="checkerboard"></div>
+                                <canvas id="cropCanvas"></canvas>
+                            </div>
+                        </div>
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">編集後プレビュー</span>
+                                    <div class="muted mono" id="cropOutputInfo">-</div>
+                                </div>
+                                <div class="pill" id="cropFormatBadge">-</div>
+                            </div>
+                            <div class="canvas-frame">
+                                <div class="checkerboard"></div>
+                                <img id="cropOutputImage" alt="クロップ後のプレビュー">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card" id="resizeSection">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">Resize</span>
+                    <h2>リサイズエリア</h2>
+                </div>
+                <p class="hint">ピクセル、パーセント、横幅に合わせる、縦幅に合わせるの4モード。縦横比ロックにも対応。</p>
+            </div>
+            <div class="layout layout--split">
+                <div class="panel">
+                    <div class="drop-zone" id="resizeDropZone">
+                        <div class="drop-inner">
+                            <p class="primary">ここに画像をドロップ</p>
+                            <p class="secondary">またはファイルを選択（PNG / JPG / WEBP）</p>
+                            <button class="ghost-button" type="button" id="resizeFileButton">ファイルを選択</button>
+                            <input type="file" id="resizeFileInput" accept="image/png,image/jpeg,image/webp" hidden>
+                            <p class="hint small">入力と出力のファイル形式は同じです。</p>
+                        </div>
+                    </div>
+                    <div class="file-meta">
+                        <div class="meta-row">
+                            <span class="label">ファイル</span>
+                            <span class="value" id="resizeFileName">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">解像度</span>
+                            <span class="value" id="resizeFileDims">-</span>
+                        </div>
+                    </div>
+
+                    <div class="control-grid">
+                        <div class="control">
+                            <div class="label-row">
+                                <span>リサイズモード</span>
+                                <span class="muted">縦横比ロック可</span>
+                            </div>
+                            <div class="mode-grid">
+                                <label><input type="radio" name="resizeMode" value="px" checked> ピクセル指定</label>
+                                <label><input type="radio" name="resizeMode" value="percent"> パーセント指定</label>
+                                <label><input type="radio" name="resizeMode" value="fit-width"> 横幅に合わせる</label>
+                                <label><input type="radio" name="resizeMode" value="fit-height"> 縦幅に合わせる</label>
+                            </div>
+                        </div>
+
+                        <div class="control" id="pxControls">
+                            <div class="label-row">
+                                <span>ピクセル</span>
+                                <label class="toggle">
+                                    <input type="checkbox" id="resizeLock">
+                                    <span class="toggle-knob"></span>
+                                    <span class="muted">縦横比ロック</span>
+                                </label>
+                            </div>
+                            <div class="inputs-row">
+                                <label>幅(px)
+                                    <input type="number" id="resizeWidth" min="1" step="1">
+                                </label>
+                                <label>高さ(px)
+                                    <input type="number" id="resizeHeight" min="1" step="1">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="control hidden" id="percentControls">
+                            <div class="label-row">
+                                <span>パーセント</span>
+                                <span class="muted" id="percentHint">100% で原寸</span>
+                            </div>
+                            <div class="inputs-row">
+                                <label>倍率(%)
+                                    <input type="number" id="resizePercent" min="1" max="400" step="1" value="100">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="control hidden" id="fitWidthControls">
+                            <div class="label-row">
+                                <span>横幅に合わせる</span>
+                                <span class="muted">高さは自動計算</span>
+                            </div>
+                            <div class="inputs-row">
+                                <label>幅(px)
+                                    <input type="number" id="fitWidthValue" min="1" step="1">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="control hidden" id="fitHeightControls">
+                            <div class="label-row">
+                                <span>縦幅に合わせる</span>
+                                <span class="muted">幅は自動計算</span>
+                            </div>
+                            <div class="inputs-row">
+                                <label>高さ(px)
+                                    <input type="number" id="fitHeightValue" min="1" step="1">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="control control-actions">
+                            <div class="status-box" id="resizeStatus">
+                                <span class="status-dot"></span>
+                                <span id="resizeStatusText">ファイル待機中</span>
+                            </div>
+                            <div class="button-row">
+                                <button class="ghost-button" type="button" id="resizeReset">リセット</button>
+                                <button class="pill-button" type="button" id="resizePreviewBtn" disabled>プレビュー生成</button>
+                                <button class="pill-button" type="button" id="resizeDownloadBtn" disabled>リサイズを保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="preview-stack">
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">入力プレビュー</span>
+                                    <div class="muted mono" id="resizeInputInfo">-</div>
+                                </div>
+                            </div>
+                            <div class="canvas-frame">
+                                <div class="checkerboard"></div>
+                                <img id="resizeInputImage" alt="入力プレビュー">
+                            </div>
+                        </div>
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">リサイズ後プレビュー</span>
+                                    <div class="muted mono" id="resizeOutputInfo">-</div>
+                                </div>
+                                <div class="pill" id="resizeFormatBadge">-</div>
+                            </div>
+                            <div class="canvas-frame">
+                                <div class="checkerboard"></div>
+                                <img id="resizeOutputImage" alt="リサイズ後プレビュー">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
