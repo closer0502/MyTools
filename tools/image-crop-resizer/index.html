@@ -141,7 +141,7 @@
                     <span class="section-label">Resize</span>
                     <h2>リサイズエリア</h2>
                 </div>
-                <p class="hint">ピクセル、パーセント、横幅に合わせる、縦幅に合わせるの4モード。縦横比ロックにも対応。</p>
+                <p class="hint">ピクセル指定とパーセント指定に対応。縦横比ロックで片側入力から自動計算できます。</p>
             </div>
             <div class="layout layout--split">
                 <div class="panel">
@@ -163,6 +163,14 @@
                             <span class="label">解像度</span>
                             <span class="value" id="resizeFileDims">-</span>
                         </div>
+                    </div>
+
+                    <div class="thumbs" id="resizeThumbs" aria-live="polite">
+                        <div class="thumbs-header">
+                            <span class="section-label">サムネイル</span>
+                            <span class="mono" id="resizeThumbCount">0 件</span>
+                        </div>
+                        <div class="thumb-grid" id="resizeThumbGrid"></div>
                     </div>
 
                     <div class="control-grid">
@@ -222,18 +230,6 @@
 
                 <div class="panel">
                     <div class="preview-stack">
-                        <div class="preview-block">
-                            <div class="canvas-header">
-                                <div>
-                                    <span class="section-label">入力プレビュー</span>
-                                    <div class="muted mono" id="resizeInputInfo">-</div>
-                                </div>
-                            </div>
-                            <div class="canvas-frame">
-                                <div class="checkerboard"></div>
-                                <img id="resizeInputImage" alt="入力プレビュー">
-                            </div>
-                        </div>
                         <div class="preview-block">
                             <div class="canvas-header">
                                 <div>

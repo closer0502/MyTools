@@ -492,10 +492,8 @@
     const resizeEls = {
         fileName: $("resizeFileName"),
         fileDims: $("resizeFileDims"),
-        inputInfo: $("resizeInputInfo"),
         outputInfo: $("resizeOutputInfo"),
         formatBadge: $("resizeFormatBadge"),
-        inputImage: $("resizeInputImage"),
         outputImage: $("resizeOutputImage"),
         statusText: $("resizeStatusText"),
         statusDot: $("resizeStatus").querySelector(".status-dot"),
@@ -503,9 +501,11 @@
         height: $("resizeHeight"),
         percent: $("resizePercent"),
         lock: $("resizeLock"),
-        btnPreview: $("resizePreviewBtn"),
         btnDownload: $("resizeDownloadBtn"),
         percentHint: $("percentHint"),
+        thumbs: $("resizeThumbs"),
+        thumbGrid: $("resizeThumbGrid"),
+        thumbCount: $("resizeThumbCount"),
         modeControls: {
             px: $("pxControls"),
             percent: $("percentControls"),
@@ -517,6 +517,32 @@
         const color =
             tone === "ok" ? "var(--accent-strong)" : tone === "warn" ? "#f59e0b" : "var(--muted)";
         resizeEls.statusDot.style.background = color;
+    };
+
+    const renderResizeThumbs = (items) => {
+        if (!items || !items.length) {
+            resizeEls.thumbs.classList.add("hidden");
+            resizeEls.thumbGrid.innerHTML = "";
+            resizeEls.thumbCount.textContent = "0 件";
+            return;
+        }
+        resizeEls.thumbs.classList.remove("hidden");
+        resizeEls.thumbGrid.innerHTML = items
+            .map(
+                (item) => `
+                <div class="thumb-card">
+                    <div class="thumb-frame">
+                        <img src="${item.src}" alt="${item.name}">
+                    </div>
+                    <div class="thumb-meta">
+                        <div class="name">${item.name}</div>
+                        <div class="info">${item.info}</div>
+                    </div>
+                </div>
+            `
+            )
+            .join("");
+        resizeEls.thumbCount.textContent = `${items.length} 件`;
     };
 
     const getResizeMode = () => document.querySelector("input[name='resizeMode']:checked").value;
@@ -586,7 +612,6 @@
         resizeEls.outputImage.src = dataUrl;
         resizeEls.outputInfo.textContent = formatDims(target.width, target.height);
         resizeEls.btnDownload.disabled = false;
-        resizeEls.btnPreview.disabled = false;
     };
 
     const downloadResize = () => {
@@ -628,16 +653,21 @@
             resizeState.fileName = file.name || "image";
             resizeEls.fileName.textContent = file.name || "-";
             resizeEls.fileDims.textContent = formatDims(img.naturalWidth, img.naturalHeight);
-            resizeEls.inputInfo.textContent = formatDims(img.naturalWidth, img.naturalHeight);
-            resizeEls.inputImage.src = img.src;
             resizeEls.formatBadge.textContent = formatType(resizeState.fileType);
             setResizeDefaults();
             updateResizePreview();
-        setResizeStatus("リサイズ設定を調整できます", "ok");
-    } catch (err) {
-        console.error(err);
-        setResizeStatus("読み込みに失敗しました", "warn");
-    }
+            renderResizeThumbs([
+                {
+                    src: img.src,
+                    name: file.name || "image",
+                    info: formatDims(img.naturalWidth, img.naturalHeight),
+                },
+            ]);
+            setResizeStatus("リサイズ設定を調整できます", "ok");
+        } catch (err) {
+            console.error(err);
+            setResizeStatus("読み込みに失敗しました", "warn");
+        }
     };
 
     // --- Event wiring ---
@@ -708,6 +738,7 @@
         resizeEls.btnDownload.addEventListener("click", downloadResize);
 
         updateResizeModeUI();
+        renderResizeThumbs([]);
     };
 
     init();
