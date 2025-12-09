@@ -112,6 +112,23 @@ body {
     gap: var(--space-3);
 }
 
+.source-toggle {
+    display: inline-flex;
+    gap: 12px;
+    align-items: center;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.source-toggle label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
 .drop-zone {
     position: relative;
     border: 1px dashed var(--border);

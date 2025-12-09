@@ -483,10 +483,9 @@
 
     // --- Resize ---
     const resizeState = {
-        image: null,
-        fileType: "image/png",
-        fileName: "",
+        items: [],
         lastEdited: "width",
+        source: "file",
     };
 
     const resizeEls = {
@@ -502,7 +501,14 @@
         percent: $("resizePercent"),
         lock: $("resizeLock"),
         btnDownload: $("resizeDownloadBtn"),
-        percentHint: $("percentHint"),
+        percentHint: $("resizePercentHint") || $("percentHint"),
+        dropPrimary: $("resizeDropPrimary"),
+        dropSecondary: $("resizeDropSecondary"),
+        fileInput: $("resizeFileInput"),
+        folderInput: $("resizeFolderInput"),
+        fileButton: $("resizeFileButton"),
+        dropZone: $("resizeDropZone"),
+        sourceRadios: document.querySelectorAll("input[name='resizeSource']"),
         thumbs: $("resizeThumbs"),
         thumbGrid: $("resizeThumbGrid"),
         thumbCount: $("resizeThumbCount"),
@@ -517,6 +523,27 @@
         const color =
             tone === "ok" ? "var(--accent-strong)" : tone === "warn" ? "#f59e0b" : "var(--muted)";
         resizeEls.statusDot.style.background = color;
+    };
+
+    const getPrimaryItem = () => resizeState.items[0] || null;
+
+    const getFormatLabel = () => {
+        if (resizeState.items.length <= 1) {
+            const primary = getPrimaryItem();
+            return primary ? formatType(primary.type) : "-";
+        }
+        const firstType = resizeState.items[0].type;
+        const same = resizeState.items.every((item) => item.type === firstType);
+        return same ? formatType(firstType) : "MIXED";
+    };
+
+    const updateResizeSourceUI = () => {
+        const isFolder = resizeState.source === "folder";
+        resizeEls.dropPrimary.textContent = isFolder ? "ここにフォルダをドロップ" : "ここに画像をドロップ";
+        resizeEls.dropSecondary.textContent = isFolder
+            ? "またはフォルダを選択（PNG / JPG / WEBP を一括読み込み）"
+            : "またはファイルを選択（PNG / JPG / WEBP）";
+        resizeEls.fileButton.textContent = isFolder ? "フォルダを選択" : "ファイルを選択";
     };
 
     const renderResizeThumbs = (items) => {
@@ -536,13 +563,35 @@
                     </div>
                     <div class="thumb-meta">
                         <div class="name">${item.name}</div>
-                        <div class="info">${item.info}</div>
+                        <div class="info">${formatDims(item.width, item.height)}</div>
                     </div>
                 </div>
             `
             )
             .join("");
         resizeEls.thumbCount.textContent = `${items.length} 件`;
+    };
+
+    const loadImages = async (files) => {
+        const results = [];
+        for (const file of files) {
+            if (!file.type.startsWith("image/")) continue;
+            try {
+                const img = await readImageFile(file);
+                results.push({
+                    file,
+                    image: img,
+                    name: file.name || "image",
+                    type: file.type || "image/png",
+                    width: img.naturalWidth,
+                    height: img.naturalHeight,
+                    src: img.src,
+                });
+            } catch (err) {
+                console.error("Failed to read image", file ? file.name : null, err);
+            }
+        }
+        return results;
     };
 
     const getResizeMode = () => document.querySelector("input[name='resizeMode']:checked").value;
@@ -554,17 +603,29 @@
         });
     };
 
-    const setResizeDefaults = () => {
-        if (!resizeState.image) return;
-        resizeEls.width.value = resizeState.image.naturalWidth;
-        resizeEls.height.value = resizeState.image.naturalHeight;
-        resizeEls.percent.value = 100;
+    const getPercentValue = () => {
+        const percent = clamp(Number(resizeEls.percent.value) || 100, 1, 400);
+        resizeEls.percent.value = percent;
+        return percent;
     };
 
-    const computeResizeTarget = () => {
-        if (!resizeState.image) return null;
+    const setResizeDefaults = () => {
+        const primary = getPrimaryItem();
+        if (!primary) return;
+        resizeEls.width.value = primary.width;
+        resizeEls.height.value = primary.height;
+        resizeEls.percent.value = 100;
+        if (resizeEls.percentHint) {
+            resizeEls.percentHint.textContent = `100% -> ${formatDims(primary.width, primary.height)}`;
+        }
+    };
+
+    const computeResizeTarget = (item = getPrimaryItem(), opts = {}) => {
+        const { suppressHint = false } = opts;
+        if (!item) return null;
         const mode = getResizeMode();
-        const { naturalWidth: iw, naturalHeight: ih } = resizeState.image;
+        const iw = item.width;
+        const ih = item.height;
         const ratio = iw / ih;
         let width = iw;
         let height = ih;
@@ -579,98 +640,145 @@
                     width = Math.round(height * ratio);
                 }
             }
-        } else if (mode === "percent") {
-            const percent = clamp(Number(resizeEls.percent.value) || 100, 1, 400);
-            resizeEls.percent.value = percent;
-            width = Math.round((iw * percent) / 100);
-            height = Math.round((ih * percent) / 100);
-            resizeEls.percentHint.textContent = `${percent}% → ${formatDims(width, height)}`;
-        }
-
-        if (mode === "px") {
             resizeEls.width.value = width;
             resizeEls.height.value = height;
+        } else if (mode === "percent") {
+            const percent = getPercentValue();
+            width = Math.round((iw * percent) / 100);
+            height = Math.round((ih * percent) / 100);
+            if (!suppressHint && resizeEls.percentHint) {
+                resizeEls.percentHint.textContent = `${percent}% -> ${formatDims(width, height)}`;
+            }
         }
+
         return { width, height };
     };
 
     const updateResizePreview = () => {
-        if (!resizeState.image) {
+        const primary = getPrimaryItem();
+        if (!primary) {
             resizeEls.outputImage.src = "";
             resizeEls.outputInfo.textContent = "-";
             resizeEls.btnDownload.disabled = true;
+            resizeEls.formatBadge.textContent = "-";
             return;
         }
-        const target = computeResizeTarget();
+        const target = computeResizeTarget(primary);
         if (!target) return;
         const outCanvas = document.createElement("canvas");
         outCanvas.width = target.width;
         outCanvas.height = target.height;
         const ctx = outCanvas.getContext("2d");
-        ctx.drawImage(resizeState.image, 0, 0, target.width, target.height);
-        const dataUrl = outCanvas.toDataURL(resizeState.fileType || "image/png");
+        ctx.drawImage(primary.image, 0, 0, target.width, target.height);
+        const dataUrl = outCanvas.toDataURL(primary.type || "image/png");
         resizeEls.outputImage.src = dataUrl;
         resizeEls.outputInfo.textContent = formatDims(target.width, target.height);
         resizeEls.btnDownload.disabled = false;
+        resizeEls.formatBadge.textContent = getFormatLabel();
     };
 
-    const downloadResize = () => {
-        if (!resizeState.image) return;
-        const target = computeResizeTarget();
-        if (!target) return;
-        const outCanvas = document.createElement("canvas");
-        outCanvas.width = target.width;
-        outCanvas.height = target.height;
-        const ctx = outCanvas.getContext("2d");
-        ctx.drawImage(resizeState.image, 0, 0, target.width, target.height);
-        outCanvas.toBlob(
-            (blob) => {
-                if (!blob) return;
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                const base = resizeState.fileName.replace(/\.[^.]+$/, "");
-                const ext = resizeState.fileType.replace("image/", "");
-                a.download = `${base}-resized.${ext}`;
-                a.click();
-                URL.revokeObjectURL(url);
-            },
-            resizeState.fileType || "image/png",
-            0.95
-        );
-    };
+    const downloadResize = async () => {
+        const primary = getPrimaryItem();
+        if (!primary) return;
+        const mode = getResizeMode();
+        const items = resizeState.items;
+        const percent = mode === "percent" ? getPercentValue() : null;
+        const pixelTarget = mode === "px" ? computeResizeTarget(primary, { suppressHint: true }) : null;
 
-    const handleResizeFile = async (file, error) => {
-        if (error) {
-            setResizeStatus(error.message, "warn");
+        const renderItem = (item, target) =>
+            new Promise((resolve) => {
+                const canvas = document.createElement("canvas");
+                canvas.width = target.width;
+                canvas.height = target.height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(item.image, 0, 0, target.width, target.height);
+                canvas.toBlob(
+                    (blob) => resolve({ blob, item, target }),
+                    item.type || "image/png",
+                    0.95
+                );
+            });
+
+        if (items.length <= 1) {
+            const target =
+                mode === "px"
+                    ? pixelTarget
+                    : {
+                          width: Math.round((primary.width * percent) / 100),
+                          height: Math.round((primary.height * percent) / 100),
+                      };
+            const { blob } = await renderItem(primary, target);
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            const base = primary.name.replace(/\.[^.]+$/, "");
+            const ext = (primary.type || "image/png").replace("image/", "");
+            a.href = url;
+            a.download = `${base}-resized.${ext}`;
+            a.click();
+            URL.revokeObjectURL(url);
             return;
         }
-        if (!file) return;
-        try {
-            const img = await readImageFile(file);
-            resizeState.image = img;
-            resizeState.fileType = file.type || "image/png";
-            resizeState.fileName = file.name || "image";
-            resizeEls.fileName.textContent = file.name || "-";
-            resizeEls.fileDims.textContent = formatDims(img.naturalWidth, img.naturalHeight);
-            resizeEls.formatBadge.textContent = formatType(resizeState.fileType);
-            setResizeDefaults();
-            updateResizePreview();
-            renderResizeThumbs([
-                {
-                    src: img.src,
-                    name: file.name || "image",
-                    info: formatDims(img.naturalWidth, img.naturalHeight),
-                },
-            ]);
-            setResizeStatus("リサイズ設定を調整できます", "ok");
-        } catch (err) {
-            console.error(err);
-            setResizeStatus("読み込みに失敗しました", "warn");
+
+        if (typeof JSZip === "undefined") {
+            setResizeStatus("複数ファイルの保存に必要な JSZip がロードできませんでした", "warn");
+            return;
         }
+
+        const zip = new JSZip();
+        for (const item of items) {
+            const target =
+                mode === "px"
+                    ? pixelTarget
+                    : {
+                          width: Math.round((item.width * percent) / 100),
+                          height: Math.round((item.height * percent) / 100),
+                      };
+            const { blob } = await renderItem(item, target);
+            if (!blob) continue;
+            const base = (item.name || "image").replace(/\.[^.]+$/, "");
+            const ext = (item.type || "image/png").replace("image/", "");
+            zip.file(`${base}-resized.${ext}`, blob);
+        }
+        const content = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(content);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "resized-images.zip";
+        a.click();
+        URL.revokeObjectURL(url);
     };
 
-    // --- Event wiring ---
+    const applyResizeFiles = async (files) => {
+        if (!files || !files.length) return;
+        const images = await loadImages(files);
+        resizeState.items = images;
+        const primary = getPrimaryItem();
+        if (!primary) {
+            renderResizeThumbs([]);
+            resizeEls.fileName.textContent = "-";
+            resizeEls.fileDims.textContent = "-";
+            resizeEls.formatBadge.textContent = "-";
+            updateResizePreview();
+            setResizeStatus("画像ファイルが見つかりませんでした", "warn");
+            return;
+        }
+        resizeEls.fileName.textContent = images.length === 1 ? primary.name : `${images.length} 件の画像`;
+        resizeEls.fileDims.textContent = formatDims(primary.width, primary.height);
+        resizeEls.formatBadge.textContent = getFormatLabel();
+        setResizeDefaults();
+        renderResizeThumbs(images);
+        updateResizePreview();
+        setResizeStatus("リサイズ設定を調整できます", "ok");
+    };
+
+    const handleResizeFiles = async (fileList) => {
+        const files = Array.from(fileList || []);
+        await applyResizeFiles(files);
+    };
+
+// --- Event wiring ---
+// --- Event wiring ---
     const init = () => {
         // Crop drop zone
         bindDropZone($("cropDropZone"), $("cropFileInput"), handleCropFile);
@@ -710,11 +818,49 @@
 
         cropEls.btnDownload.addEventListener("click", downloadCrop);
 
-        // Resize drop zone
-        bindDropZone($("resizeDropZone"), $("resizeFileInput"), handleResizeFile);
-        $("resizeFileButton").addEventListener("click", (e) => {
+        // Resize input handling
+        resizeEls.sourceRadios.forEach((el) => {
+            el.addEventListener("change", (e) => {
+                resizeState.source = e.target.value;
+                updateResizeSourceUI();
+            });
+        });
+
+        resizeEls.dropZone.addEventListener("click", (e) => {
             e.stopPropagation();
-            $("resizeFileInput").click();
+            if (resizeState.source === "folder") {
+                resizeEls.folderInput.click();
+            } else {
+                resizeEls.fileInput.click();
+            }
+        });
+        resizeEls.dropZone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            resizeEls.dropZone.classList.add("is-dragover");
+        });
+        resizeEls.dropZone.addEventListener("dragleave", () => resizeEls.dropZone.classList.remove("is-dragover"));
+        resizeEls.dropZone.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            resizeEls.dropZone.classList.remove("is-dragover");
+            await handleResizeFiles(e.dataTransfer.files);
+        });
+
+        resizeEls.fileButton.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (resizeState.source === "folder") {
+                resizeEls.folderInput.click();
+            } else {
+                resizeEls.fileInput.click();
+            }
+        });
+
+        resizeEls.fileInput.addEventListener("change", async (e) => {
+            await handleResizeFiles(e.target.files);
+            e.target.value = "";
+        });
+        resizeEls.folderInput.addEventListener("change", async (e) => {
+            await handleResizeFiles(e.target.files);
+            e.target.value = "";
         });
 
         document.querySelectorAll("input[name='resizeMode']").forEach((el) => {
@@ -738,6 +884,7 @@
         resizeEls.btnDownload.addEventListener("click", downloadResize);
 
         updateResizeModeUI();
+        updateResizeSourceUI();
         renderResizeThumbs([]);
     };
 

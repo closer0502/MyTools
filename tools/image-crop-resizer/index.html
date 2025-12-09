@@ -145,12 +145,17 @@
             </div>
             <div class="layout layout--split">
                 <div class="panel">
+                    <div class="source-toggle" role="group" aria-label="入力モード">
+                        <label><input type="radio" name="resizeSource" value="file" checked> ファイル</label>
+                        <label><input type="radio" name="resizeSource" value="folder"> フォルダ</label>
+                    </div>
                     <div class="drop-zone" id="resizeDropZone">
                         <div class="drop-inner">
-                            <p class="primary">ここに画像をドロップ</p>
-                            <p class="secondary">またはファイルを選択（PNG / JPG / WEBP）</p>
+                            <p class="primary" id="resizeDropPrimary">ここに画像をドロップ</p>
+                            <p class="secondary" id="resizeDropSecondary">またはファイルを選択（PNG / JPG / WEBP）</p>
                             <button class="ghost-button" type="button" id="resizeFileButton">ファイルを選択</button>
                             <input type="file" id="resizeFileInput" accept="image/png,image/jpeg,image/webp" hidden>
+                            <input type="file" id="resizeFolderInput" webkitdirectory multiple accept="image/png,image/jpeg,image/webp" hidden>
                             <p class="hint small">入力と出力のファイル形式は同じです。</p>
                         </div>
                     </div>
@@ -248,6 +253,7 @@
             </div>
         </section>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
