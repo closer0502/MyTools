@@ -4,6 +4,7 @@ const fileSelect = document.getElementById("fileSelect");
 const fileName = document.getElementById("fileName");
 const thresholdInput = document.getElementById("threshold");
 const thresholdValue = document.getElementById("thresholdValue");
+const distanceMethodSelect = document.getElementById("distanceMethod");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const canvasFrame = document.getElementById("canvasFrame");
@@ -21,6 +22,10 @@ const helperText = document.getElementById("helperText");
 
 let img = null;
 let targetColor = null;
+const targetSpaces = {
+  hsv: null,
+  lab: null,
+};
 const viewState = {
   zoom: 1,
   panX: 0,
@@ -41,6 +46,133 @@ const Status = {
   applied: "applied",
   error: "error",
 };
+
+const DistanceMethod = {
+  rgbEuclidean: "rgb-euclidean",
+  weightedRgb: "weighted-rgb",
+  manhattan: "manhattan",
+  chebyshev: "chebyshev",
+  hsv: "hsv",
+  lab: "lab",
+};
+
+const WEIGHTED_RGB_WEIGHTS = {
+  r: 0.299,
+  g: 0.587,
+  b: 0.114,
+};
+
+function hueDistance(h1, h2) {
+  const diff = Math.abs(h1 - h2);
+  return Math.min(diff, 360 - diff);
+}
+
+function rgbToHsv(r, g, b) {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const delta = max - min;
+
+  let h = 0;
+  if (delta !== 0) {
+    if (max === rn) {
+      h = ((gn - bn) / delta) % 6;
+    } else if (max === gn) {
+      h = (bn - rn) / delta + 2;
+    } else {
+      h = (rn - gn) / delta + 4;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+
+  const s = max === 0 ? 0 : delta / max;
+  const v = max;
+
+  return { h, s, v };
+}
+
+function rgbToLab(r, g, b) {
+  const pivotRgb = (value) =>
+    value > 0.04045 ? Math.pow((value + 0.055) / 1.055, 2.4) : value / 12.92;
+  const rn = pivotRgb(r / 255);
+  const gn = pivotRgb(g / 255);
+  const bn = pivotRgb(b / 255);
+
+  const x = (rn * 0.4124564 + gn * 0.3575761 + bn * 0.1804375) * 100;
+  const y = (rn * 0.2126729 + gn * 0.7151522 + bn * 0.072175) * 100;
+  const z = (rn * 0.0193339 + gn * 0.119192 + bn * 0.9503041) * 100;
+
+  const refX = 95.047;
+  const refY = 100;
+  const refZ = 108.883;
+
+  const pivotLab = (value) => (value > 0.008856 ? Math.cbrt(value) : 7.787 * value + 16 / 116);
+
+  const fx = pivotLab(x / refX);
+  const fy = pivotLab(y / refY);
+  const fz = pivotLab(z / refZ);
+
+  const l = 116 * fy - 16;
+  const a = 500 * (fx - fy);
+  const bVal = 200 * (fy - fz);
+
+  return { l, a, b: bVal };
+}
+
+function createDistanceCalculator(method) {
+  const tr = targetColor.r;
+  const tg = targetColor.g;
+  const tb = targetColor.b;
+
+  const targetHsv = targetSpaces.hsv || rgbToHsv(tr, tg, tb);
+  const targetLab = targetSpaces.lab || rgbToLab(tr, tg, tb);
+
+  switch (method) {
+    case DistanceMethod.weightedRgb:
+      return (r, g, b) => {
+        const dr = r - tr;
+        const dg = g - tg;
+        const db = b - tb;
+        return Math.sqrt(
+          WEIGHTED_RGB_WEIGHTS.r * dr * dr +
+            WEIGHTED_RGB_WEIGHTS.g * dg * dg +
+            WEIGHTED_RGB_WEIGHTS.b * db * db
+        );
+      };
+    case DistanceMethod.manhattan:
+      return (r, g, b) => Math.abs(r - tr) + Math.abs(g - tg) + Math.abs(b - tb);
+    case DistanceMethod.chebyshev:
+      return (r, g, b) => Math.max(Math.abs(r - tr), Math.abs(g - tg), Math.abs(b - tb));
+    case DistanceMethod.hsv:
+      return (r, g, b) => {
+        const { h, s, v } = rgbToHsv(r, g, b);
+        const dh = hueDistance(targetHsv.h, h);
+        const ds = (s - targetHsv.s) * 100;
+        const dv = (v - targetHsv.v) * 100;
+        return Math.sqrt(dh * dh + ds * ds + dv * dv);
+      };
+    case DistanceMethod.lab:
+      return (r, g, b) => {
+        const { l, a, b: labB } = rgbToLab(r, g, b);
+        const dl = l - targetLab.l;
+        const da = a - targetLab.a;
+        const db = labB - targetLab.b;
+        return Math.sqrt(dl * dl + da * da + db * db);
+      };
+    case DistanceMethod.rgbEuclidean:
+    default:
+      return (r, g, b) => {
+        const dr = r - tr;
+        const dg = g - tg;
+        const db = b - tb;
+        return Math.sqrt(dr * dr + dg * dg + db * db);
+      };
+  }
+}
 
 function clampZoom(value) {
   return Math.min(dynamicMaxZoom, Math.max(MIN_ZOOM, value));
@@ -120,6 +252,8 @@ function setSelectedColor(color) {
     selectedColorChip.style.background = "linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.03))";
     selectedColorLabel.textContent = "未選択";
     targetColor = null;
+    targetSpaces.hsv = null;
+    targetSpaces.lab = null;
     downloadBtn.disabled = true;
     return;
   }
@@ -128,6 +262,8 @@ function setSelectedColor(color) {
   selectedColorChip.style.background = `rgb(${r}, ${g}, ${b})`;
   selectedColorLabel.textContent = `RGB(${r}, ${g}, ${b})`;
   targetColor = color;
+  targetSpaces.hsv = rgbToHsv(r, g, b);
+  targetSpaces.lab = rgbToLab(r, g, b);
 }
 
 function handleFiles(files) {
@@ -179,16 +315,15 @@ function applyTransparency() {
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
   const t = Number(thresholdInput.value);
+  const method = distanceMethodSelect?.value || DistanceMethod.rgbEuclidean;
+  const distance = createDistanceCalculator(method);
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
 
-    const dr = r - targetColor.r;
-    const dg = g - targetColor.g;
-    const db = b - targetColor.b;
-    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+    const dist = distance(r, g, b);
 
     if (dist <= t) {
       data[i + 3] = 0;
@@ -222,6 +357,12 @@ fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
 
 thresholdInput.addEventListener("input", () => {
   thresholdValue.textContent = thresholdInput.value;
+  if (img && targetColor) {
+    applyTransparency();
+  }
+});
+
+distanceMethodSelect.addEventListener("change", () => {
   if (img && targetColor) {
     applyTransparency();
   }

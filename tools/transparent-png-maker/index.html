@@ -49,6 +49,22 @@
                             </div>
                         </label>
 
+                        <label class="control">
+                            <div class="label-row">
+                                <span>距離アルゴリズム</span>
+                                <span class="muted">色差の計算方法</span>
+                            </div>
+                            <select id="distanceMethod">
+                                <option value="rgb-euclidean">RGB ユークリッド距離</option>
+                                <option value="weighted-rgb">重み付きRGB距離</option>
+                                <option value="manhattan">マンハッタン距離（L1）</option>
+                                <option value="chebyshev">チェビシェフ距離（L∞）</option>
+                                <option value="hsv">HSV色空間での距離</option>
+                                <option value="lab">Lab色空間での距離</option>
+                            </select>
+                            <div class="control-helper">アルゴリズムによってしきい値の効き方が変わります。</div>
+                        </label>
+
                         <div class="color-readout">
                             <div class="chip" id="selectedColor"></div>
                             <div>

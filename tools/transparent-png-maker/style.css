@@ -167,6 +167,29 @@ input[type="range"] {
     cursor: pointer;
 }
 
+select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel-strong);
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+select:focus-visible {
+    border-color: rgba(56, 189, 248, 0.7);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+}
+
+.control-helper {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
 .control-meta {
     display: flex;
     align-items: center;
