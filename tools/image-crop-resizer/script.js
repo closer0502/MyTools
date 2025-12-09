@@ -64,9 +64,7 @@
         statusDot: $("cropStatus").querySelector(".status-dot"),
         outputImage: $("cropOutputImage"),
         selectionInfo: $("cropSelectionInfo"),
-        btnPreview: $("cropPreviewBtn"),
         btnDownload: $("cropDownloadBtn"),
-        btnReset: $("cropReset"),
         inputX: $("inputX"),
         inputY: $("inputY"),
         inputW: $("inputW"),
@@ -262,7 +260,6 @@
             cropEls.outputImage.src = "";
             cropEls.outputInfo.textContent = "-";
             cropEls.btnDownload.disabled = true;
-            cropEls.btnPreview.disabled = !cropState.image;
             return;
         }
         const { x, y, w, h } = cropState.selection;
@@ -285,7 +282,6 @@
         cropEls.outputImage.src = dataUrl;
         cropEls.outputInfo.textContent = `${formatDims(w, h)}`;
         cropEls.btnDownload.disabled = false;
-        cropEls.btnPreview.disabled = false;
     };
 
     const handleCropFile = async (file, error) => {
@@ -307,7 +303,6 @@
             cropEls.fileDims.textContent = formatDims(img.naturalWidth, img.naturalHeight);
             cropEls.inputInfo.textContent = formatDims(img.naturalWidth, img.naturalHeight);
             cropEls.formatBadge.textContent = formatType(cropState.fileType);
-            cropEls.btnPreview.disabled = false;
             setCropStatus("クロップ範囲を調整できます", "ok");
         } catch (err) {
             setCropStatus("読み込みに失敗しました", "warn");
@@ -507,18 +502,13 @@
         width: $("resizeWidth"),
         height: $("resizeHeight"),
         percent: $("resizePercent"),
-        fitWidth: $("fitWidthValue"),
-        fitHeight: $("fitHeightValue"),
         lock: $("resizeLock"),
         btnPreview: $("resizePreviewBtn"),
         btnDownload: $("resizeDownloadBtn"),
-        btnReset: $("resizeReset"),
         percentHint: $("percentHint"),
         modeControls: {
             px: $("pxControls"),
             percent: $("percentControls"),
-            fitWidth: $("fitWidthControls"),
-            fitHeight: $("fitHeightControls"),
         },
     };
 
@@ -543,8 +533,6 @@
         resizeEls.width.value = resizeState.image.naturalWidth;
         resizeEls.height.value = resizeState.image.naturalHeight;
         resizeEls.percent.value = 100;
-        resizeEls.fitWidth.value = resizeState.image.naturalWidth;
-        resizeEls.fitHeight.value = resizeState.image.naturalHeight;
     };
 
     const computeResizeTarget = () => {
@@ -571,14 +559,12 @@
             width = Math.round((iw * percent) / 100);
             height = Math.round((ih * percent) / 100);
             resizeEls.percentHint.textContent = `${percent}% → ${formatDims(width, height)}`;
-        } else if (mode === "fit-width") {
-            width = Math.max(1, Number(resizeEls.fitWidth.value) || iw);
-            height = Math.round(width / ratio);
-        } else if (mode === "fit-height") {
-            height = Math.max(1, Number(resizeEls.fitHeight.value) || ih);
-            width = Math.round(height * ratio);
         }
 
+        if (mode === "px") {
+            resizeEls.width.value = width;
+            resizeEls.height.value = height;
+        }
         return { width, height };
     };
 
@@ -647,12 +633,11 @@
             resizeEls.formatBadge.textContent = formatType(resizeState.fileType);
             setResizeDefaults();
             updateResizePreview();
-            resizeEls.btnPreview.disabled = false;
-            setResizeStatus("リサイズ設定を調整できます", "ok");
-        } catch (err) {
-            console.error(err);
-            setResizeStatus("読み込みに失敗しました", "warn");
-        }
+        setResizeStatus("リサイズ設定を調整できます", "ok");
+    } catch (err) {
+        console.error(err);
+        setResizeStatus("読み込みに失敗しました", "warn");
+    }
     };
 
     // --- Event wiring ---
@@ -693,14 +678,7 @@
         });
         $("aspectSwap").addEventListener("change", defaultSelection);
 
-        cropEls.btnPreview.addEventListener("click", updateCropOutput);
         cropEls.btnDownload.addEventListener("click", downloadCrop);
-        cropEls.btnReset.addEventListener("click", () => {
-            if (cropState.image) {
-                defaultSelection();
-                setCropStatus("クロップ範囲をリセットしました", "ok");
-            }
-        });
 
         // Resize drop zone
         bindDropZone($("resizeDropZone"), $("resizeFileInput"), handleResizeFile);
@@ -725,18 +703,9 @@
             updateResizePreview();
         });
         resizeEls.percent.addEventListener("input", updateResizePreview);
-        resizeEls.fitWidth.addEventListener("input", updateResizePreview);
-        resizeEls.fitHeight.addEventListener("input", updateResizePreview);
         resizeEls.lock.addEventListener("change", updateResizePreview);
 
-        resizeEls.btnPreview.addEventListener("click", updateResizePreview);
         resizeEls.btnDownload.addEventListener("click", downloadResize);
-        resizeEls.btnReset.addEventListener("click", () => {
-            if (!resizeState.image) return;
-            setResizeDefaults();
-            updateResizePreview();
-            setResizeStatus("設定をリセットしました", "ok");
-        });
 
         updateResizeModeUI();
     };

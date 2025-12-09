@@ -96,8 +96,6 @@
                                 <span id="cropStatusText">ファイル待機中</span>
                             </div>
                             <div class="button-row">
-                                <button class="ghost-button" type="button" id="cropReset">リセット</button>
-                                <button class="pill-button" type="button" id="cropPreviewBtn" disabled>プレビュー更新</button>
                                 <button class="pill-button" type="button" id="cropDownloadBtn" disabled>クロップを保存</button>
                             </div>
                         </div>
@@ -176,8 +174,6 @@
                             <div class="mode-grid">
                                 <label><input type="radio" name="resizeMode" value="px" checked> ピクセル指定</label>
                                 <label><input type="radio" name="resizeMode" value="percent"> パーセント指定</label>
-                                <label><input type="radio" name="resizeMode" value="fit-width"> 横幅に合わせる</label>
-                                <label><input type="radio" name="resizeMode" value="fit-height"> 縦幅に合わせる</label>
                             </div>
                         </div>
 
@@ -212,38 +208,12 @@
                             </div>
                         </div>
 
-                        <div class="control hidden" id="fitWidthControls">
-                            <div class="label-row">
-                                <span>横幅に合わせる</span>
-                                <span class="muted">高さは自動計算</span>
-                            </div>
-                            <div class="inputs-row">
-                                <label>幅(px)
-                                    <input type="number" id="fitWidthValue" min="1" step="1">
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="control hidden" id="fitHeightControls">
-                            <div class="label-row">
-                                <span>縦幅に合わせる</span>
-                                <span class="muted">幅は自動計算</span>
-                            </div>
-                            <div class="inputs-row">
-                                <label>高さ(px)
-                                    <input type="number" id="fitHeightValue" min="1" step="1">
-                                </label>
-                            </div>
-                        </div>
-
                         <div class="control control-actions">
                             <div class="status-box" id="resizeStatus">
                                 <span class="status-dot"></span>
                                 <span id="resizeStatusText">ファイル待機中</span>
                             </div>
                             <div class="button-row">
-                                <button class="ghost-button" type="button" id="resizeReset">リセット</button>
-                                <button class="pill-button" type="button" id="resizePreviewBtn" disabled>プレビュー生成</button>
                                 <button class="pill-button" type="button" id="resizeDownloadBtn" disabled>リサイズを保存</button>
                             </div>
                         </div>
