@@ -127,16 +127,22 @@
         return r;
     };
 
-    const enforceAspect = (rect, mode = "se") => {
+    const enforceAspect = (rect, mode = "se", prefer = "auto") => {
         const ratio = getAspectValue();
         if (!ratio) return normalizeRect(rect);
         const r = normalizeRect(rect);
         let w = r.w;
         let h = r.h;
-        if (w / h > ratio) {
+        if (prefer === "width") {
+            h = w / ratio;
+        } else if (prefer === "height") {
             w = h * ratio;
         } else {
-            h = w / ratio;
+            if (w / h > ratio) {
+                w = h * ratio;
+            } else {
+                h = w / ratio;
+            }
         }
 
         switch (mode) {
@@ -173,8 +179,8 @@
         return r;
     };
 
-    const setSelection = (rect, mode = "se") => {
-        const rectAspect = enforceAspect(rect, mode);
+    const setSelection = (rect, mode = "se", prefer = "auto") => {
+        const rectAspect = enforceAspect(rect, mode, prefer);
         cropState.selection = clampRect(rectAspect);
         syncSelectionInputs();
         drawCropCanvas();
@@ -344,12 +350,14 @@
         );
     };
 
+    let aspectPrefer = "auto";
+
     const selectionFromInputs = () => {
         const x = Number(cropEls.inputX.value) || 0;
         const y = Number(cropEls.inputY.value) || 0;
         const w = Number(cropEls.inputW.value) || 1;
         const h = Number(cropEls.inputH.value) || 1;
-        setSelection({ x, y, w, h });
+        setSelection({ x, y, w, h }, "se", aspectPrefer);
     };
 
     const getPointer = (evt) => {
@@ -432,31 +440,31 @@
 
         switch (dragState.mode) {
             case "move":
-                setSelection({ x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }, "move");
+                setSelection({ x: r.x + dx, y: r.y + dy, w: r.w, h: r.h }, "move", "auto");
                 return;
             case "nw":
-                setSelection({ x: r.x + dx, y: r.y + dy, w: r.w - dx, h: r.h - dy }, "nw");
+                setSelection({ x: r.x + dx, y: r.y + dy, w: r.w - dx, h: r.h - dy }, "nw", "auto");
                 return;
             case "n":
-                setSelection({ x: r.x, y: r.y + dy, w: r.w, h: r.h - dy }, "n");
+                setSelection({ x: r.x, y: r.y + dy, w: r.w, h: r.h - dy }, "n", "height");
                 return;
             case "ne":
-                setSelection({ x: r.x, y: r.y + dy, w: r.w + dx, h: r.h - dy }, "ne");
+                setSelection({ x: r.x, y: r.y + dy, w: r.w + dx, h: r.h - dy }, "ne", "auto");
                 return;
             case "e":
-                setSelection({ x: r.x, y: r.y, w: r.w + dx, h: r.h }, "e");
+                setSelection({ x: r.x, y: r.y, w: r.w + dx, h: r.h }, "e", "width");
                 return;
             case "se":
-                setSelection({ x: r.x, y: r.y, w: r.w + dx, h: r.h + dy }, "se");
+                setSelection({ x: r.x, y: r.y, w: r.w + dx, h: r.h + dy }, "se", "auto");
                 return;
             case "s":
-                setSelection({ x: r.x, y: r.y, w: r.w, h: r.h + dy }, "s");
+                setSelection({ x: r.x, y: r.y, w: r.w, h: r.h + dy }, "s", "height");
                 return;
             case "sw":
-                setSelection({ x: r.x + dx, y: r.y, w: r.w - dx, h: r.h + dy }, "sw");
+                setSelection({ x: r.x + dx, y: r.y, w: r.w - dx, h: r.h + dy }, "sw", "auto");
                 return;
             case "w":
-                setSelection({ x: r.x + dx, y: r.y, w: r.w - dx, h: r.h }, "w");
+                setSelection({ x: r.x + dx, y: r.y, w: r.w - dx, h: r.h }, "w", "width");
                 return;
             case "new": {
                 const rect = {
@@ -465,7 +473,7 @@
                     w: dx,
                     h: dy,
                 };
-                setSelection(rect, "se");
+                setSelection(rect, "se", "auto");
                 return;
             }
             default:
@@ -662,10 +670,22 @@
         window.addEventListener("mouseup", endDrag);
 
         ["input", "change"].forEach((evtName) => {
-            cropEls.inputX.addEventListener(evtName, selectionFromInputs);
-            cropEls.inputY.addEventListener(evtName, selectionFromInputs);
-            cropEls.inputW.addEventListener(evtName, selectionFromInputs);
-            cropEls.inputH.addEventListener(evtName, selectionFromInputs);
+            cropEls.inputX.addEventListener(evtName, () => {
+                aspectPrefer = "auto";
+                selectionFromInputs();
+            });
+            cropEls.inputY.addEventListener(evtName, () => {
+                aspectPrefer = "auto";
+                selectionFromInputs();
+            });
+            cropEls.inputW.addEventListener(evtName, () => {
+                aspectPrefer = "width";
+                selectionFromInputs();
+            });
+            cropEls.inputH.addEventListener(evtName, () => {
+                aspectPrefer = "height";
+                selectionFromInputs();
+            });
         });
 
         document.querySelectorAll("input[name='aspect']").forEach((el) => {
