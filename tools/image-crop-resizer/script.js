@@ -79,7 +79,10 @@
         const val = document.querySelector("input[name='aspect']:checked").value;
         if (val === "free") return null;
         const [a, b] = val.split(":").map(Number);
-        return a && b ? a / b : null;
+        const ratio = a && b ? a / b : null;
+        if (!ratio) return null;
+        const flipped = $("aspectSwap")?.checked;
+        return flipped ? 1 / ratio : ratio;
     };
 
     const setCropStatus = (text, tone = "muted") => {
@@ -96,6 +99,8 @@
         cropState.scale = ratio;
         cropCanvas.width = Math.round(img.naturalWidth * ratio);
         cropCanvas.height = Math.round(img.naturalHeight * ratio);
+        cropCanvas.style.width = `${cropCanvas.width}px`;
+        cropCanvas.style.height = `${cropCanvas.height}px`;
     };
 
     const normalizeRect = (rect) => {
@@ -230,10 +235,6 @@
         );
 
         const { x, y, w, h } = cropState.selection;
-        cropCtx.fillStyle = "rgba(0, 0, 0, 0.45)";
-        cropCtx.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
-        cropCtx.clearRect(x * s, y * s, w * s, h * s);
-
         cropCtx.strokeStyle = "#22d3ee";
         cropCtx.lineWidth = 2;
         cropCtx.strokeRect(x * s, y * s, w * s, h * s);
@@ -383,6 +384,27 @@
     const isInsideSelection = ({ ix, iy }) => {
         const { x, y, w, h } = cropState.selection;
         return ix >= x && ix <= x + w && iy >= y && iy <= y + h;
+    };
+
+    const setCursorByZone = (evt) => {
+        if (!cropState.image) {
+            cropCanvas.style.cursor = "crosshair";
+            return;
+        }
+        const pointer = getPointer(evt);
+        const handle = hitHandle(pointer);
+        if (handle) {
+            if (handle === "nw" || handle === "se") cropCanvas.style.cursor = "nwse-resize";
+            else if (handle === "ne" || handle === "sw") cropCanvas.style.cursor = "nesw-resize";
+            else if (handle === "n" || handle === "s") cropCanvas.style.cursor = "ns-resize";
+            else cropCanvas.style.cursor = "ew-resize";
+            return;
+        }
+        if (isInsideSelection(pointer)) {
+            cropCanvas.style.cursor = "move";
+        } else {
+            cropCanvas.style.cursor = "crosshair";
+        }
     };
 
     const startDrag = (evt) => {
@@ -629,9 +651,13 @@
     const init = () => {
         // Crop drop zone
         bindDropZone($("cropDropZone"), $("cropFileInput"), handleCropFile);
-        $("cropFileButton").addEventListener("click", () => $("cropFileInput").click());
+        $("cropFileButton").addEventListener("click", (e) => {
+            e.stopPropagation();
+            $("cropFileInput").click();
+        });
 
         cropCanvas.addEventListener("mousedown", startDrag);
+        cropCanvas.addEventListener("mousemove", setCursorByZone);
         window.addEventListener("mousemove", dragMove);
         window.addEventListener("mouseup", endDrag);
 
@@ -645,6 +671,7 @@
         document.querySelectorAll("input[name='aspect']").forEach((el) => {
             el.addEventListener("change", defaultSelection);
         });
+        $("aspectSwap").addEventListener("change", defaultSelection);
 
         cropEls.btnPreview.addEventListener("click", updateCropOutput);
         cropEls.btnDownload.addEventListener("click", downloadCrop);
@@ -657,7 +684,10 @@
 
         // Resize drop zone
         bindDropZone($("resizeDropZone"), $("resizeFileInput"), handleResizeFile);
-        $("resizeFileButton").addEventListener("click", () => $("resizeFileInput").click());
+        $("resizeFileButton").addEventListener("click", (e) => {
+            e.stopPropagation();
+            $("resizeFileInput").click();
+        });
 
         document.querySelectorAll("input[name='resizeMode']").forEach((el) => {
             el.addEventListener("change", () => {

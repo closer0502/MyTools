@@ -298,6 +298,11 @@ label input[type="number"] {
     background: var(--accent-strong);
 }
 
+.swap-toggle {
+    margin-top: 6px;
+    align-self: flex-start;
+}
+
 .button-row {
     display: flex;
     gap: 10px;
