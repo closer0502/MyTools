@@ -3,7 +3,10 @@
     const params = {
         windowSize: 2048,
         hopSize: 512,
-        targetFreqBins: 128,
+        targetFreqBins: 192,
+        binsPerOctave: 12,
+        minFreqHz: 20,
+        spectroBarBands: 10,
         maxTimeSlices: 256,
         heightScale: 18,
         terrainWidth: 50,
@@ -145,7 +148,16 @@
                 throw new Error("解析結果が空です。別の音源を試してください。");
             }
             playbackDuration = axisMeta?.durationSec || ui.audio.duration || playbackDuration;
-            lastSpectrogram = { frames: fullFrames, maxMag: fullMaxMag, minMag: fullMinMag };
+            lastSpectrogram = {
+                frames: fullFrames,
+                maxMag: fullMaxMag,
+                minMag: fullMinMag,
+                freqNorms: axisMeta.freqNorms,
+                freqEdgesNorm: axisMeta.freqEdgesNorm,
+                freqEdgesHz: axisMeta.freqEdgesHz,
+                freqMin: axisMeta.freqMin,
+                freqMax: axisMeta.freqMax
+            };
             buildTerrain(frames3d, maxMag3d, minMag3d, axisMeta);
             updateTimeLabel(0);
             movePlaybackLine(0);
@@ -188,14 +200,18 @@ async function decodeFile(file) {
         if (data.length < params.windowSize) {
             throw new Error("音源が短すぎます。少なくとも数秒の音源を選んでください。");
         }
+        const freqMap = createLogFreqMap(sampleRate);
+        const freqBins = freqMap.binEdges.length - 1;
+        if (freqBins < 1) {
+            throw new Error("周波数ビンの計算に失敗しました。");
+        }
+
         const frames = [];
         const fft = new FFT(params.windowSize, sampleRate);
         const window = createHann(params.windowSize);
         const hop = params.hopSize;
         const totalFrames = Math.max(1, Math.floor((data.length - params.windowSize) / hop) + 1);
         const temp = new Float32Array(params.windowSize);
-        const freqBins = params.targetFreqBins;
-        const bandSize = Math.max(1, Math.floor((params.windowSize / 2) / freqBins));
         let maxMag = -Infinity;
         let minMag = Infinity;
         const eps = 1e-12;
@@ -215,8 +231,8 @@ async function decodeFile(file) {
 
             const magnitudes = new Float32Array(freqBins);
             for (let f = 0; f < freqBins; f++) {
-                const binStart = f * bandSize;
-                const binEnd = f === freqBins - 1 ? params.windowSize / 2 : binStart + bandSize;
+                const binStart = freqMap.binEdges[f];
+                const binEnd = freqMap.binEdges[f + 1];
                 let sum = 0;
                 let count = 0;
                 for (let b = binStart; b < binEnd; b++) {
@@ -242,7 +258,14 @@ async function decodeFile(file) {
             sampleRate,
             durationSec: data.length / sampleRate,
             timeSlices: reduced.frames.length,
-            freqBins
+            freqBins,
+            freqMin: freqMap.freqMin,
+            freqMax: freqMap.freqMax,
+            freqEdgesHz: freqMap.edgesHz,
+            freqEdgesNorm: freqMap.edgesNorm,
+            freqCentersHz: freqMap.centersHz,
+            freqNorms: freqMap.centersNorm,
+            binsPerOctave: freqMap.binsPerOctave
         };
         return {
             frames3d: reduced.frames,
@@ -252,6 +275,71 @@ async function decodeFile(file) {
             fullMaxMag: maxMag,
             fullMinMag: minMag,
             axisMeta
+        };
+    }
+
+    function createLogFreqMap(sampleRate) {
+        const nyquist = sampleRate / 2;
+        const fftMaxBin = Math.floor(params.windowSize / 2);
+        const binsPerOctave = Math.max(1, params.binsPerOctave || 12);
+        let freqMin = Math.max(params.minFreqHz || 20, sampleRate / params.windowSize);
+        if (freqMin >= nyquist) {
+            freqMin = Math.max(1, nyquist * 0.5);
+        }
+        freqMin = Math.max(1, Math.min(freqMin, nyquist * 0.99));
+        const logRange = Math.max(1e-6, Math.log(nyquist / freqMin));
+        const maxBins = Math.max(1, Math.min(params.targetFreqBins || 128, fftMaxBin));
+
+        const edgesHz = [freqMin];
+        while (edgesHz.length < maxBins) {
+            const next = edgesHz[edgesHz.length - 1] * Math.pow(2, 1 / binsPerOctave);
+            if (next >= nyquist * 0.999) {
+                edgesHz.push(nyquist);
+                break;
+            }
+            edgesHz.push(next);
+        }
+        if (edgesHz[edgesHz.length - 1] !== nyquist) {
+            edgesHz.push(nyquist);
+        }
+
+        const binEdges = edgesHz.map((hz, idx) => {
+            if (idx === edgesHz.length - 1) return fftMaxBin;
+            const raw = Math.round((hz / sampleRate) * params.windowSize);
+            return Math.min(fftMaxBin, Math.max(0, raw));
+        });
+        binEdges[0] = 0;
+        for (let i = 0; i < binEdges.length - 1; i++) {
+            if (binEdges[i + 1] <= binEdges[i]) {
+                binEdges[i + 1] = Math.min(fftMaxBin, binEdges[i] + 1);
+            }
+        }
+
+        const centersHz = [];
+        const centersNorm = [];
+        for (let i = 0; i < edgesHz.length - 1; i++) {
+            const startHz = edgesHz[i];
+            const endHz = edgesHz[i + 1];
+            const center = Math.sqrt(startHz * endHz);
+            centersHz.push(center);
+            const norm = Math.log(Math.max(freqMin, Math.min(nyquist, center)) / freqMin) / logRange;
+            centersNorm.push(norm);
+        }
+
+        const edgesNorm = edgesHz.map((hz) => {
+            const clamped = Math.max(freqMin, Math.min(nyquist, hz));
+            return Math.log(clamped / freqMin) / logRange;
+        });
+
+        return {
+            edgesHz,
+            edgesNorm,
+            binEdges,
+            centersHz,
+            centersNorm,
+            freqMin,
+            freqMax: nyquist,
+            binsPerOctave
         };
     }
 
@@ -312,11 +400,16 @@ async function decodeFile(file) {
         const width = params.terrainWidth;
         const depth = params.terrainDepth;
         const heightScale = params.heightScale;
+        const freqNorms = axisMeta?.freqNorms;
+        const getFreqNorm = (idx) => {
+            if (freqNorms && Number.isFinite(freqNorms[idx])) return freqNorms[idx];
+            return freqCount > 1 ? idx / (freqCount - 1) : 0;
+        };
 
         let ptr = 0;
         for (let t = 0; t < timeCount; t++) {
             for (let f = 0; f < freqCount; f++) {
-                const normF = f / (freqCount - 1);
+                const normF = getFreqNorm(f);
                 const normT = t / (timeCount - 1);
                 const magnitude = frames[t][f];
                 const denom = maxMag - minMag;
@@ -378,6 +471,13 @@ async function decodeFile(file) {
         const width = params.terrainWidth;
         const depth = params.terrainDepth;
         axisGroup = new THREE.Group();
+        const freqMin = axisMeta.freqMin || 1;
+        const freqMax = axisMeta.freqMax || axisMeta.sampleRate / 2;
+        const logDenom = Math.max(1e-6, Math.log(freqMax / freqMin));
+        const freqToNorm = (hz) => {
+            const clamped = Math.min(freqMax, Math.max(freqMin, hz));
+            return Math.log(clamped / freqMin) / logDenom;
+        };
 
         const freqLine = new THREE.Line(
             new THREE.BufferGeometry().setFromPoints([
@@ -388,9 +488,9 @@ async function decodeFile(file) {
         );
         axisGroup.add(freqLine);
 
-        const freqTicks = 5;
-        for (let i = 0; i <= freqTicks; i++) {
-            const t = i / freqTicks;
+        const freqTicks = buildFreqTicks(freqMin, freqMax);
+        freqTicks.forEach((hz) => {
+            const t = freqToNorm(hz);
             const x = (t - 0.5) * width;
             const z = depth / 2 + 2;
             axisGroup.add(
@@ -403,13 +503,25 @@ async function decodeFile(file) {
                 )
             );
 
-            const freqHz = Math.round(t * (axisMeta.sampleRate / 2));
-            const label = makeTextSprite(`${freqHz} Hz`, "#dbeafe");
+            const label = makeTextSprite(formatHz(hz), "#dbeafe");
             label.position.set(x, 0.1, z + 1.6);
             axisGroup.add(label);
+        });
+
+        const markerNorm3d = getMarkerNorm(1000, axisMeta);
+        if (Number.isFinite(markerNorm3d)) {
+            const x = (markerNorm3d - 0.5) * width;
+            const markerLine = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(x, 0.02, -depth / 2),
+                    new THREE.Vector3(x, 0.02, depth / 2)
+                ]),
+                new THREE.LineBasicMaterial({ color: "#ef4444", linewidth: 2 })
+            );
+            axisGroup.add(markerLine);
         }
 
-        const freqTitle = makeTextSprite("Frequency", "#bfdbfe");
+        const freqTitle = makeTextSprite("Frequency (log)", "#bfdbfe");
         freqTitle.position.set(0, 0.2, depth / 2 + 4);
         axisGroup.add(freqTitle);
 
@@ -448,6 +560,37 @@ async function decodeFile(file) {
         axisGroup.add(timeTitle);
 
         scene.add(axisGroup);
+    }
+
+    function buildFreqTicks(minHz, maxHz) {
+        const candidates = [
+            20, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800,
+            1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500,
+            16000, 20000, 25000, 32000, 40000, 48000
+        ];
+        const picked = candidates.filter((hz) => hz >= minHz && hz <= maxHz);
+        if (!picked.length) return [minHz, maxHz];
+
+        if (picked[0] > minHz * 1.05) picked.unshift(minHz);
+        if (picked[picked.length - 1] < maxHz * 0.95) picked.push(maxHz);
+
+        const maxTicks = 8;
+        if (picked.length <= maxTicks) return picked;
+        const step = (picked.length - 1) / (maxTicks - 1);
+        const reduced = [];
+        for (let i = 0; i < maxTicks; i++) {
+            const idx = Math.round(i * step);
+            reduced.push(picked[idx]);
+        }
+        return Array.from(new Set(reduced));
+    }
+
+    function formatHz(hz) {
+        if (hz >= 1000) {
+            const val = hz / 1000;
+            return `${val >= 10 ? val.toFixed(0) : val.toFixed(1)} kHz`;
+        }
+        return `${Math.round(hz)} Hz`;
     }
 
     function disposeAxes() {
@@ -798,13 +941,22 @@ async function decodeFile(file) {
         const t = idxFloat - i0;
         const slice0 = frames[i0];
         const slice1 = frames[i1];
+        const freqNorms = lastSpectrogram.freqNorms;
+        const freqEdgesNorm = lastSpectrogram.freqEdgesNorm;
+        const markerNorm = getMarkerNorm(1000, lastSpectrogram);
+        const getX = (idx) => {
+            if (freqNorms && freqNorms.length === freqCount && Number.isFinite(freqNorms[idx])) {
+                return freqNorms[idx] * width;
+            }
+            return (idx / (freqCount - 1)) * width;
+        };
 
         ctx.lineWidth = 2;
         if (spectroMode === "line") {
             ctx.strokeStyle = "#38bdf8";
             ctx.beginPath();
             for (let f = 0; f < freqCount; f++) {
-                const x = (f / (freqCount - 1)) * width;
+                const x = getX(f);
                 const mag0 = slice0[f];
                 const mag1 = slice1[f];
                 const mag = i0 === i1 ? mag0 : mag0 * (1 - t) + mag1 * t;
@@ -826,16 +978,32 @@ async function decodeFile(file) {
             ctx.lineTo(0, height);
             ctx.closePath();
             ctx.fill();
+
+            if (Number.isFinite(markerNorm)) {
+                const x = markerNorm * width;
+                ctx.strokeStyle = "#ef4444";
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
         } else {
-            const bars = Math.min(96, freqCount);
-            const binSize = freqCount / bars;
-            const barW = width / bars;
+            const hasEdgeNorm = freqEdgesNorm && freqEdgesNorm.length === freqCount + 1;
+            const bars = Math.max(1, Math.min(params.spectroBarBands || 10, freqCount));
             for (let b = 0; b < bars; b++) {
-                const start = Math.floor(b * binSize);
-                const end = Math.min(freqCount, Math.floor((b + 1) * binSize));
+                const leftNorm = b / bars;
+                const rightNorm = (b + 1) / bars;
+                const barW = Math.max(1, (rightNorm - leftNorm) * width);
+                const x = leftNorm * width;
+
                 let sum = 0;
                 let count = 0;
-                for (let i = start; i < end; i++) {
+                for (let i = 0; i < freqCount; i++) {
+                    const binLeft = hasEdgeNorm ? freqEdgesNorm[i] : i / freqCount;
+                    const binRight = hasEdgeNorm ? freqEdgesNorm[i + 1] : (i + 1) / freqCount;
+                    const overlaps = binRight > leftNorm && binLeft < rightNorm;
+                    if (!overlaps) continue;
                     const mag0 = slice0[i];
                     const mag1 = slice1[i];
                     const mag = i0 === i1 ? mag0 : mag0 * (1 - t) + mag1 * t;
@@ -845,11 +1013,21 @@ async function decodeFile(file) {
                 const avg = count > 0 ? sum / count : 0;
                 const norm = Math.min(1, Math.max(0, (avg - minMag) / denom));
                 const h = norm * height;
-                const x = b * barW;
-                ctx.fillStyle = "rgba(56, 189, 248, 0.8)";
+                const isMarker = Number.isFinite(markerNorm) && markerNorm >= leftNorm && (markerNorm < rightNorm || b === bars - 1);
+                ctx.fillStyle = isMarker ? "rgba(239, 68, 68, 0.9)" : "rgba(56, 189, 248, 0.8)";
                 ctx.fillRect(x + barW * 0.1, height - h, barW * 0.8, h);
             }
         }
+    }
+
+    function getMarkerNorm(freqHz, info) {
+        const minHz = info?.freqMin;
+        const maxHz = info?.freqMax;
+        if (!Number.isFinite(minHz) || !Number.isFinite(maxHz) || minHz <= 0 || maxHz <= minHz) return null;
+        const clamped = Math.min(maxHz, Math.max(minHz, freqHz));
+        const denom = Math.log(maxHz / minHz);
+        if (!Number.isFinite(denom) || denom <= 0) return null;
+        return Math.log(clamped / minHz) / denom;
     }
 
     function clearSpectrogram() {
