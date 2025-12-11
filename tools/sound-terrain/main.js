@@ -36,7 +36,7 @@
     let audioUrl = null;
     let playbackDuration = 0;
     let isSeeking = false;
-    let lastSpectrogram = null; // { frames, maxMag }
+    let lastSpectrogram = null; // { frames, maxMag, minMag }
     let lastSpectroDraw = 0;
     let spectroMode = "line"; // "line" | "bars"
 
@@ -140,13 +140,13 @@
             await audioCtx.resume();
             const { data, sampleRate } = await decodeFile(selectedFile);
             updateStatus("FFT 解析中...");
-            const { frames3d, maxMag3d, fullFrames, fullMaxMag, axisMeta } = await runStft(data, sampleRate);
+            const { frames3d, maxMag3d, minMag3d, fullFrames, fullMaxMag, fullMinMag, axisMeta } = await runStft(data, sampleRate);
             if (!frames3d.length) {
                 throw new Error("解析結果が空です。別の音源を試してください。");
             }
             playbackDuration = axisMeta?.durationSec || ui.audio.duration || playbackDuration;
-            lastSpectrogram = { frames: fullFrames, maxMag: fullMaxMag };
-            buildTerrain(frames3d, maxMag3d, axisMeta);
+            lastSpectrogram = { frames: fullFrames, maxMag: fullMaxMag, minMag: fullMinMag };
+            buildTerrain(frames3d, maxMag3d, minMag3d, axisMeta);
             updateTimeLabel(0);
             movePlaybackLine(0);
             drawLiveSpectrum(0, true);
@@ -196,7 +196,9 @@ async function decodeFile(file) {
         const temp = new Float32Array(params.windowSize);
         const freqBins = params.targetFreqBins;
         const bandSize = Math.max(1, Math.floor((params.windowSize / 2) / freqBins));
-        let maxMag = 0;
+        let maxMag = -Infinity;
+        let minMag = Infinity;
+        const eps = 1e-12;
 
         for (let frame = 0; frame < totalFrames; frame++) {
             const start = frame * hop;
@@ -222,9 +224,11 @@ async function decodeFile(file) {
                     sum += mag;
                     count++;
                 }
-                const mag = count > 0 ? sum / count : 0;
+                const lin = count > 0 ? sum / count : 0;
+                const mag = 20 * Math.log10(Math.max(lin, eps));
                 magnitudes[f] = mag;
                 if (mag > maxMag) maxMag = mag;
+                if (mag < minMag) minMag = mag;
             }
             frames.push(magnitudes);
             if (frame % 10 === 0) {
@@ -233,7 +237,7 @@ async function decodeFile(file) {
             }
         }
 
-        const reduced = reduceTime(frames, maxMag, params.maxTimeSlices);
+        const reduced = reduceTime(frames, maxMag, minMag, params.maxTimeSlices);
         const axisMeta = {
             sampleRate,
             durationSec: data.length / sampleRate,
@@ -243,20 +247,23 @@ async function decodeFile(file) {
         return {
             frames3d: reduced.frames,
             maxMag3d: reduced.maxMag,
+            minMag3d: reduced.minMag,
             fullFrames: frames,
             fullMaxMag: maxMag,
+            fullMinMag: minMag,
             axisMeta
         };
     }
 
-    function reduceTime(frames, currentMax, maxSlices) {
-        if (!frames.length) return { frames: [], maxMag: currentMax };
-        if (frames.length <= maxSlices) return { frames, maxMag: currentMax };
+    function reduceTime(frames, currentMax, currentMin, maxSlices) {
+        if (!frames.length) return { frames: [], maxMag: currentMax, minMag: currentMin };
+        if (frames.length <= maxSlices) return { frames, maxMag: currentMax, minMag: currentMin };
 
         const freqCount = frames[0].length;
         const step = frames.length / maxSlices;
         const reduced = [];
         let maxMag = 0;
+        let minMag = Infinity;
 
         for (let i = 0; i < maxSlices; i++) {
             const start = Math.floor(i * step);
@@ -273,10 +280,11 @@ async function decodeFile(file) {
             for (let f = 0; f < freqCount; f++) {
                 bucket[f] /= count;
                 if (bucket[f] > maxMag) maxMag = bucket[f];
+                if (bucket[f] < minMag) minMag = bucket[f];
             }
             reduced.push(bucket);
         }
-        return { frames: reduced, maxMag: maxMag || currentMax };
+        return { frames: reduced, maxMag: maxMag || currentMax, minMag: Number.isFinite(minMag) ? minMag : currentMin };
     }
 
     function createHann(size) {
@@ -287,7 +295,7 @@ async function decodeFile(file) {
         return window;
     }
 
-    function buildTerrain(frames, maxMag, axisMeta) {
+    function buildTerrain(frames, maxMag, minMag, axisMeta) {
         if (terrainMesh) {
             terrainMesh.geometry.dispose();
             terrainMesh.material.dispose();
@@ -311,7 +319,9 @@ async function decodeFile(file) {
                 const normF = f / (freqCount - 1);
                 const normT = t / (timeCount - 1);
                 const magnitude = frames[t][f];
-                const normMag = maxMag > 0 ? Math.pow(magnitude / maxMag, 0.6) : 0;
+                const denom = maxMag - minMag;
+                const norm = denom > 0 ? (magnitude - minMag) / denom : 0;
+                const normMag = Math.min(1, Math.max(0, norm));
                 const x = (normF - 0.5) * width;
                 const z = (normT - 0.5) * depth;
                 const y = normMag * heightScale;
@@ -753,6 +763,8 @@ async function decodeFile(file) {
         if (!ui.spectrogram || !lastSpectrogram?.frames?.length) return;
         const frames = lastSpectrogram.frames;
         const maxMag = lastSpectrogram.maxMag;
+        const minMag = lastSpectrogram.minMag;
+        const denom = maxMag - minMag || 1;
         const canvas = ui.spectrogram;
         const ctx = canvas.getContext("2d");
         const now = performance.now();
@@ -796,7 +808,7 @@ async function decodeFile(file) {
                 const mag0 = slice0[f];
                 const mag1 = slice1[f];
                 const mag = i0 === i1 ? mag0 : mag0 * (1 - t) + mag1 * t;
-                const norm = maxMag > 0 ? Math.pow(mag / maxMag, 0.6) : 0;
+                const norm = Math.min(1, Math.max(0, (mag - minMag) / denom));
                 const y = height - norm * height;
                 if (f === 0) {
                     ctx.moveTo(x, y);
@@ -831,7 +843,7 @@ async function decodeFile(file) {
                     count++;
                 }
                 const avg = count > 0 ? sum / count : 0;
-                const norm = maxMag > 0 ? Math.pow(avg / maxMag, 0.6) : 0;
+                const norm = Math.min(1, Math.max(0, (avg - minMag) / denom));
                 const h = norm * height;
                 const x = b * barW;
                 ctx.fillStyle = "rgba(56, 189, 248, 0.8)";
