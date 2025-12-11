@@ -241,6 +241,15 @@ body {
     box-shadow: var(--shadow);
 }
 
+.player-section {
+    margin: var(--space-3) 0 var(--space-4);
+}
+
+.player-section .player-card {
+    max-width: 980px;
+    margin: 0 auto;
+}
+
 .player-head {
     display: flex;
     flex-direction: column;
