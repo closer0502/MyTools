@@ -16,8 +16,8 @@
     }
     </script>
     <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import * as THREE from "three";
+        import { OrbitControls } from "three/addons/controls/OrbitControls.js";
         window.THREE = THREE;
         window.OrbitControls = OrbitControls;
     </script>
@@ -73,6 +73,18 @@
                         <div class="spinner" id="spinner" aria-hidden="true"></div>
                         <div id="statusText">音源を選択してください。</div>
                     </div>
+                </div>
+                <div class="player-card">
+                    <div class="player-head">
+                        <div class="muted tiny">Playback</div>
+                        <div class="player-title">Audio Preview &amp; Seek</div>
+                    </div>
+                    <div class="player-controls">
+                        <button id="playBtn" class="pill-button small" disabled>Play</button>
+                        <input type="range" id="seekBar" min="0" max="100" step="0.1" value="0" disabled>
+                        <div class="time-label" id="timeLabel">0:00 / 0:00</div>
+                    </div>
+                    <audio id="audioPlayer" preload="metadata" style="display:none"></audio>
                 </div>
                 <div class="hint-card">
                     <div class="muted tiny">How to</div>

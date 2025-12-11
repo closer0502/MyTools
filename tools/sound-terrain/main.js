@@ -17,7 +17,11 @@
         statusText: document.getElementById("statusText"),
         spinner: document.getElementById("spinner"),
         fileName: document.getElementById("fileName"),
-        container: document.getElementById("threeContainer")
+        container: document.getElementById("threeContainer"),
+        playBtn: document.getElementById("playBtn"),
+        seekBar: document.getElementById("seekBar"),
+        timeLabel: document.getElementById("timeLabel"),
+        audio: document.getElementById("audioPlayer")
     };
 
     let audioCtx;
@@ -25,6 +29,10 @@
     let scene, camera, renderer, controls;
     let terrainMesh = null;
     let axisGroup = null;
+    let playbackLine = null;
+    let audioUrl = null;
+    let playbackDuration = 0;
+    let isSeeking = false;
 
     bootstrap();
 
@@ -35,6 +43,7 @@
             setupGlobalErrorHandlers();
             initScene();
             bindUI();
+            initPlayerUI();
             updateStatus(`準備完了 (three r${THREE.REVISION}, FFT ready)。音源を選択してください。`);
             animate();
         } catch (err) {
@@ -49,8 +58,6 @@
         if (typeof FFT === "undefined") {
             await loadScript("https://unpkg.com/dsp.js@1.0.1/dsp.min.js");
         }
-        
-        // 必須ライブラリのチェック
         if (typeof THREE === "undefined") {
             throw new Error("three.js が読み込めませんでした。ネットワーク接続を確認してください。");
         }
@@ -67,7 +74,7 @@
             .filter(([_, el]) => !el)
             .map(([key]) => key);
         if (missing.length) {
-            throw new Error(`必要な要素が見つかりません: ${missing.join(", ")}`);
+            throw new Error(`必須の要素が見つかりません: ${missing.join(", ")}`);
         }
     }
 
@@ -78,18 +85,30 @@
         window.addEventListener("resize", handleResize);
     }
 
+    function initPlayerUI() {
+        ui.playBtn.addEventListener("click", togglePlayback);
+        ui.seekBar.addEventListener("pointerdown", () => (isSeeking = true));
+        ui.seekBar.addEventListener("pointerup", () => (isSeeking = false));
+        ui.seekBar.addEventListener("input", handleSeekInput);
+        ui.seekBar.addEventListener("change", handleSeekCommit);
+        ui.audio.addEventListener("ended", handleAudioEnded);
+        resetPlayerState();
+    }
+
     function handleFileSelect(e) {
         const file = e.target.files?.[0];
         if (!file) {
             selectedFile = null;
             ui.fileName.textContent = "未選択";
             ui.analyzeBtn.disabled = true;
+            resetPlayerState();
             updateStatus("音源を選択してください。");
             return;
         }
         selectedFile = file;
         ui.fileName.textContent = file.name;
         ui.analyzeBtn.disabled = false;
+        prepareAudioElement(file);
         const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
         updateStatus(`ファイル準備完了: ${file.name} (${sizeMB} MB)。Analyze ボタンで解析を開始できます。`);
         console.log("[SpectralTerrain] file selected", { name: file.name, size: file.size, type: file.type });
@@ -112,8 +131,11 @@
             if (!frames.length) {
                 throw new Error("解析結果が空です。別の音源を試してください。");
             }
+            playbackDuration = axisMeta?.durationSec || ui.audio.duration || playbackDuration;
             buildTerrain(frames, maxMag, axisMeta);
-            updateStatus("解析完了！ドラッグで回転、ホイールでズームできます。");
+            updateTimeLabel(0);
+            movePlaybackLine(0);
+            updateStatus("解析完了。ドラッグで回転、ホイールでズームできます。");
         } catch (err) {
             console.error(err);
             updateStatus(`エラー: ${err.message}`);
@@ -315,6 +337,7 @@
         scene.add(terrainMesh);
 
         if (axisMeta) updateAxes(axisMeta);
+        movePlaybackLine(0);
     }
 
     function updateAxes(axisMeta) {
@@ -532,6 +555,7 @@
 
     function animate() {
         requestAnimationFrame(animate);
+        syncPlaybackUI();
         if (controls) controls.update();
         if (renderer && scene && camera) renderer.render(scene, camera);
     }
@@ -562,6 +586,136 @@
         });
     }
 
+    // --- Playback helpers ---
+    function prepareAudioElement(file) {
+        if (audioUrl) {
+            URL.revokeObjectURL(audioUrl);
+            audioUrl = null;
+        }
+        audioUrl = URL.createObjectURL(file);
+        ui.audio.src = audioUrl;
+        ui.audio.load();
+        ui.playBtn.disabled = false;
+        ui.seekBar.disabled = false;
+        ui.audio.onloadedmetadata = () => {
+            playbackDuration = ui.audio.duration || playbackDuration;
+            updateTimeLabel(ui.audio.currentTime);
+        };
+    }
+
+    function resetPlayerState() {
+        ui.audio.pause();
+        ui.audio.currentTime = 0;
+        playbackDuration = 0;
+        ui.seekBar.value = 0;
+        ui.seekBar.disabled = true;
+        ui.playBtn.textContent = "Play";
+        ui.playBtn.disabled = true;
+        updateTimeLabel(0);
+        movePlaybackLine(0);
+    }
+
+    function togglePlayback() {
+        if (!ui.audio.src) return;
+        if (ui.audio.paused) {
+            ui.audio.play();
+            ui.playBtn.textContent = "Pause";
+        } else {
+            ui.audio.pause();
+            ui.playBtn.textContent = "Play";
+        }
+    }
+
+    function handleSeekInput() {
+        const progress = Number(ui.seekBar.value) / 100;
+        const target = progress * getDuration();
+        movePlaybackLine(progress);
+        updateTimeLabel(target);
+    }
+
+    function handleSeekCommit() {
+        isSeeking = false;
+        const progress = Number(ui.seekBar.value) / 100;
+        const target = progress * getDuration();
+        ui.audio.currentTime = target;
+        movePlaybackLine(progress);
+        updateTimeLabel(target);
+    }
+
+    function handleAudioEnded() {
+        ui.playBtn.textContent = "Play";
+        updateSeekUI(1);
+        movePlaybackLine(1);
+        updateTimeLabel(getDuration());
+    }
+
+    function syncPlaybackUI() {
+        const total = getDuration();
+        if (!total) return;
+        const progress = Math.min(1, Math.max(0, ui.audio.currentTime / total));
+        if (!isSeeking) updateSeekUI(progress);
+        movePlaybackLine(progress);
+        updateTimeLabel(ui.audio.currentTime);
+    }
+
+    function updateSeekUI(progress) {
+        ui.seekBar.value = (progress * 100).toFixed(2);
+    }
+
+    function getDuration() {
+        return playbackDuration || ui.audio.duration || 0;
+    }
+
+    function updateTimeLabel(currentSec) {
+        const total = getDuration();
+        const current = formatTime(currentSec || 0);
+        const totalTxt = formatTime(total || 0);
+        ui.timeLabel.textContent = `${current} / ${totalTxt}`;
+    }
+
+    function formatTime(sec) {
+        const s = Math.max(0, sec);
+        const m = Math.floor(s / 60);
+        const rem = Math.floor(s % 60)
+            .toString()
+            .padStart(2, "0");
+        return `${m}:${rem}`;
+    }
+
+    function ensurePlaybackLine() {
+        if (playbackLine) return playbackLine;
+        const height = params.heightScale * 1.8;
+        const width = params.terrainWidth;
+        const geom = new THREE.PlaneGeometry(width, height);
+        const mat = new THREE.MeshBasicMaterial({
+            color: "#f472b6",
+            transparent: true,
+            opacity: 0.12,
+            side: THREE.DoubleSide
+        });
+        playbackLine = new THREE.Mesh(geom, mat);
+        playbackLine.position.y = height * 0.5;
+        scene.add(playbackLine);
+        return playbackLine;
+    }
+
+    function movePlaybackLine(progress) {
+        if (!scene) return;
+        const line = ensurePlaybackLine();
+        const depth = params.terrainDepth;
+        const zPos = (progress - 0.5) * depth;
+        line.position.z = zPos;
+    }
+
+    function disposePlaybackLine() {
+        if (!playbackLine) return;
+        if (playbackLine.material?.dispose) playbackLine.material.dispose();
+        if (playbackLine.geometry?.dispose) playbackLine.geometry.dispose();
+        scene.remove(playbackLine);
+        playbackLine = null;
+    }
+
+    // --- Utilities ---
     function loadScript(src) {
         return new Promise((resolve, reject) => {
             const script = document.createElement("script");
