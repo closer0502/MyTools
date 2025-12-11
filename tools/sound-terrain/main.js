@@ -15,6 +15,7 @@
 
     const ui = {
         fileInput: document.getElementById("fileInput"),
+        fileDrop: document.querySelector(".file-drop"),
         analyzeBtn: document.getElementById("analyzeBtn"),
         resetViewBtn: document.getElementById("resetViewBtn"),
         statusText: document.getElementById("statusText"),
@@ -93,6 +94,7 @@
         ui.analyzeBtn.addEventListener("click", handleAnalyze);
         ui.resetViewBtn.addEventListener("click", resetView);
         window.addEventListener("resize", handleResize);
+        setupFileDropDnD();
     }
 
     function initPlayerUI() {
@@ -504,7 +506,7 @@ async function decodeFile(file) {
             );
 
             const label = makeTextSprite(formatHz(hz), "#dbeafe");
-            label.position.set(x, 0.1, z + 1.6);
+            label.position.set(x, 1.0, z + 1.6);
             axisGroup.add(label);
         });
 
@@ -522,7 +524,7 @@ async function decodeFile(file) {
         }
 
         const freqTitle = makeTextSprite("Frequency (log)", "#bfdbfe");
-        freqTitle.position.set(0, 0.2, depth / 2 + 4);
+        freqTitle.position.set(0, 8.0, depth / 2 + 4);
         axisGroup.add(freqTitle);
 
         const timeLine = new THREE.Line(
@@ -551,12 +553,12 @@ async function decodeFile(file) {
 
             const secs = axisMeta.durationSec * t;
             const label = makeTextSprite(`${secs.toFixed(1)} s`, "#d1fae5");
-            label.position.set(x - 1.6, 0.1, z);
+            label.position.set(x - 1.6, 1.0, z);
             axisGroup.add(label);
         }
 
         const timeTitle = makeTextSprite("Time", "#a7f3d0");
-        timeTitle.position.set(-width / 2 - 4, 0.2, 0);
+        timeTitle.position.set(-width / 2 - 4, 8.0, 0);
         axisGroup.add(timeTitle);
 
         scene.add(axisGroup);
@@ -625,7 +627,7 @@ async function decodeFile(file) {
         ctx.fillText(text, width / 2, height / 2);
 
         const texture = new THREE.CanvasTexture(canvas);
-        const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
         const sprite = new THREE.Sprite(material);
         const scale = 0.05;
         sprite.scale.set(width * scale, height * scale, 1);
@@ -712,7 +714,7 @@ async function decodeFile(file) {
 
     function resetView() {
         if (!camera) return;
-        camera.position.set(0, 32, 70);
+        camera.position.set(-70, 32, 70);
         if (controls) {
             controls.target.set(0, 10, 0);
             controls.update();
@@ -762,6 +764,38 @@ async function decodeFile(file) {
         window.addEventListener("unhandledrejection", (ev) => {
             console.error("[SpectralTerrain] unhandled rejection", ev.reason);
             updateStatus(`エラー: ${ev.reason?.message || ev.reason}`);
+        });
+    }
+
+    function setupFileDropDnD() {
+        if (!ui.fileDrop) return;
+        const zone = ui.fileDrop;
+        const add = () => zone.classList.add("dragover");
+        const remove = () => zone.classList.remove("dragover");
+        ["dragenter", "dragover"].forEach((evt) =>
+            zone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                add();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+            })
+        );
+        ["dragleave", "dragend"].forEach((evt) =>
+            zone.addEventListener(evt, (e) => {
+                e.preventDefault();
+                remove();
+            })
+        );
+        zone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            remove();
+            const files = e.dataTransfer?.files;
+            if (!files?.length) return;
+            try {
+                ui.fileInput.files = files;
+            } catch {
+                // ignore if assignment is blocked
+            }
+            handleFileSelect({ target: { files } });
         });
     }
 
