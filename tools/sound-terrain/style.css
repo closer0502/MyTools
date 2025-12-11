@@ -335,6 +335,17 @@ body {
     font-size: 14px;
 }
 
+.pill-button.ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.pill-button.active {
+    border-color: rgba(56, 189, 248, 0.8);
+    box-shadow: 0 6px 16px rgba(56, 189, 248, 0.2);
+}
+
 .ghost-button {
     border: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.02);
@@ -470,6 +481,12 @@ body {
 .spectro-head h4 {
     margin: 6px 0 0;
     letter-spacing: 0.01em;
+}
+
+.spectro-controls {
+    display: inline-flex;
+    gap: 8px;
+    margin-bottom: 6px;
 }
 
 #spectrogramCanvas {

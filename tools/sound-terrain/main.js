@@ -19,6 +19,8 @@
         fileName: document.getElementById("fileName"),
         container: document.getElementById("threeContainer"),
         spectrogram: document.getElementById("spectrogramCanvas"),
+        spectroLineBtn: document.getElementById("spectroModeLine"),
+        spectroBarBtn: document.getElementById("spectroModeBars"),
         playBtn: document.getElementById("playBtn"),
         seekBar: document.getElementById("seekBar"),
         timeLabel: document.getElementById("timeLabel"),
@@ -36,6 +38,7 @@
     let isSeeking = false;
     let lastSpectrogram = null; // { frames, maxMag }
     let lastSpectroDraw = 0;
+    let spectroMode = "line"; // "line" | "bars"
 
     bootstrap();
 
@@ -47,6 +50,7 @@
             initScene();
             bindUI();
             initPlayerUI();
+            initSpectroUI();
             updateStatus(`準備完了 (three r${THREE.REVISION}, FFT ready)。音源を選択してください。`);
             animate();
         } catch (err) {
@@ -96,6 +100,12 @@
         ui.seekBar.addEventListener("change", handleSeekCommit);
         ui.audio.addEventListener("ended", handleAudioEnded);
         resetPlayerState();
+    }
+
+    function initSpectroUI() {
+        ui.spectroLineBtn.addEventListener("click", () => setSpectroMode("line"));
+        ui.spectroBarBtn.addEventListener("click", () => setSpectroMode("bars"));
+        setSpectroMode("line");
     }
 
     function handleFileSelect(e) {
@@ -629,6 +639,7 @@ async function decodeFile(file) {
         ui.playBtn.disabled = true;
         lastSpectrogram = null;
         lastSpectroDraw = 0;
+        setSpectroMode("line");
         updateTimeLabel(0);
         movePlaybackLine(0);
         clearSpectrogram();
@@ -777,32 +788,56 @@ async function decodeFile(file) {
         const slice1 = frames[i1];
 
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "#38bdf8";
-        ctx.beginPath();
-        for (let f = 0; f < freqCount; f++) {
-            const x = (f / (freqCount - 1)) * width;
-            const mag0 = slice0[f];
-            const mag1 = slice1[f];
-            const mag = i0 === i1 ? mag0 : mag0 * (1 - t) + mag1 * t;
-            const norm = maxMag > 0 ? Math.pow(mag / maxMag, 0.6) : 0;
-            const y = height - norm * height;
-            if (f === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
+        if (spectroMode === "line") {
+            ctx.strokeStyle = "#38bdf8";
+            ctx.beginPath();
+            for (let f = 0; f < freqCount; f++) {
+                const x = (f / (freqCount - 1)) * width;
+                const mag0 = slice0[f];
+                const mag1 = slice1[f];
+                const mag = i0 === i1 ? mag0 : mag0 * (1 - t) + mag1 * t;
+                const norm = maxMag > 0 ? Math.pow(mag / maxMag, 0.6) : 0;
+                const y = height - norm * height;
+                if (f === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, height);
+            gradient.addColorStop(0, "rgba(56, 189, 248, 0.35)");
+            gradient.addColorStop(1, "rgba(56, 189, 248, 0.02)");
+            ctx.fillStyle = gradient;
+            ctx.lineTo(width, height);
+            ctx.lineTo(0, height);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            const bars = Math.min(96, freqCount);
+            const binSize = freqCount / bars;
+            const barW = width / bars;
+            for (let b = 0; b < bars; b++) {
+                const start = Math.floor(b * binSize);
+                const end = Math.min(freqCount, Math.floor((b + 1) * binSize));
+                let sum = 0;
+                let count = 0;
+                for (let i = start; i < end; i++) {
+                    const mag0 = slice0[i];
+                    const mag1 = slice1[i];
+                    const mag = i0 === i1 ? mag0 : mag0 * (1 - t) + mag1 * t;
+                    sum += mag;
+                    count++;
+                }
+                const avg = count > 0 ? sum / count : 0;
+                const norm = maxMag > 0 ? Math.pow(avg / maxMag, 0.6) : 0;
+                const h = norm * height;
+                const x = b * barW;
+                ctx.fillStyle = "rgba(56, 189, 248, 0.8)";
+                ctx.fillRect(x + barW * 0.1, height - h, barW * 0.8, h);
             }
         }
-        ctx.stroke();
-
-        // gradient fill under curve for extra visibility
-        const gradient = ctx.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, "rgba(56, 189, 248, 0.35)");
-        gradient.addColorStop(1, "rgba(56, 189, 248, 0.02)");
-        ctx.fillStyle = gradient;
-        ctx.lineTo(width, height);
-        ctx.lineTo(0, height);
-        ctx.closePath();
-        ctx.fill();
     }
 
     function clearSpectrogram() {
@@ -810,6 +845,13 @@ async function decodeFile(file) {
         const canvas = ui.spectrogram;
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function setSpectroMode(mode) {
+        spectroMode = mode === "bars" ? "bars" : "line";
+        ui.spectroLineBtn.classList.toggle("active", spectroMode === "line");
+        ui.spectroBarBtn.classList.toggle("active", spectroMode === "bars");
+        drawLiveSpectrum(ui.audio.duration ? ui.audio.currentTime / ui.audio.duration : 0, true);
     }
 
     // --- Utilities ---
