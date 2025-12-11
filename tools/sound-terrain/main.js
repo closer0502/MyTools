@@ -1,0 +1,447 @@
+// SpectralTerrain main script (module-friendly but keeps globals)
+(() => {
+    const params = {
+        windowSize: 2048,
+        hopSize: 512,
+        targetFreqBins: 128,
+        maxTimeSlices: 256,
+        heightScale: 18,
+        terrainWidth: 50,
+        terrainDepth: 80
+    };
+
+    const ui = {
+        fileInput: document.getElementById("fileInput"),
+        analyzeBtn: document.getElementById("analyzeBtn"),
+        resetViewBtn: document.getElementById("resetViewBtn"),
+        statusText: document.getElementById("statusText"),
+        spinner: document.getElementById("spinner"),
+        fileName: document.getElementById("fileName"),
+        container: document.getElementById("threeContainer")
+    };
+
+    let audioCtx;
+    let selectedFile = null;
+    let scene, camera, renderer, controls;
+    let terrainMesh = null;
+
+    bootstrap();
+
+    async function bootstrap() {
+        try {
+            await ensureLibs();
+            guardDom();
+            setupGlobalErrorHandlers();
+            initScene();
+            bindUI();
+            updateStatus(`準備完了 (three r${THREE.REVISION}, FFT ready)。音源を選択してください。`);
+            animate();
+        } catch (err) {
+            console.error(err);
+            if (ui.statusText) ui.statusText.textContent = `初期化エラー: ${err.message}`;
+        }
+    }
+
+    async function ensureLibs() {
+        // Three.js と OrbitControls は HTML で読み込み済み
+        // FFT のフォールバック読み込み
+        if (typeof FFT === "undefined") {
+            await loadScript("https://unpkg.com/dsp.js@1.0.1/dsp.min.js");
+        }
+        
+        // 必須ライブラリのチェック
+        if (typeof THREE === "undefined") {
+            throw new Error("three.js が読み込めませんでした。ネットワーク接続を確認してください。");
+        }
+        if (typeof OrbitControls === "undefined") {
+            throw new Error("OrbitControls が読み込めませんでした。CDN を確認してください。");
+        }
+        if (typeof FFT === "undefined") {
+            throw new Error("dsp.js (FFT) が読み込めませんでした。CDN への接続状況を確認してください。");
+        }
+    }
+
+    function guardDom() {
+        const missing = Object.entries(ui)
+            .filter(([_, el]) => !el)
+            .map(([key]) => key);
+        if (missing.length) {
+            throw new Error(`必要な要素が見つかりません: ${missing.join(", ")}`);
+        }
+    }
+
+    function bindUI() {
+        ui.fileInput.addEventListener("change", handleFileSelect);
+        ui.analyzeBtn.addEventListener("click", handleAnalyze);
+        ui.resetViewBtn.addEventListener("click", resetView);
+        window.addEventListener("resize", handleResize);
+    }
+
+    function handleFileSelect(e) {
+        const file = e.target.files?.[0];
+        if (!file) {
+            selectedFile = null;
+            ui.fileName.textContent = "未選択";
+            ui.analyzeBtn.disabled = true;
+            updateStatus("音源を選択してください。");
+            return;
+        }
+        selectedFile = file;
+        ui.fileName.textContent = file.name;
+        ui.analyzeBtn.disabled = false;
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+        updateStatus(`ファイル準備完了: ${file.name} (${sizeMB} MB)。Analyze ボタンで解析を開始できます。`);
+        console.log("[SpectralTerrain] file selected", { name: file.name, size: file.size, type: file.type });
+    }
+
+    async function handleAnalyze() {
+        if (!selectedFile) {
+            updateStatus("先に音源ファイルを選択してください。");
+            return;
+        }
+        toggleBusy(true, "ファイルを読み込み中...");
+        try {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            await audioCtx.resume();
+            const { data, sampleRate } = await decodeFile(selectedFile);
+            updateStatus("FFT 解析中...");
+            const { frames, maxMag } = await runStft(data, sampleRate);
+            if (!frames.length) {
+                throw new Error("解析結果が空です。別の音源を試してください。");
+            }
+            buildTerrain(frames, maxMag);
+            updateStatus("解析完了！ドラッグで回転、ホイールでズームできます。");
+        } catch (err) {
+            console.error(err);
+            updateStatus(`エラー: ${err.message}`);
+        } finally {
+            toggleBusy(false);
+        }
+    }
+
+    async function decodeFile(file) {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        const channelData = mixToMono(audioBuffer);
+        return { data: channelData, sampleRate: audioBuffer.sampleRate };
+    }
+
+    function mixToMono(buffer) {
+        if (buffer.numberOfChannels === 1) {
+            return buffer.getChannelData(0);
+        }
+        const length = buffer.length;
+        const tmp = new Float32Array(length);
+        for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+            const data = buffer.getChannelData(ch);
+            for (let i = 0; i < length; i++) {
+                tmp[i] += data[i];
+            }
+        }
+        for (let i = 0; i < length; i++) {
+            tmp[i] /= buffer.numberOfChannels;
+        }
+        return tmp;
+    }
+
+    async function runStft(data, sampleRate) {
+        if (data.length < params.windowSize) {
+            throw new Error("音源が短すぎます。少なくとも数秒の音源を選んでください。");
+        }
+        const frames = [];
+        const fft = new FFT(params.windowSize, sampleRate);
+        const window = createHann(params.windowSize);
+        const hop = params.hopSize;
+        const totalFrames = Math.max(1, Math.floor((data.length - params.windowSize) / hop) + 1);
+        const temp = new Float32Array(params.windowSize);
+        const freqBins = params.targetFreqBins;
+        const bandSize = Math.max(1, Math.floor((params.windowSize / 2) / freqBins));
+        let maxMag = 0;
+
+        for (let frame = 0; frame < totalFrames; frame++) {
+            const start = frame * hop;
+            for (let i = 0; i < params.windowSize; i++) {
+                // nullish coalescing prevents NaN when the tail runs past the buffer
+                temp[i] = (data[start + i] ?? 0) * window[i];
+            }
+
+            // dsp.js sometimes returns the spectrum via the instance property instead of the return value
+            const spectrum = fft.forward(temp) || fft.spectrum;
+            if (!spectrum) {
+                throw new Error("FFT 結果の取得に失敗しました (spectrum undefined)");
+            }
+
+            const magnitudes = new Float32Array(freqBins);
+            for (let f = 0; f < freqBins; f++) {
+                const binStart = f * bandSize;
+                const binEnd = f === freqBins - 1 ? params.windowSize / 2 : binStart + bandSize;
+                let sum = 0;
+                let count = 0;
+                for (let b = binStart; b < binEnd; b++) {
+                    const mag = spectrum[b] ?? 0;
+                    sum += mag;
+                    count++;
+                }
+                const mag = count > 0 ? sum / count : 0;
+                magnitudes[f] = mag;
+                if (mag > maxMag) maxMag = mag;
+            }
+            frames.push(magnitudes);
+            if (frame % 10 === 0) {
+                updateStatus(`解析中... ${Math.round((frame / totalFrames) * 100)}%`);
+                await nextFrame();
+            }
+        }
+
+        const reduced = reduceTime(frames, maxMag, params.maxTimeSlices);
+        return reduced;
+    }
+
+    function reduceTime(frames, currentMax, maxSlices) {
+        if (!frames.length) return { frames: [], maxMag: currentMax };
+        if (frames.length <= maxSlices) return { frames, maxMag: currentMax };
+
+        const freqCount = frames[0].length;
+        const step = frames.length / maxSlices;
+        const reduced = [];
+        let maxMag = 0;
+
+        for (let i = 0; i < maxSlices; i++) {
+            const start = Math.floor(i * step);
+            const end = Math.min(frames.length, Math.floor((i + 1) * step));
+            const bucket = new Float32Array(freqCount);
+            const count = Math.max(1, end - start);
+
+            for (let t = start; t < end; t++) {
+                const row = frames[t];
+                for (let f = 0; f < freqCount; f++) {
+                    bucket[f] += row[f];
+                }
+            }
+            for (let f = 0; f < freqCount; f++) {
+                bucket[f] /= count;
+                if (bucket[f] > maxMag) maxMag = bucket[f];
+            }
+            reduced.push(bucket);
+        }
+        return { frames: reduced, maxMag: maxMag || currentMax };
+    }
+
+    function createHann(size) {
+        const window = new Float32Array(size);
+        for (let i = 0; i < size; i++) {
+            window[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (size - 1)));
+        }
+        return window;
+    }
+
+    function buildTerrain(frames, maxMag) {
+        if (terrainMesh) {
+            terrainMesh.geometry.dispose();
+            terrainMesh.material.dispose();
+            scene.remove(terrainMesh);
+            terrainMesh = null;
+        }
+
+        const timeCount = frames.length;
+        const freqCount = frames[0].length;
+        const vertexCount = timeCount * freqCount;
+        const positions = new Float32Array(vertexCount * 3);
+        const colors = new Float32Array(vertexCount * 3);
+        const indices = [];
+        const width = params.terrainWidth;
+        const depth = params.terrainDepth;
+        const heightScale = params.heightScale;
+
+        let ptr = 0;
+        for (let t = 0; t < timeCount; t++) {
+            for (let f = 0; f < freqCount; f++) {
+                const normF = f / (freqCount - 1);
+                const normT = t / (timeCount - 1);
+                const magnitude = frames[t][f];
+                const normMag = maxMag > 0 ? Math.pow(magnitude / maxMag, 0.6) : 0;
+                const x = (normF - 0.5) * width;
+                const z = (normT - 0.5) * depth;
+                const y = normMag * heightScale;
+
+                positions[ptr * 3] = x;
+                positions[ptr * 3 + 1] = y;
+                positions[ptr * 3 + 2] = z;
+
+                const col = colorMap(normMag);
+                colors[ptr * 3] = col.r;
+                colors[ptr * 3 + 1] = col.g;
+                colors[ptr * 3 + 2] = col.b;
+                ptr++;
+            }
+        }
+
+        for (let t = 0; t < timeCount - 1; t++) {
+            for (let f = 0; f < freqCount - 1; f++) {
+                const a = t * freqCount + f;
+                const b = a + 1;
+                const c = a + freqCount;
+                const d = c + 1;
+                indices.push(a, c, b, b, c, d);
+            }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setIndex(indices);
+        geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            flatShading: false,
+            side: THREE.DoubleSide,
+            metalness: 0.05,
+            roughness: 0.6
+        });
+
+        terrainMesh = new THREE.Mesh(geometry, material);
+        terrainMesh.castShadow = true;
+        terrainMesh.receiveShadow = true;
+        scene.add(terrainMesh);
+    }
+
+    function colorMap(v) {
+        const stops = [
+            { value: 0.0, color: [10 / 255, 26 / 255, 66 / 255] },
+            { value: 0.35, color: [30 / 255, 94 / 255, 140 / 255] },
+            { value: 0.6, color: [108 / 255, 92 / 255, 231 / 255] },
+            { value: 0.8, color: [255 / 255, 166 / 255, 43 / 255] },
+            { value: 1.0, color: [255 / 255, 211 / 255, 112 / 255] }
+        ];
+        const clamped = Math.min(1, Math.max(0, v));
+        for (let i = 0; i < stops.length - 1; i++) {
+            const a = stops[i];
+            const b = stops[i + 1];
+            if (clamped >= a.value && clamped <= b.value) {
+                const t = (clamped - a.value) / (b.value - a.value);
+                return {
+                    r: lerp(a.color[0], b.color[0], t),
+                    g: lerp(a.color[1], b.color[1], t),
+                    b: lerp(a.color[2], b.color[2], t)
+                };
+            }
+        }
+        const last = stops[stops.length - 1].color;
+        return { r: last[0], g: last[1], b: last[2] };
+    }
+
+    function lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
+    function initScene() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color("#0c1221");
+        scene.fog = new THREE.Fog("#0c1221", 60, 140);
+
+        const aspect = ui.container.clientWidth / Math.max(1, ui.container.clientHeight);
+        camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 400);
+        camera.position.set(0, 32, 70);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(ui.container.clientWidth, ui.container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        ui.container.appendChild(renderer.domElement);
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.minDistance = 20;
+        controls.maxDistance = 140;
+        controls.maxPolarAngle = Math.PI * 0.9;
+        resetView();
+
+        const ambient = new THREE.AmbientLight("#6b7280", 0.65);
+        scene.add(ambient);
+
+        const dirLight = new THREE.DirectionalLight("#e5e7eb", 1.1);
+        dirLight.position.set(24, 36, 26);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.set(2048, 2048);
+        scene.add(dirLight);
+
+        const backLight = new THREE.DirectionalLight("#38bdf8", 0.5);
+        backLight.position.set(-18, 20, -14);
+        scene.add(backLight);
+
+        const groundGeo = new THREE.PlaneGeometry(180, 180);
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: "#0f1629",
+            metalness: 0.05,
+            roughness: 0.9
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.1;
+        ground.receiveShadow = true;
+        scene.add(ground);
+    }
+
+    function resetView() {
+        if (!camera) return;
+        camera.position.set(0, 32, 70);
+        if (controls) {
+            controls.target.set(0, 10, 0);
+            controls.update();
+        }
+    }
+
+    function handleResize() {
+        if (!renderer || !camera) return;
+        const { clientWidth, clientHeight } = ui.container;
+        camera.aspect = clientWidth / Math.max(1, clientHeight);
+        camera.updateProjectionMatrix();
+        renderer.setSize(clientWidth, clientHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (controls) controls.update();
+        if (renderer && scene && camera) renderer.render(scene, camera);
+    }
+
+    function updateStatus(text) {
+        ui.statusText.textContent = text;
+    }
+
+    function toggleBusy(isBusy, message) {
+        if (typeof message === "string") updateStatus(message);
+        ui.spinner.classList.toggle("active", isBusy);
+        ui.analyzeBtn.disabled = isBusy || !selectedFile;
+        ui.fileInput.disabled = isBusy;
+    }
+
+    function nextFrame() {
+        return new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+
+    function setupGlobalErrorHandlers() {
+        window.addEventListener("error", (ev) => {
+            console.error("[SpectralTerrain] error", ev.error || ev.message);
+            updateStatus(`エラー: ${ev.message}`);
+        });
+        window.addEventListener("unhandledrejection", (ev) => {
+            console.error("[SpectralTerrain] unhandled rejection", ev.reason);
+            updateStatus(`エラー: ${ev.reason?.message || ev.reason}`);
+        });
+    }
+
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = src;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`スクリプトを読み込めませんでした: ${src}`));
+            document.head.appendChild(script);
+        });
+    }
+})();

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpectralTerrain | 3D Spectrum Analyzer</title>
+    <link rel="stylesheet" href="style.css">
+    <script>window.module = window.module || { exports: {} };</script>
+    <script src="https://cdn.jsdelivr.net/npm/dsp.js@1.0.1/dsp.min.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        window.THREE = THREE;
+        window.OrbitControls = OrbitControls;
+    </script>
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero">
+            <div class="title-stack">
+                <div class="eyebrow">SpectralTerrain</div>
+                <h1>3D Spectrum Analyzer</h1>
+                <p class="lede">ローカルの音源を一度だけ解析し、周波数・振幅・時間を地形マップとして描画するブラウザアプリです。</p>
+                <div class="pill-row">
+                    <span class="chip">Offline FFT</span>
+                    <span class="chip">Three.js Terrain</span>
+                    <span class="chip">Orbit Controls</span>
+                </div>
+            </div>
+            <div class="hero-orb">
+                <div class="orb-glow"></div>
+                <div class="orb-title">ST</div>
+                <div class="orb-sub">Spectral<br>Terrain</div>
+            </div>
+        </header>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div>
+                    <div class="eyebrow small">Workflow</div>
+                    <h2>音源を選択して「Analyze」で解析</h2>
+                    <p class="muted">FFT パラメータはコード中にまとめています。解析は一度だけ行い、結果を地形メッシュとして生成します。</p>
+                </div>
+                <div class="param-line">
+                    <span>Window: 2048</span>
+                    <span>Hop: 512</span>
+                    <span>Freq bins: 128</span>
+                    <span>Time slices: 256 max</span>
+                </div>
+            </div>
+            <div class="control-grid">
+                <label class="file-drop">
+                    <input type="file" id="fileInput" accept="audio/*">
+                    <div>
+                        <div class="muted tiny">Step 1</div>
+                        <div class="file-label">Select Audio File</div>
+                        <div class="muted">ローカルの音源を読み込みます。mp3, wav などブラウザが対応する形式を使用できます。</div>
+                    </div>
+                    <div class="file-chip" id="fileName">未選択</div>
+                </label>
+                <div class="action-stack">
+                    <button id="analyzeBtn" class="pill-button" disabled>Analyze / Build Terrain</button>
+                    <button id="resetViewBtn" class="ghost-button">Reset View</button>
+                    <div class="status-line">
+                        <div class="spinner" id="spinner" aria-hidden="true"></div>
+                        <div id="statusText">音源を選択してください。</div>
+                    </div>
+                </div>
+                <div class="hint-card">
+                    <div class="muted tiny">How to</div>
+                    <ul>
+                        <li>ファイルを選択し、「Analyze」を押すと解析を開始します。</li>
+                        <li>処理が完了すると 3D 地形が更新されます。</li>
+                        <li>ドラッグで回転、ホイールでズーム、右クリックでパンできます。</li>
+                        <li>負荷が高い場合は短めの音源を使うと軽くなります。</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <section class="stage">
+            <div class="stage-header">
+                <div>
+                    <div class="eyebrow small">Viewport</div>
+                    <h3>3D Terrain</h3>
+                </div>
+                <div class="legend">
+                    <span class="legend-swatch low"></span>低振幅
+                    <span class="legend-swatch mid"></span>中域
+                    <span class="legend-swatch high"></span>高振幅
+                </div>
+            </div>
+            <div id="threeContainer" class="three-container" role="presentation"></div>
+        </section>
+    </div>
+
+    <script src="main.js" defer></script>
+</body>
+</html>
