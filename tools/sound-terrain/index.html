@@ -113,7 +113,19 @@
                     <span class="legend-swatch high"></span>高振幅
                 </div>
             </div>
-            <div id="threeContainer" class="three-container" role="presentation"></div>
+            <div class="stage-grid">
+                <div class="three-wrapper">
+                    <div id="threeContainer" class="three-container" role="presentation"></div>
+                </div>
+                <div class="spectro-card">
+                    <div class="spectro-head">
+                        <div class="eyebrow small">Classic</div>
+                        <h4>2D Spectrogram</h4>
+                    </div>
+                    <canvas id="spectrogramCanvas" aria-label="Spectrogram"></canvas>
+                    <p class="muted tiny">時間×周波数の従来型スペクトログラムを 3D 地形と並べて表示します。</p>
+                </div>
+            </div>
         </section>
     </div>
 

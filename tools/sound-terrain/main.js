@@ -18,6 +18,7 @@
         spinner: document.getElementById("spinner"),
         fileName: document.getElementById("fileName"),
         container: document.getElementById("threeContainer"),
+        spectrogram: document.getElementById("spectrogramCanvas"),
         playBtn: document.getElementById("playBtn"),
         seekBar: document.getElementById("seekBar"),
         timeLabel: document.getElementById("timeLabel"),
@@ -33,6 +34,8 @@
     let audioUrl = null;
     let playbackDuration = 0;
     let isSeeking = false;
+    let lastSpectrogram = null; // { frames, maxMag }
+    let lastSpectroDraw = 0;
 
     bootstrap();
 
@@ -127,14 +130,16 @@
             await audioCtx.resume();
             const { data, sampleRate } = await decodeFile(selectedFile);
             updateStatus("FFT 解析中...");
-            const { frames, maxMag, axisMeta } = await runStft(data, sampleRate);
-            if (!frames.length) {
+            const { frames3d, maxMag3d, fullFrames, fullMaxMag, axisMeta } = await runStft(data, sampleRate);
+            if (!frames3d.length) {
                 throw new Error("解析結果が空です。別の音源を試してください。");
             }
             playbackDuration = axisMeta?.durationSec || ui.audio.duration || playbackDuration;
-            buildTerrain(frames, maxMag, axisMeta);
+            lastSpectrogram = { frames: fullFrames, maxMag: fullMaxMag };
+            buildTerrain(frames3d, maxMag3d, axisMeta);
             updateTimeLabel(0);
             movePlaybackLine(0);
+            drawLiveSpectrum(0, true);
             updateStatus("解析完了。ドラッグで回転、ホイールでズームできます。");
         } catch (err) {
             console.error(err);
@@ -144,7 +149,7 @@
         }
     }
 
-    async function decodeFile(file) {
+async function decodeFile(file) {
         const arrayBuffer = await file.arrayBuffer();
         const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
         const channelData = mixToMono(audioBuffer);
@@ -225,7 +230,13 @@
             timeSlices: reduced.frames.length,
             freqBins
         };
-        return { frames: reduced.frames, maxMag: reduced.maxMag, axisMeta };
+        return {
+            frames3d: reduced.frames,
+            maxMag3d: reduced.maxMag,
+            fullFrames: frames,
+            fullMaxMag: maxMag,
+            axisMeta
+        };
     }
 
     function reduceTime(frames, currentMax, maxSlices) {
@@ -551,6 +562,11 @@
         camera.aspect = clientWidth / Math.max(1, clientHeight);
         camera.updateProjectionMatrix();
         renderer.setSize(clientWidth, clientHeight);
+        if (lastSpectrogram) {
+            const dur = getDuration();
+            const progress = dur > 0 ? ui.audio.currentTime / dur : 0;
+            drawLiveSpectrum(progress, true);
+        }
     }
 
     function animate() {
@@ -611,8 +627,11 @@
         ui.seekBar.disabled = true;
         ui.playBtn.textContent = "Play";
         ui.playBtn.disabled = true;
+        lastSpectrogram = null;
+        lastSpectroDraw = 0;
         updateTimeLabel(0);
         movePlaybackLine(0);
+        clearSpectrogram();
     }
 
     function togglePlayback() {
@@ -631,6 +650,7 @@
         const target = progress * getDuration();
         movePlaybackLine(progress);
         updateTimeLabel(target);
+        drawLiveSpectrum(progress, true);
     }
 
     function handleSeekCommit() {
@@ -640,6 +660,7 @@
         ui.audio.currentTime = target;
         movePlaybackLine(progress);
         updateTimeLabel(target);
+        drawLiveSpectrum(progress, true);
     }
 
     function handleAudioEnded() {
@@ -647,6 +668,7 @@
         updateSeekUI(1);
         movePlaybackLine(1);
         updateTimeLabel(getDuration());
+        drawLiveSpectrum(1, true);
     }
 
     function syncPlaybackUI() {
@@ -656,6 +678,7 @@
         if (!isSeeking) updateSeekUI(progress);
         movePlaybackLine(progress);
         updateTimeLabel(ui.audio.currentTime);
+        drawLiveSpectrum(progress);
     }
 
     function updateSeekUI(progress) {
@@ -713,6 +736,80 @@
         if (playbackLine.geometry?.dispose) playbackLine.geometry.dispose();
         scene.remove(playbackLine);
         playbackLine = null;
+    }
+
+    function drawLiveSpectrum(progress = 0, force = false) {
+        if (!ui.spectrogram || !lastSpectrogram?.frames?.length) return;
+        const frames = lastSpectrogram.frames;
+        const maxMag = lastSpectrogram.maxMag;
+        const canvas = ui.spectrogram;
+        const ctx = canvas.getContext("2d");
+        const now = performance.now();
+        if (!force && now - lastSpectroDraw < 30) return; // throttle to ~30fps
+        lastSpectroDraw = now;
+        const dpr = window.devicePixelRatio || 1;
+        const cssWidth = canvas.parentElement?.clientWidth || canvas.clientWidth || 360;
+        const width = Math.max(140, Math.floor(cssWidth));
+        // keep a wide aspect so it stretches horizontally and avoids excessive height
+        const height = Math.max(140, Math.floor(width * 0.6));
+
+        if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+        }
+        canvas.style.width = "100%";
+        canvas.style.height = `${height}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // subtle trail for motion feeling
+        ctx.fillStyle = "rgba(12, 18, 33, 0.2)";
+        ctx.fillRect(0, 0, width, height);
+
+        const timeCount = frames.length;
+        const freqCount = frames[0].length;
+        if (freqCount < 2) return;
+
+        const idxFloat = Math.min(timeCount - 1, Math.max(0, progress * (timeCount - 1)));
+        const i0 = Math.floor(idxFloat);
+        const i1 = Math.min(timeCount - 1, i0 + 1);
+        const t = idxFloat - i0;
+        const slice0 = frames[i0];
+        const slice1 = frames[i1];
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#38bdf8";
+        ctx.beginPath();
+        for (let f = 0; f < freqCount; f++) {
+            const x = (f / (freqCount - 1)) * width;
+            const mag0 = slice0[f];
+            const mag1 = slice1[f];
+            const mag = i0 === i1 ? mag0 : mag0 * (1 - t) + mag1 * t;
+            const norm = maxMag > 0 ? Math.pow(mag / maxMag, 0.6) : 0;
+            const y = height - norm * height;
+            if (f === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+
+        // gradient fill under curve for extra visibility
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, "rgba(56, 189, 248, 0.35)");
+        gradient.addColorStop(1, "rgba(56, 189, 248, 0.02)");
+        ctx.fillStyle = gradient;
+        ctx.lineTo(width, height);
+        ctx.lineTo(0, height);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function clearSpectrogram() {
+        if (!ui.spectrogram) return;
+        const canvas = ui.spectrogram;
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     // --- Utilities ---
