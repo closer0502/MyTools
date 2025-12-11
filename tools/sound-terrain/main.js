@@ -24,6 +24,7 @@
     let selectedFile = null;
     let scene, camera, renderer, controls;
     let terrainMesh = null;
+    let axisGroup = null;
 
     bootstrap();
 
@@ -107,11 +108,11 @@
             await audioCtx.resume();
             const { data, sampleRate } = await decodeFile(selectedFile);
             updateStatus("FFT 解析中...");
-            const { frames, maxMag } = await runStft(data, sampleRate);
+            const { frames, maxMag, axisMeta } = await runStft(data, sampleRate);
             if (!frames.length) {
                 throw new Error("解析結果が空です。別の音源を試してください。");
             }
-            buildTerrain(frames, maxMag);
+            buildTerrain(frames, maxMag, axisMeta);
             updateStatus("解析完了！ドラッグで回転、ホイールでズームできます。");
         } catch (err) {
             console.error(err);
@@ -196,7 +197,13 @@
         }
 
         const reduced = reduceTime(frames, maxMag, params.maxTimeSlices);
-        return reduced;
+        const axisMeta = {
+            sampleRate,
+            durationSec: data.length / sampleRate,
+            timeSlices: reduced.frames.length,
+            freqBins
+        };
+        return { frames: reduced.frames, maxMag: reduced.maxMag, axisMeta };
     }
 
     function reduceTime(frames, currentMax, maxSlices) {
@@ -237,7 +244,7 @@
         return window;
     }
 
-    function buildTerrain(frames, maxMag) {
+    function buildTerrain(frames, maxMag, axisMeta) {
         if (terrainMesh) {
             terrainMesh.geometry.dispose();
             terrainMesh.material.dispose();
@@ -306,6 +313,126 @@
         terrainMesh.castShadow = true;
         terrainMesh.receiveShadow = true;
         scene.add(terrainMesh);
+
+        if (axisMeta) updateAxes(axisMeta);
+    }
+
+    function updateAxes(axisMeta) {
+        if (!scene) return;
+        disposeAxes();
+
+        const width = params.terrainWidth;
+        const depth = params.terrainDepth;
+        axisGroup = new THREE.Group();
+
+        const freqLine = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-width / 2, 0, depth / 2 + 2),
+                new THREE.Vector3(width / 2, 0, depth / 2 + 2)
+            ]),
+            new THREE.LineBasicMaterial({ color: "#60a5fa" })
+        );
+        axisGroup.add(freqLine);
+
+        const freqTicks = 5;
+        for (let i = 0; i <= freqTicks; i++) {
+            const t = i / freqTicks;
+            const x = (t - 0.5) * width;
+            const z = depth / 2 + 2;
+            axisGroup.add(
+                new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(x, 0, z),
+                        new THREE.Vector3(x, 0, z + 1.2)
+                    ]),
+                    new THREE.LineBasicMaterial({ color: "#93c5fd" })
+                )
+            );
+
+            const freqHz = Math.round(t * (axisMeta.sampleRate / 2));
+            const label = makeTextSprite(`${freqHz} Hz`, "#dbeafe");
+            label.position.set(x, 0.1, z + 1.6);
+            axisGroup.add(label);
+        }
+
+        const freqTitle = makeTextSprite("Frequency", "#bfdbfe");
+        freqTitle.position.set(0, 0.2, depth / 2 + 4);
+        axisGroup.add(freqTitle);
+
+        const timeLine = new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-width / 2 - 2, 0, -depth / 2),
+                new THREE.Vector3(-width / 2 - 2, 0, depth / 2)
+            ]),
+            new THREE.LineBasicMaterial({ color: "#34d399" })
+        );
+        axisGroup.add(timeLine);
+
+        const tickCount = Math.max(2, Math.min(6, axisMeta.timeSlices));
+        for (let i = 0; i <= tickCount; i++) {
+            const t = i / tickCount;
+            const z = (t - 0.5) * depth;
+            const x = -width / 2 - 2;
+            axisGroup.add(
+                new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(x, 0, z),
+                        new THREE.Vector3(x - 1.2, 0, z)
+                    ]),
+                    new THREE.LineBasicMaterial({ color: "#6ee7b7" })
+                )
+            );
+
+            const secs = axisMeta.durationSec * t;
+            const label = makeTextSprite(`${secs.toFixed(1)} s`, "#d1fae5");
+            label.position.set(x - 1.6, 0.1, z);
+            axisGroup.add(label);
+        }
+
+        const timeTitle = makeTextSprite("Time", "#a7f3d0");
+        timeTitle.position.set(-width / 2 - 4, 0.2, 0);
+        axisGroup.add(timeTitle);
+
+        scene.add(axisGroup);
+    }
+
+    function disposeAxes() {
+        if (!axisGroup) return;
+        axisGroup.traverse((node) => {
+            if (node.material?.map) node.material.map.dispose();
+            if (node.material?.dispose) node.material.dispose();
+            if (node.geometry?.dispose) node.geometry.dispose();
+        });
+        scene.remove(axisGroup);
+        axisGroup = null;
+    }
+
+    function makeTextSprite(text, color = "#e5e7eb") {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        const padding = 12;
+        const fontSize = 36;
+        ctx.font = `${fontSize}px 'Segoe UI', sans-serif`;
+        const textWidth = ctx.measureText(text).width;
+        const width = Math.ceil(textWidth + padding * 2);
+        const height = Math.ceil(fontSize + padding * 2);
+        canvas.width = width;
+        canvas.height = height;
+
+        ctx.font = `${fontSize}px 'Segoe UI', sans-serif`;
+        ctx.fillStyle = "rgba(12, 18, 33, 0.75)";
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = color;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, width / 2, height / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+        const sprite = new THREE.Sprite(material);
+        const scale = 0.05;
+        sprite.scale.set(width * scale, height * scale, 1);
+        return sprite;
     }
 
     function colorMap(v) {
