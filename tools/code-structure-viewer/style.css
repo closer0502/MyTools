@@ -161,6 +161,10 @@ textarea:focus {
     font-size: 13px;
     line-height: 1.6;
     color: #dbeafe;
+    background: #05080f;
+    border: 1px solid #0c1422;
+    border-radius: calc(var(--radius) - 4px);
+    padding: var(--space-3);
 }
 
 .tree ul {
@@ -191,6 +195,47 @@ textarea:focus {
     flex-wrap: wrap;
 }
 
+.tree .label[data-kind="file"] {
+    color: #7dd3fc;
+}
+
+.tree .label[data-kind="class"] {
+    color: #38bdf8;
+}
+
+.tree .label[data-kind="constructor"] {
+    color: #60a5fa;
+}
+
+.tree .label[data-kind="method"] {
+    color: #a5b4fc;
+}
+
+.tree .label[data-kind="property"] {
+    color: #fbbf24;
+}
+
+.tree .label[data-kind="function"] {
+    color: #34d399;
+}
+
+.tree .label[data-kind="function-object"] {
+    color: #6ee7b7;
+}
+
+.tree .label[data-kind="interface"] {
+    color: #f472b6;
+}
+
+.tree .label[data-kind="enum"] {
+    color: #cbd5f5;
+}
+
+.tree .label[data-kind="group"],
+.tree .label[data-kind="muted"] {
+    color: var(--muted);
+}
+
 .tree .tag {
     font-size: 10px;
     padding: 2px 6px;
@@ -211,7 +256,7 @@ textarea:focus {
     height: 420px;
     border-radius: var(--radius);
     border: 1px solid var(--border);
-    background: radial-gradient(120% 120% at 20% 20%, rgba(56, 189, 248, 0.05), transparent 50%), var(--panel);
+    background: radial-gradient(120% 120% at 20% 20%, rgba(56, 189, 248, 0.05), transparent 50%), #05080f;
 }
 
 .graph .empty {

@@ -460,40 +460,50 @@ function buildTreeModel(analysis) {
     const root = {
         label: SOURCE_FILE_NAME,
         tags: ["file"],
+        kind: "file",
         children: []
     };
 
     root.children.push({
         label: `Classes (${analysis.classes.length})`,
+        kind: "group",
         children: analysis.classes.map((cls) => buildClassTree(cls))
     });
 
     root.children.push({
         label: `Functions (${analysis.functions.length})`,
+        kind: "group",
         children: analysis.functions.map((fn) => ({
-            label: fn.display
+            label: fn.display,
+            kind: "function"
         }))
     });
 
     root.children.push({
         label: `Function Objects (${analysis.functionObjects.length})`,
+        kind: "group",
         children: analysis.functionObjects.map((fn) => ({
             label: fn.display,
+            kind: "function-object",
             tags: fn.tags
         }))
     });
 
     root.children.push({
         label: `Interfaces (${analysis.interfaces.length})`,
+        kind: "group",
         children: analysis.interfaces.map((item) => ({
-            label: item.name
+            label: item.name,
+            kind: "interface"
         }))
     });
 
     root.children.push({
         label: `Enums (${analysis.enums.length})`,
+        kind: "group",
         children: analysis.enums.map((item) => ({
-            label: item.name
+            label: item.name,
+            kind: "enum"
         }))
     });
 
@@ -514,8 +524,10 @@ function buildClassTree(cls) {
     if (cls.members.constructors.length > 0) {
         children.push({
             label: `Constructors (${cls.members.constructors.length})`,
+            kind: "group",
             children: cls.members.constructors.map((member) => ({
                 label: member.display,
+                kind: "constructor",
                 tags: member.tags
             }))
         });
@@ -524,8 +536,10 @@ function buildClassTree(cls) {
     if (cls.members.methods.length > 0) {
         children.push({
             label: `Methods (${cls.members.methods.length})`,
+            kind: "group",
             children: cls.members.methods.map((member) => ({
                 label: member.display,
+                kind: "method",
                 tags: member.tags
             }))
         });
@@ -534,8 +548,10 @@ function buildClassTree(cls) {
     if (cls.members.properties.length > 0) {
         children.push({
             label: `Properties (${cls.members.properties.length})`,
+            kind: "group",
             children: cls.members.properties.map((member) => ({
                 label: member.display,
+                kind: "property",
                 tags: member.tags
             }))
         });
@@ -543,13 +559,15 @@ function buildClassTree(cls) {
 
     if (children.length === 0) {
         children.push({
-            label: "No members"
+            label: "No members",
+            kind: "muted"
         });
     }
 
     return {
         label: cls.name,
         tags,
+        kind: "class",
         children
     };
 }
@@ -558,6 +576,9 @@ function buildTreeNode(node) {
     const listItem = document.createElement("li");
     const label = document.createElement("span");
     label.className = "label";
+    if (node.kind) {
+        label.dataset.kind = node.kind;
+    }
 
     const text = document.createElement("span");
     text.textContent = node.label;
