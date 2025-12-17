@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TS Structure Viewer</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/styles/vis-network.min.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="title">
+                <span class="eyebrow">TypeScript / OOP</span>
+                <h1>TS Structure Viewer</h1>
+                <p>Paste TypeScript and visualize classes, methods, and functions.</p>
+            </div>
+            <div class="header-actions">
+                <button class="pill-button" type="button" id="parseButton">Analyze</button>
+                <button class="ghost-button" type="button" id="sampleButton">Load Sample</button>
+                <button class="ghost-button" type="button" id="clearButton">Clear</button>
+            </div>
+        </header>
+
+        <section class="panel input-panel">
+            <label class="section-label" for="sourceInput">Input</label>
+            <textarea id="sourceInput" spellcheck="false"></textarea>
+            <div class="meta-row">
+                <div class="stats" id="stats"></div>
+                <div class="diagnostics" id="diagnostics"></div>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Structure Tree</h2>
+                    <span class="badge" id="treeCount">0 nodes</span>
+                </div>
+                <div id="tree" class="tree"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Structure Graph</h2>
+                    <span class="badge" id="graphCount">0 edges</span>
+                </div>
+                <div id="graph" class="graph" role="img" aria-label="Structure graph"></div>
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-dot legend-class"></span>Class</span>
+                    <span class="legend-item"><span class="legend-dot legend-method"></span>Method</span>
+                    <span class="legend-item"><span class="legend-dot legend-prop"></span>Property</span>
+                    <span class="legend-item"><span class="legend-dot legend-function"></span>Function</span>
+                    <span class="legend-item"><span class="legend-dot legend-interface"></span>Interface</span>
+                    <span class="legend-item"><span class="legend-dot legend-external"></span>External</span>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer-note">
+            CDN only: TypeScript Compiler API + vis-network. Type resolution is not performed.
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/typescript@5.5.4/lib/typescript.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
