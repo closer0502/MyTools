@@ -13,7 +13,9 @@ const elements = {
     treeCount: document.getElementById("treeCount"),
     graphCount: document.getElementById("graphCount"),
     copyTreeButton: document.getElementById("copyTreeButton"),
-    downloadTreeButton: document.getElementById("downloadTreeButton")
+    downloadTreeButton: document.getElementById("downloadTreeButton"),
+    copyHeaderButton: document.getElementById("copyHeaderButton"),
+    downloadHeaderButton: document.getElementById("downloadHeaderButton")
 };
 
 const SAMPLE_SOURCE = `interface Renderable {
@@ -70,6 +72,7 @@ function createMixer(id: string): Mixer {
 
 let network = null;
 let latestTreeModel = null;
+let latestHeaderText = "";
 
 function init() {
     if (!elements.sourceInput) {
@@ -96,6 +99,14 @@ function init() {
 
     if (elements.downloadTreeButton) {
         elements.downloadTreeButton.addEventListener("click", handleDownloadTree);
+    }
+
+    if (elements.copyHeaderButton) {
+        elements.copyHeaderButton.addEventListener("click", handleCopyHeader);
+    }
+
+    if (elements.downloadHeaderButton) {
+        elements.downloadHeaderButton.addEventListener("click", handleDownloadHeader);
     }
 
     elements.sourceInput.addEventListener("keydown", (event) => {
@@ -149,8 +160,9 @@ function renderEmptyState() {
     setDiagnostics("Diagnostics", ["Paste TypeScript to see diagnostics."]);
     elements.tree.innerHTML = "<div class=\"empty\">Paste TypeScript to see the structure tree.</div>";
     if (elements.headerView) {
-        elements.headerView.textContent = "Paste TypeScript to see the header view.";
+        elements.headerView.innerHTML = "<span class=\"hv-muted\">Paste TypeScript to see the header view.</span>";
     }
+    latestHeaderText = "";
     elements.graph.innerHTML = "<div class=\"empty\">Paste TypeScript to see the graph.</div>";
     elements.treeCount.textContent = "0 nodes";
     elements.graphCount.textContent = "0 edges";
@@ -552,8 +564,9 @@ function renderHeaderView(analysis) {
         return;
     }
 
-    const text = buildHeaderText(analysis);
-    elements.headerView.textContent = text || "No structures found.";
+    latestHeaderText = buildHeaderText(analysis);
+    const html = buildHeaderHtml(analysis);
+    elements.headerView.innerHTML = html || "<span class=\"hv-muted\">No structures found.</span>";
 }
 
 function buildHeaderText(analysis) {
@@ -577,14 +590,42 @@ function buildHeaderText(analysis) {
         } else if (entry.kind === "function") {
             lines.push(`function ${entry.data.signature || entry.data.display}`);
         } else if (entry.kind === "class") {
-            lines.push(...buildClassHeaderLines(entry.data));
+            lines.push(...buildClassHeaderTextLines(entry.data));
         }
     });
 
     return lines.join("\n");
 }
 
-function buildClassHeaderLines(cls) {
+function buildHeaderHtml(analysis) {
+    if (!analysis.entries || analysis.entries.length === 0) {
+        return "";
+    }
+
+    const lines = [];
+
+    analysis.entries.forEach((entry) => {
+        if (lines.length > 0) {
+            lines.push("");
+        }
+
+        if (entry.kind === "interface") {
+            lines.push(`${keywordSpan("interface")} ${nameSpan(entry.data.name)}`);
+        } else if (entry.kind === "enum") {
+            lines.push(`${keywordSpan("enum")} ${nameSpan(entry.data.name)}`);
+        } else if (entry.kind === "function-object") {
+            lines.push(`${keywordSpan("object")} ${formatSignatureHtml(entry.data.signature || entry.data.display)}`);
+        } else if (entry.kind === "function") {
+            lines.push(`${keywordSpan("function")} ${formatSignatureHtml(entry.data.signature || entry.data.display)}`);
+        } else if (entry.kind === "class") {
+            lines.push(...buildClassHeaderHtmlLines(entry.data));
+        }
+    });
+
+    return lines.join("\n");
+}
+
+function buildClassHeaderTextLines(cls) {
     const lines = [];
     let header = `class ${cls.name}`;
 
@@ -598,9 +639,15 @@ function buildClassHeaderLines(cls) {
     lines.push(header);
 
     const indent = "  ";
-    const propLines = cls.members.properties.map((member) => `${indent}${formatModifierPrefix(member.tags)}${member.signature}`);
-    const ctorLines = cls.members.constructors.map((member) => `${indent}${formatModifierPrefix(member.tags)}${member.signature}`);
-    const methodLines = cls.members.methods.map((member) => `${indent}${formatModifierPrefix(member.tags)}${member.signature}`);
+    const propLines = cls.members.properties.map(
+        (member) => `${indent}${formatModifierText(member.tags)}${member.signature}`
+    );
+    const ctorLines = cls.members.constructors.map(
+        (member) => `${indent}${formatModifierText(member.tags)}${member.signature}`
+    );
+    const methodLines = cls.members.methods.map(
+        (member) => `${indent}${formatModifierText(member.tags)}${member.signature}`
+    );
 
     const sections = [propLines, ctorLines, methodLines];
     sections.forEach((section, index) => {
@@ -617,7 +664,49 @@ function buildClassHeaderLines(cls) {
     return lines;
 }
 
-function formatModifierPrefix(tags) {
+function buildClassHeaderHtmlLines(cls) {
+    const lines = [];
+    let header = `${keywordSpan("class")} ${nameSpan(cls.name)}`;
+
+    if (cls.heritage.extends) {
+        header += ` ${keywordSpan("extends")} ${typeSpan(cls.heritage.extends)}`;
+    }
+    if (cls.heritage.implements.length > 0) {
+        const implList = cls.heritage.implements
+            .map((name, index) => `${index === 0 ? "" : punctSpan(", ")}${typeSpan(name)}`)
+            .join("");
+        header += ` ${keywordSpan("implements")} ${implList}`;
+    }
+
+    lines.push(header);
+
+    const indent = "  ";
+    const propLines = cls.members.properties.map(
+        (member) => `${indent}${formatModifierHtml(member.tags)}${formatSignatureHtml(member.signature)}`
+    );
+    const ctorLines = cls.members.constructors.map(
+        (member) => `${indent}${formatModifierHtml(member.tags)}${formatSignatureHtml(member.signature)}`
+    );
+    const methodLines = cls.members.methods.map(
+        (member) => `${indent}${formatModifierHtml(member.tags)}${formatSignatureHtml(member.signature)}`
+    );
+
+    const sections = [propLines, ctorLines, methodLines];
+    sections.forEach((section, index) => {
+        if (section.length === 0) {
+            return;
+        }
+        lines.push(...section);
+        const hasNext = sections.slice(index + 1).some((next) => next.length > 0);
+        if (hasNext) {
+            lines.push("");
+        }
+    });
+
+    return lines;
+}
+
+function formatModifierHtml(tags) {
     if (!tags || tags.length === 0) {
         return "";
     }
@@ -627,7 +716,57 @@ function formatModifierPrefix(tags) {
     if (filtered.length === 0) {
         return "";
     }
+    return `<span class="hv-mod">${escapeHtml(filtered.join(" "))} </span>`;
+}
+
+function formatModifierText(tags) {
+    if (!tags || tags.length === 0) {
+        return "";
+    }
+
+    const order = ["public", "protected", "private", "static", "readonly", "abstract"];
+    const filtered = order.filter((tag) => tags.includes(tag));
+    if (filtered.length === 0) {
+        return "";
+    }
+
     return `${filtered.join(" ")} `;
+}
+
+function formatSignatureHtml(signature) {
+    const openParen = signature.indexOf("(");
+    if (openParen === -1) {
+        return `<span class="hv-name">${escapeHtml(signature)}</span>`;
+    }
+
+    const name = signature.slice(0, openParen).trim();
+    const rest = signature.slice(openParen);
+    return `<span class="hv-name">${escapeHtml(name)}</span><span class="hv-signature">${escapeHtml(rest)}</span>`;
+}
+
+function keywordSpan(text) {
+    return `<span class="hv-keyword">${escapeHtml(text)}</span>`;
+}
+
+function nameSpan(text) {
+    return `<span class="hv-name">${escapeHtml(text)}</span>`;
+}
+
+function typeSpan(text) {
+    return `<span class="hv-type">${escapeHtml(text)}</span>`;
+}
+
+function punctSpan(text) {
+    return `<span class="hv-punct">${escapeHtml(text)}</span>`;
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 function buildTreeModel(analysis) {
@@ -1092,6 +1231,44 @@ function handleDownloadTree() {
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
     setDiagnostics("Diagnostics", ["Tree downloaded as TXT."]);
+}
+
+function handleCopyHeader() {
+    if (!latestHeaderText) {
+        setDiagnostics("Diagnostics", ["Nothing to export. Paste TypeScript and analyze first."]);
+        return;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+            .writeText(latestHeaderText)
+            .then(() => {
+                setDiagnostics("Diagnostics", ["Header view copied to clipboard."]);
+            })
+            .catch(() => {
+                fallbackCopy(latestHeaderText);
+            });
+        return;
+    }
+
+    fallbackCopy(latestHeaderText);
+}
+
+function handleDownloadHeader() {
+    if (!latestHeaderText) {
+        setDiagnostics("Diagnostics", ["Nothing to export. Paste TypeScript and analyze first."]);
+        return;
+    }
+
+    const blob = new Blob([latestHeaderText], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "header-view.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    setDiagnostics("Diagnostics", ["Header view downloaded as TXT."]);
 }
 
 function getTreeText() {

@@ -15,17 +15,19 @@
                 <h1>TS Structure Viewer</h1>
                 <p>Paste TypeScript and visualize classes, methods, and functions.</p>
             </div>
-            <div class="header-actions">
-                <button class="pill-button" type="button" id="parseButton">Analyze</button>
-                <button class="ghost-button" type="button" id="sampleButton">Load Sample</button>
-                <button class="ghost-button" type="button" id="clearButton">Clear</button>
-            </div>
         </header>
 
         <section class="grid top-grid">
             <section class="panel input-panel">
-                <label class="section-label" for="sourceInput">Input</label>
-                <textarea id="sourceInput" spellcheck="false"></textarea>
+                <div class="panel-header">
+                    <h2>Input</h2>
+                    <div class="panel-actions">
+                        <button class="pill-button" type="button" id="parseButton">Analyze</button>
+                        <button class="ghost-button" type="button" id="sampleButton">Load Sample</button>
+                        <button class="ghost-button" type="button" id="clearButton">Clear</button>
+                    </div>
+                </div>
+                <textarea id="sourceInput" spellcheck="false" aria-label="Input"></textarea>
                 <div class="meta-row">
                     <div class="stats" id="stats"></div>
                     <div class="diagnostics" id="diagnostics"></div>
@@ -35,8 +37,8 @@
                 <div class="panel-header">
                     <h2>Structure Tree</h2>
                     <div class="panel-actions">
-                        <button class="ghost-button ghost-button--small" type="button" id="copyTreeButton">Copy</button>
-                        <button class="ghost-button ghost-button--small" type="button" id="downloadTreeButton">Download TXT</button>
+                        <button class="ghost-button" type="button" id="copyTreeButton">Copy</button>
+                        <button class="ghost-button" type="button" id="downloadTreeButton">Download TXT</button>
                         <span class="badge" id="treeCount">0 nodes</span>
                     </div>
                 </div>
@@ -47,6 +49,10 @@
         <section class="panel header-panel">
             <div class="panel-header">
                 <h2>Header View</h2>
+                <div class="panel-actions">
+                    <button class="ghost-button" type="button" id="copyHeaderButton">Copy</button>
+                    <button class="ghost-button" type="button" id="downloadHeaderButton">Download TXT</button>
+                </div>
             </div>
             <pre id="headerView" class="header-view" aria-live="polite"></pre>
         </section>

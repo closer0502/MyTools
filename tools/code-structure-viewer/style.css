@@ -27,12 +27,6 @@
     max-width: 520px;
 }
 
-.header-actions {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-}
-
 .panel {
     background: linear-gradient(140deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
     border: 1px solid var(--border);
@@ -301,6 +295,34 @@ textarea:focus {
     overflow: auto;
 }
 
+.header-view .hv-keyword {
+    color: #38bdf8;
+}
+
+.header-view .hv-name {
+    color: #e2e8f0;
+}
+
+.header-view .hv-type {
+    color: #f472b6;
+}
+
+.header-view .hv-mod {
+    color: #a5b4fc;
+}
+
+.header-view .hv-signature {
+    color: #cbd5f5;
+}
+
+.header-view .hv-punct {
+    color: #64748b;
+}
+
+.header-view .hv-muted {
+    color: var(--muted);
+}
+
 .graph {
     width: 100%;
     height: auto;
@@ -381,11 +403,6 @@ textarea:focus {
     border-color: rgba(56, 189, 248, 0.6);
     transform: translateY(-1px);
     box-shadow: 0 8px 24px rgba(56, 189, 248, 0.18);
-}
-
-.ghost-button--small {
-    padding: 6px 12px;
-    font-size: 12px;
 }
 
 .ghost-button:focus-visible {
