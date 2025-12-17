@@ -14,7 +14,12 @@
             <p>ペーストまたはファイルをドロップして、好きなインデントでJSONを整形・表示します。</p>
         </header>
 
-        <div class="card">
+        <div class="tab-bar" role="tablist" aria-label="表示切り替え">
+            <button class="tab-button is-active" type="button" id="jsonTab" role="tab" aria-selected="true" aria-controls="jsonCard" data-target="jsonCard">JSON</button>
+            <button class="tab-button" type="button" id="markupTab" role="tab" aria-selected="false" aria-controls="markupCard" data-target="markupCard">HTML/XML</button>
+        </div>
+
+        <div class="card" id="jsonCard" role="tabpanel" aria-labelledby="jsonTab">
             <div class="input-grid">
                 <section>
                     <span class="section-label">入力</span>
@@ -63,20 +68,20 @@
                 </div>
             </div>
         </div>
-        <div class="card markup-card">
+        <div class="card markup-card is-hidden" id="markupCard" role="tabpanel" aria-labelledby="markupTab">
             <div class="tool-header">
-                <span class="tool-eyebrow">Markup Visualizer</span>
-                <h2>HTML / XML Visualizer</h2>
-                <p>Paste markup, drop a file, or use the picker. Switch between HTML and XML mode to parse.</p>
+                <span class="tool-eyebrow">マークアップ可視化</span>
+                <h2>HTML / XML ビジュアライザー</h2>
+                <p>貼り付け、ファイル投下、または選択で入力できます。HTML/XMLのモードを切り替えて表示します。</p>
             </div>
 
             <div class="input-grid">
                 <section>
-                    <span class="section-label">Input</span>
+                    <span class="section-label">入力</span>
                     <div class="drop-zone" id="markupDropZone">
-                        <p class="primary">Drop an HTML/XML file here</p>
-                        <p class="secondary">Or paste markup in the editor below</p>
-                        <button class="ghost-button" type="button" id="markupFileSelect">Choose file</button>
+                        <p class="primary">ここにHTML/XMLファイルをドロップ</p>
+                        <p class="secondary">または下のエディタに貼り付け</p>
+                        <button class="ghost-button" type="button" id="markupFileSelect">ファイルを選択</button>
                         <input id="markupFileInput" type="file" accept=".html,.htm,.xml,.xhtml,.svg,.txt" hidden>
                     </div>
                     <textarea id="markupInput" placeholder="<root>\n  <item id=&quot;a&quot;>Hello</item>\n</root>"></textarea>
@@ -84,39 +89,39 @@
 
                 <section class="controls">
                     <div>
-                        <span class="section-label">Indent</span>
+                        <span class="section-label">インデント</span>
                         <div class="indent-control">
-                            <input id="markupIndentRange" type="range" min="0" max="8" value="2" aria-label="Indent size">
-                            <span class="indent-value" id="markupIndentValue">2 spaces</span>
+                            <input id="markupIndentRange" type="range" min="0" max="8" value="2" aria-label="インデント幅">
+                            <span class="indent-value" id="markupIndentValue">2スペース</span>
                         </div>
                     </div>
                     <div class="options markup-options">
                         <label class="select-control">
-                            <span>Mode</span>
+                            <span>モード</span>
                             <select id="markupMode">
                                 <option value="html">HTML</option>
                                 <option value="xml">XML</option>
                             </select>
                         </label>
-                        <p class="option-note">XML mode validates well-formedness and keeps tag case.</p>
+                        <p class="option-note">XMLモードは整形式を検証し、タグの大文字小文字を保持します。</p>
                     </div>
-                    <button class="pill-button" type="button" id="markupFormatButton">Format &amp; Preview</button>
+                    <button class="pill-button" type="button" id="markupFormatButton">整形して表示</button>
                 </section>
             </div>
 
             <div class="output-section">
                 <div class="section-header">
                     <div>
-                        <span class="section-label">Preview</span>
-                        <p class="hint">Formatted markup with syntax highlighting.</p>
+                        <span class="section-label">プレビュー</span>
+                        <p class="hint">整形済みマークアップをハイライト表示します。</p>
                     </div>
-                    <button class="ghost-button" type="button" id="markupCopyButton">Copy</button>
+                    <button class="ghost-button" type="button" id="markupCopyButton">コピー</button>
                 </div>
                 <pre id="markupOutput" class="code-block" aria-live="polite"></pre>
                 <div id="markupErrorBanner" class="error-banner hidden" role="alert"></div>
                 <div class="status-bar">
                     <span class="status-dot"></span>
-                    <span id="markupStatusLabel">Ready</span>
+                    <span id="markupStatusLabel">準備完了</span>
                 </div>
             </div>
         </div>

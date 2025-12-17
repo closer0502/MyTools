@@ -204,7 +204,7 @@ if (markupDropZone) {
 
     function updateMarkupIndentLabel() {
         const value = Number(markupIndentRange.value);
-        markupIndentValue.textContent = value === 0 ? "0 (minify)" : `${value} spaces`;
+        markupIndentValue.textContent = value === 0 ? "0 (圧縮)" : `${value}スペース`;
     }
 
     function setMarkupStatus(message) {
@@ -214,7 +214,7 @@ if (markupDropZone) {
     function showMarkupError(message) {
         markupErrorBanner.textContent = message;
         markupErrorBanner.classList.remove("hidden");
-        setMarkupStatus("Parse error");
+        setMarkupStatus("パース失敗");
     }
 
     function clearMarkupError() {
@@ -403,7 +403,7 @@ if (markupDropZone) {
         if (!source) {
             markupOutput.textContent = "";
             clearMarkupError();
-            setMarkupStatus("Empty");
+        setMarkupStatus("入力なし");
             return;
         }
 
@@ -413,13 +413,13 @@ if (markupDropZone) {
             const formatted = buildMarkup(source, mode, indent);
             markupOutput.innerHTML = highlightMarkup(formatted);
             clearMarkupError();
-            setMarkupStatus("Preview");
+            setMarkupStatus("表示中");
             if (!auto) {
                 markupOutput.scrollTop = 0;
             }
         } catch (err) {
             markupOutput.textContent = "";
-            showMarkupError(`Failed to parse: ${err.message}`);
+            showMarkupError(`パースに失敗しました: ${err.message}`);
         }
     }
 
@@ -431,7 +431,7 @@ if (markupDropZone) {
             markupInput.value = normalizeSmartQuotes(text);
             formatMarkup();
         }).catch(() => {
-            showMarkupError("Failed to read the file.");
+            showMarkupError("ファイルの読み込みに失敗しました。");
         });
     }
 
@@ -467,7 +467,7 @@ if (markupDropZone) {
     });
 
     markupInput.addEventListener("input", () => {
-        setMarkupStatus(markupInput.value.trim() ? "Editing" : "Empty");
+        setMarkupStatus(markupInput.value.trim() ? "入力中" : "入力なし");
         clearMarkupError();
     });
 
@@ -477,17 +477,50 @@ if (markupDropZone) {
 
         navigator.clipboard.writeText(text).then(() => {
             const original = markupCopyButton.textContent;
-            markupCopyButton.textContent = "Copied";
+            markupCopyButton.textContent = "コピーしました";
             markupCopyButton.classList.add("copied");
             setTimeout(() => {
                 markupCopyButton.textContent = original;
                 markupCopyButton.classList.remove("copied");
             }, 1400);
         }).catch(() => {
-            showMarkupError("Failed to copy to clipboard.");
+            showMarkupError("クリップボードへのコピーに失敗しました。");
         });
     });
 
     updateMarkupIndentLabel();
-    setMarkupStatus("Ready");
+    setMarkupStatus("準備完了");
+}
+
+const tabButtons = document.querySelectorAll(".tab-button");
+const jsonCard = document.getElementById("jsonCard");
+const markupCard = document.getElementById("markupCard");
+
+if (tabButtons.length && jsonCard && markupCard) {
+    const panels = {
+        jsonCard,
+        markupCard
+    };
+
+    function setActiveTab(targetId) {
+        tabButtons.forEach(button => {
+            const isActive = button.dataset.target === targetId;
+            button.classList.toggle("is-active", isActive);
+            button.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+
+        Object.entries(panels).forEach(([id, panel]) => {
+            const isHidden = id !== targetId;
+            panel.classList.toggle("is-hidden", isHidden);
+            panel.setAttribute("aria-hidden", isHidden ? "true" : "false");
+        });
+    }
+
+    tabButtons.forEach(button => {
+        button.addEventListener("click", () => {
+            setActiveTab(button.dataset.target);
+        });
+    });
+
+    setActiveTab("jsonCard");
 }

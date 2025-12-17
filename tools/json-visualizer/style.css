@@ -37,6 +37,48 @@ body {
     color: var(--muted);
 }
 
+.tab-bar {
+    display: flex;
+    width: fit-content;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    margin: 0 auto var(--space-4);
+}
+
+.tab-button {
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.tab-button.is-active {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(34, 211, 238, 0.35));
+    color: #e6faff;
+    box-shadow: 0 8px 24px rgba(34, 211, 238, 0.18);
+}
+
+.tab-button:hover {
+    color: var(--text);
+    transform: translateY(-1px);
+}
+
+.tab-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
 .input-grid {
     display: grid;
     gap: var(--space-3);
@@ -269,6 +311,10 @@ input[type="range"] {
     border-radius: 50%;
     background: var(--accent);
     box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.16);
+}
+
+.is-hidden {
+    display: none;
 }
 
 .markup-card {
