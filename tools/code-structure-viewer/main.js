@@ -586,7 +586,9 @@ function buildHeaderText(analysis) {
         } else if (entry.kind === "enum") {
             lines.push(`enum ${entry.data.name}`);
         } else if (entry.kind === "function-object") {
-            lines.push(`object ${entry.data.signature || entry.data.display}`);
+            // entry.data.tags[0] は varKind (const/let/var)
+            const varKind = entry.data.tags && entry.data.tags.length > 0 ? entry.data.tags[0] : "const";
+            lines.push(`${varKind} ${entry.data.signature || entry.data.display}`);
         } else if (entry.kind === "function") {
             lines.push(`function ${entry.data.signature || entry.data.display}`);
         } else if (entry.kind === "class") {
@@ -614,7 +616,9 @@ function buildHeaderHtml(analysis) {
         } else if (entry.kind === "enum") {
             lines.push(`${keywordSpan("enum")} ${nameSpan(entry.data.name)}`);
         } else if (entry.kind === "function-object") {
-            lines.push(`${keywordSpan("object")} ${formatSignatureHtml(entry.data.signature || entry.data.display)}`);
+            // entry.data.tags[0] は varKind (const/let/var)
+            const varKind = entry.data.tags && entry.data.tags.length > 0 ? entry.data.tags[0] : "const";
+            lines.push(`${keywordSpan(varKind)} ${formatSignatureHtml(entry.data.signature || entry.data.display)}`);
         } else if (entry.kind === "function") {
             lines.push(`${keywordSpan("function")} ${formatSignatureHtml(entry.data.signature || entry.data.display)}`);
         } else if (entry.kind === "class") {
