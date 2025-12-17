@@ -22,37 +22,41 @@
             </div>
         </header>
 
-        <section class="panel input-panel">
-            <label class="section-label" for="sourceInput">Input</label>
-            <textarea id="sourceInput" spellcheck="false"></textarea>
-            <div class="meta-row">
-                <div class="stats" id="stats"></div>
-                <div class="diagnostics" id="diagnostics"></div>
-            </div>
-        </section>
-
-        <section class="grid">
+        <section class="grid top-grid">
+            <section class="panel input-panel">
+                <label class="section-label" for="sourceInput">Input</label>
+                <textarea id="sourceInput" spellcheck="false"></textarea>
+                <div class="meta-row">
+                    <div class="stats" id="stats"></div>
+                    <div class="diagnostics" id="diagnostics"></div>
+                </div>
+            </section>
             <div class="panel">
                 <div class="panel-header">
                     <h2>Structure Tree</h2>
-                    <span class="badge" id="treeCount">0 nodes</span>
+                    <div class="panel-actions">
+                        <button class="ghost-button ghost-button--small" type="button" id="copyTreeButton">Copy</button>
+                        <button class="ghost-button ghost-button--small" type="button" id="downloadTreeButton">Download TXT</button>
+                        <span class="badge" id="treeCount">0 nodes</span>
+                    </div>
                 </div>
                 <div id="tree" class="tree"></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">
-                    <h2>Structure Graph</h2>
-                    <span class="badge" id="graphCount">0 edges</span>
-                </div>
-                <div id="graph" class="graph" role="img" aria-label="Structure graph"></div>
-                <div class="legend">
-                    <span class="legend-item"><span class="legend-dot legend-class"></span>Class</span>
-                    <span class="legend-item"><span class="legend-dot legend-method"></span>Method</span>
-                    <span class="legend-item"><span class="legend-dot legend-prop"></span>Property</span>
-                    <span class="legend-item"><span class="legend-dot legend-function"></span>Function</span>
-                    <span class="legend-item"><span class="legend-dot legend-interface"></span>Interface</span>
-                    <span class="legend-item"><span class="legend-dot legend-external"></span>External</span>
-                </div>
+        </section>
+
+        <section class="panel graph-panel">
+            <div class="panel-header">
+                <h2>Structure Graph</h2>
+                <span class="badge" id="graphCount">0 edges</span>
+            </div>
+            <div id="graph" class="graph" role="img" aria-label="Structure graph"></div>
+            <div class="legend">
+                <span class="legend-item"><span class="legend-dot legend-class"></span>Class</span>
+                <span class="legend-item"><span class="legend-dot legend-method"></span>Method</span>
+                <span class="legend-item"><span class="legend-dot legend-prop"></span>Property</span>
+                <span class="legend-item"><span class="legend-dot legend-function"></span>Function</span>
+                <span class="legend-item"><span class="legend-dot legend-interface"></span>Interface</span>
+                <span class="legend-item"><span class="legend-dot legend-external"></span>External</span>
             </div>
         </section>
 

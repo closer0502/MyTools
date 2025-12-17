@@ -10,7 +10,9 @@ const elements = {
     tree: document.getElementById("tree"),
     graph: document.getElementById("graph"),
     treeCount: document.getElementById("treeCount"),
-    graphCount: document.getElementById("graphCount")
+    graphCount: document.getElementById("graphCount"),
+    copyTreeButton: document.getElementById("copyTreeButton"),
+    downloadTreeButton: document.getElementById("downloadTreeButton")
 };
 
 const SAMPLE_SOURCE = `interface Renderable {
@@ -66,6 +68,7 @@ function createMixer(id: string): Mixer {
 `;
 
 let network = null;
+let latestTreeModel = null;
 
 function init() {
     if (!elements.sourceInput) {
@@ -85,6 +88,14 @@ function init() {
     elements.parseButton.addEventListener("click", () => {
         parseAndRender();
     });
+
+    if (elements.copyTreeButton) {
+        elements.copyTreeButton.addEventListener("click", handleCopyTree);
+    }
+
+    if (elements.downloadTreeButton) {
+        elements.downloadTreeButton.addEventListener("click", handleDownloadTree);
+    }
 
     elements.sourceInput.addEventListener("keydown", (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
@@ -119,7 +130,7 @@ function parseAndRender() {
 
     renderStats(analysis);
     renderDiagnostics(sourceFile);
-    renderTree(analysis);
+    latestTreeModel = renderTree(analysis);
     renderGraph(analysis);
 }
 
@@ -138,6 +149,7 @@ function renderEmptyState() {
     elements.graph.innerHTML = "<div class=\"empty\">Paste TypeScript to see the graph.</div>";
     elements.treeCount.textContent = "0 nodes";
     elements.graphCount.textContent = "0 edges";
+    latestTreeModel = null;
     destroyNetwork();
 }
 
@@ -358,16 +370,20 @@ function renderStats(analysis) {
         { label: "Enums", value: counts.enums }
     ];
 
-    elements.stats.innerHTML = items
-        .map(
-            (item) => `
-                <div class="stat">
-                    <span class="stat-label">${item.label}</span>
-                    <span class="stat-value">${item.value}</span>
-                </div>
-            `.trim()
-        )
-        .join("");
+    elements.stats.innerHTML = `
+        <ul class="stats-list">
+            ${items
+                .map(
+                    (item) => `
+                        <li class="stats-item">
+                            <span class="stats-key">${item.label}</span>
+                            <span class="stats-value">${item.value}</span>
+                        </li>
+                    `.trim()
+                )
+                .join("")}
+        </ul>
+    `.trim();
 }
 
 function getCounts(analysis) {
@@ -444,7 +460,7 @@ function renderTree(analysis) {
     if (totalEntries === 0) {
         elements.tree.innerHTML = "<div class=\"empty\">No structures found.</div>";
         elements.treeCount.textContent = "0 nodes";
-        return;
+        return null;
     }
 
     const root = buildTreeModel(analysis);
@@ -454,6 +470,7 @@ function renderTree(analysis) {
 
     const nodeCount = countTreeNodes(root) - 1;
     elements.treeCount.textContent = `${nodeCount} nodes`;
+    return root;
 }
 
 function buildTreeModel(analysis) {
@@ -879,6 +896,91 @@ function createEmptyAnalysis() {
         interfaces: [],
         enums: []
     };
+}
+
+function handleCopyTree() {
+    const treeText = getTreeText();
+    if (!treeText) {
+        return;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+            .writeText(treeText)
+            .then(() => {
+                setDiagnostics("Diagnostics", ["Tree copied to clipboard."]);
+            })
+            .catch(() => {
+                fallbackCopy(treeText);
+            });
+        return;
+    }
+
+    fallbackCopy(treeText);
+}
+
+function handleDownloadTree() {
+    const treeText = getTreeText();
+    if (!treeText) {
+        return;
+    }
+
+    const blob = new Blob([treeText], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "structure-tree.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    setDiagnostics("Diagnostics", ["Tree downloaded as TXT."]);
+}
+
+function getTreeText() {
+    if (!latestTreeModel) {
+        setDiagnostics("Diagnostics", ["Nothing to export. Paste TypeScript and analyze first."]);
+        return "";
+    }
+
+    const lines = [];
+    const indentUnit = "  ";
+
+    function walk(node, depth) {
+        const label = formatTreeLabel(node);
+        if (label) {
+            lines.push(`${indentUnit.repeat(depth)}${label}`);
+        }
+        if (node.children && node.children.length > 0) {
+            node.children.forEach((child) => walk(child, depth + 1));
+        }
+    }
+
+    walk(latestTreeModel, 0);
+    return lines.join("\n");
+}
+
+function formatTreeLabel(node) {
+    let label = node.label || "";
+    if (node.kind === "group") {
+        label = label.replace(/\s*\(\d+\)\s*$/, "");
+    }
+    if (node.tags && node.tags.length > 0) {
+        label = `${label} [${node.tags.join(", ")}]`;
+    }
+    return label;
+}
+
+function fallbackCopy(text) {
+    const helper = document.createElement("textarea");
+    helper.value = text;
+    helper.setAttribute("readonly", "");
+    helper.style.position = "absolute";
+    helper.style.left = "-9999px";
+    document.body.appendChild(helper);
+    helper.select();
+    document.execCommand("copy");
+    document.body.removeChild(helper);
+    setDiagnostics("Diagnostics", ["Tree copied to clipboard."]);
 }
 
 document.addEventListener("DOMContentLoaded", init);
