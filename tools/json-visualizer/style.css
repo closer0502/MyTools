@@ -223,6 +223,12 @@ input[type="range"] {
 .code-block .boolean { color: #ff9ec7; }
 .code-block .null { color: #93c5fd; }
 .code-block .key { color: #7dd3fc; }
+.code-block .tag { color: #7dd3fc; }
+.code-block .attr-name { color: #c4b5fd; }
+.code-block .attr-value { color: #8ef9d8; }
+.code-block .attr-eq { color: #94a3b8; }
+.code-block .comment { color: #94a3b8; }
+.code-block .doctype { color: #f4b86e; }
 
 .error-banner {
     margin-top: var(--space-2);
@@ -263,6 +269,60 @@ input[type="range"] {
     border-radius: 50%;
     background: var(--accent);
     box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.16);
+}
+
+.markup-card {
+    margin-top: var(--space-4);
+}
+
+.tool-header {
+    text-align: center;
+    margin-bottom: var(--space-3);
+}
+
+.tool-header h2 {
+    margin: 0 0 var(--space-2);
+    font-size: 26px;
+}
+
+.tool-header p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.tool-eyebrow {
+    display: inline-block;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.03);
+    margin-bottom: var(--space-2);
+}
+
+.select-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    font-size: 14px;
+}
+
+.select-control select {
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-alt);
+    color: var(--text);
+    font-family: var(--font-sans);
+}
+
+.select-control select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
 }
 
 @media (max-width: 720px) {

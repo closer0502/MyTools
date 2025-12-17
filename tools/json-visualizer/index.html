@@ -63,6 +63,63 @@
                 </div>
             </div>
         </div>
+        <div class="card markup-card">
+            <div class="tool-header">
+                <span class="tool-eyebrow">Markup Visualizer</span>
+                <h2>HTML / XML Visualizer</h2>
+                <p>Paste markup, drop a file, or use the picker. Switch between HTML and XML mode to parse.</p>
+            </div>
+
+            <div class="input-grid">
+                <section>
+                    <span class="section-label">Input</span>
+                    <div class="drop-zone" id="markupDropZone">
+                        <p class="primary">Drop an HTML/XML file here</p>
+                        <p class="secondary">Or paste markup in the editor below</p>
+                        <button class="ghost-button" type="button" id="markupFileSelect">Choose file</button>
+                        <input id="markupFileInput" type="file" accept=".html,.htm,.xml,.xhtml,.svg,.txt" hidden>
+                    </div>
+                    <textarea id="markupInput" placeholder="<root>\n  <item id=&quot;a&quot;>Hello</item>\n</root>"></textarea>
+                </section>
+
+                <section class="controls">
+                    <div>
+                        <span class="section-label">Indent</span>
+                        <div class="indent-control">
+                            <input id="markupIndentRange" type="range" min="0" max="8" value="2" aria-label="Indent size">
+                            <span class="indent-value" id="markupIndentValue">2 spaces</span>
+                        </div>
+                    </div>
+                    <div class="options markup-options">
+                        <label class="select-control">
+                            <span>Mode</span>
+                            <select id="markupMode">
+                                <option value="html">HTML</option>
+                                <option value="xml">XML</option>
+                            </select>
+                        </label>
+                        <p class="option-note">XML mode validates well-formedness and keeps tag case.</p>
+                    </div>
+                    <button class="pill-button" type="button" id="markupFormatButton">Format &amp; Preview</button>
+                </section>
+            </div>
+
+            <div class="output-section">
+                <div class="section-header">
+                    <div>
+                        <span class="section-label">Preview</span>
+                        <p class="hint">Formatted markup with syntax highlighting.</p>
+                    </div>
+                    <button class="ghost-button" type="button" id="markupCopyButton">Copy</button>
+                </div>
+                <pre id="markupOutput" class="code-block" aria-live="polite"></pre>
+                <div id="markupErrorBanner" class="error-banner hidden" role="alert"></div>
+                <div class="status-bar">
+                    <span class="status-dot"></span>
+                    <span id="markupStatusLabel">Ready</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>
