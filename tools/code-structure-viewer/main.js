@@ -8,6 +8,7 @@ const elements = {
     stats: document.getElementById("stats"),
     diagnostics: document.getElementById("diagnostics"),
     tree: document.getElementById("tree"),
+    headerView: document.getElementById("headerView"),
     graph: document.getElementById("graph"),
     treeCount: document.getElementById("treeCount"),
     graphCount: document.getElementById("graphCount"),
@@ -131,6 +132,7 @@ function parseAndRender() {
     renderStats(analysis);
     renderDiagnostics(sourceFile);
     latestTreeModel = renderTree(analysis);
+    renderHeaderView(analysis);
     renderGraph(analysis);
 }
 
@@ -146,6 +148,9 @@ function renderEmptyState() {
     renderStats(createEmptyAnalysis());
     setDiagnostics("Diagnostics", ["Paste TypeScript to see diagnostics."]);
     elements.tree.innerHTML = "<div class=\"empty\">Paste TypeScript to see the structure tree.</div>";
+    if (elements.headerView) {
+        elements.headerView.textContent = "Paste TypeScript to see the header view.";
+    }
     elements.graph.innerHTML = "<div class=\"empty\">Paste TypeScript to see the graph.</div>";
     elements.treeCount.textContent = "0 nodes";
     elements.graphCount.textContent = "0 edges";
@@ -159,18 +164,29 @@ function analyzeSource(sourceFile) {
     const functionObjects = [];
     const interfaces = [];
     const enums = [];
+    const entries = [];
 
     ts.forEachChild(sourceFile, (node) => {
         if (ts.isClassDeclaration(node)) {
-            classes.push(parseClass(node, sourceFile));
+            const parsed = parseClass(node, sourceFile);
+            classes.push(parsed);
+            entries.push({ kind: "class", data: parsed });
         } else if (ts.isFunctionDeclaration(node)) {
             const name = node.name ? node.name.getText(sourceFile) : null;
             if (name) {
                 const params = getParameterList(node, sourceFile);
-                functions.push({
+                const signature = buildFunctionSignature(
                     name,
-                    display: `${name}(${params})`
-                });
+                    getParameterSignature(node, sourceFile),
+                    getReturnTypeText(node, sourceFile)
+                );
+                const parsed = {
+                    name,
+                    display: `${name}(${params})`,
+                    signature
+                };
+                functions.push(parsed);
+                entries.push({ kind: "function", data: parsed });
             }
         } else if (ts.isVariableStatement(node)) {
             const varKind = getVariableKind(node.declarationList.flags);
@@ -179,16 +195,21 @@ function analyzeSource(sourceFile) {
                 const parsed = parseFunctionObject(decl, sourceFile, varKind, isExported);
                 if (parsed) {
                     functionObjects.push(parsed);
+                    entries.push({ kind: "function-object", data: parsed });
                 }
             });
         } else if (ts.isInterfaceDeclaration(node)) {
-            interfaces.push({ name: node.name.getText(sourceFile) });
+            const parsed = { name: node.name.getText(sourceFile) };
+            interfaces.push(parsed);
+            entries.push({ kind: "interface", data: parsed });
         } else if (ts.isEnumDeclaration(node)) {
-            enums.push({ name: node.name.getText(sourceFile) });
+            const parsed = { name: node.name.getText(sourceFile) };
+            enums.push(parsed);
+            entries.push({ kind: "enum", data: parsed });
         }
     });
 
-    return { classes, functions, functionObjects, interfaces, enums };
+    return { classes, functions, functionObjects, interfaces, enums, entries };
 }
 
 function parseClass(node, sourceFile) {
@@ -234,21 +255,29 @@ function parseClass(node, sourceFile) {
 function buildMember(kind, node, sourceFile) {
     const name = getNodeName(node, sourceFile);
     const params = getParameterList(node, sourceFile);
+    const paramsSignature = getParameterSignature(node, sourceFile);
+    const returnType = getReturnTypeText(node, sourceFile);
     let display = "";
+    let signature = "";
 
     if (kind === "constructor") {
         display = `constructor(${params})`;
+        signature = `constructor(${paramsSignature})`;
     } else if (kind === "get") {
         display = `get ${name}()`;
+        signature = `get ${name}()${returnType ? `: ${returnType}` : ""}`;
     } else if (kind === "set") {
         display = `set ${name}(${params})`;
+        signature = `set ${name}(${paramsSignature})`;
     } else {
         display = `${name}(${params})`;
+        signature = `${name}(${paramsSignature})${returnType ? `: ${returnType}` : ""}`;
     }
 
     return {
         name,
         display,
+        signature,
         tags: getModifierTags(node)
     };
 }
@@ -259,10 +288,14 @@ function buildProperty(node, sourceFile) {
     if (node.questionToken) {
         tags.push("optional");
     }
+    const optionalMark = node.questionToken ? "?" : "";
+    const typeText = node.type ? node.type.getText(sourceFile) : "";
+    const signature = typeText ? `${name}${optionalMark}: ${typeText};` : `${name}${optionalMark};`;
 
     return {
         name,
         display: name,
+        signature,
         tags
     };
 }
@@ -287,6 +320,39 @@ function getParameterList(node, sourceFile) {
     return node.parameters
         .map((param) => param.name.getText(sourceFile))
         .join(", ");
+}
+
+function getParameterSignature(node, sourceFile) {
+    if (!node.parameters || node.parameters.length === 0) {
+        return "";
+    }
+
+    return node.parameters
+        .map((param) => formatParameter(param, sourceFile))
+        .join(", ");
+}
+
+function formatParameter(param, sourceFile) {
+    let text = param.name.getText(sourceFile);
+    if (param.questionToken) {
+        text += "?";
+    }
+    if (param.type) {
+        text += `: ${param.type.getText(sourceFile)}`;
+    }
+    if (param.initializer) {
+        text += ` = ${param.initializer.getText(sourceFile)}`;
+    }
+    return text;
+}
+
+function getReturnTypeText(node, sourceFile) {
+    return node.type ? node.type.getText(sourceFile) : "";
+}
+
+function buildFunctionSignature(name, params, returnType) {
+    const suffix = returnType ? `: ${returnType}` : "";
+    return `${name}(${params})${suffix}`;
 }
 
 function getVariableKind(flags) {
@@ -316,8 +382,12 @@ function parseFunctionObject(declaration, sourceFile, varKind, isExported) {
     }
 
     const params = getParameterList(initializer, sourceFile);
+    const paramsSignature = getParameterSignature(initializer, sourceFile);
     const name = declaration.name.text;
+    const returnType =
+        getReturnTypeText(initializer, sourceFile) || (declaration.type ? declaration.type.getText(sourceFile) : "");
     const tags = [varKind, isArrow ? "arrow" : "function"];
+    const signature = buildFunctionSignature(name, paramsSignature, returnType);
 
     if (isExported) {
         tags.push("export");
@@ -330,6 +400,7 @@ function parseFunctionObject(declaration, sourceFile, varKind, isExported) {
     return {
         name,
         display: `${name}(${params})`,
+        signature,
         tags
     };
 }
@@ -338,6 +409,9 @@ function getModifierTags(node) {
     const tags = [];
     const flags = ts.getCombinedModifierFlags(node);
 
+    if (flags & ts.ModifierFlags.Public) {
+        tags.push("public");
+    }
     if (flags & ts.ModifierFlags.Private) {
         tags.push("private");
     }
@@ -471,6 +545,89 @@ function renderTree(analysis) {
     const nodeCount = countTreeNodes(root) - 1;
     elements.treeCount.textContent = `${nodeCount} nodes`;
     return root;
+}
+
+function renderHeaderView(analysis) {
+    if (!elements.headerView) {
+        return;
+    }
+
+    const text = buildHeaderText(analysis);
+    elements.headerView.textContent = text || "No structures found.";
+}
+
+function buildHeaderText(analysis) {
+    if (!analysis.entries || analysis.entries.length === 0) {
+        return "";
+    }
+
+    const lines = [];
+
+    analysis.entries.forEach((entry) => {
+        if (lines.length > 0) {
+            lines.push("");
+        }
+
+        if (entry.kind === "interface") {
+            lines.push(`interface ${entry.data.name}`);
+        } else if (entry.kind === "enum") {
+            lines.push(`enum ${entry.data.name}`);
+        } else if (entry.kind === "function-object") {
+            lines.push(`object ${entry.data.signature || entry.data.display}`);
+        } else if (entry.kind === "function") {
+            lines.push(`function ${entry.data.signature || entry.data.display}`);
+        } else if (entry.kind === "class") {
+            lines.push(...buildClassHeaderLines(entry.data));
+        }
+    });
+
+    return lines.join("\n");
+}
+
+function buildClassHeaderLines(cls) {
+    const lines = [];
+    let header = `class ${cls.name}`;
+
+    if (cls.heritage.extends) {
+        header += ` extends ${cls.heritage.extends}`;
+    }
+    if (cls.heritage.implements.length > 0) {
+        header += ` implements ${cls.heritage.implements.join(", ")}`;
+    }
+
+    lines.push(header);
+
+    const indent = "  ";
+    const propLines = cls.members.properties.map((member) => `${indent}${formatModifierPrefix(member.tags)}${member.signature}`);
+    const ctorLines = cls.members.constructors.map((member) => `${indent}${formatModifierPrefix(member.tags)}${member.signature}`);
+    const methodLines = cls.members.methods.map((member) => `${indent}${formatModifierPrefix(member.tags)}${member.signature}`);
+
+    const sections = [propLines, ctorLines, methodLines];
+    sections.forEach((section, index) => {
+        if (section.length === 0) {
+            return;
+        }
+        lines.push(...section);
+        const hasNext = sections.slice(index + 1).some((next) => next.length > 0);
+        if (hasNext) {
+            lines.push("");
+        }
+    });
+
+    return lines;
+}
+
+function formatModifierPrefix(tags) {
+    if (!tags || tags.length === 0) {
+        return "";
+    }
+
+    const order = ["public", "protected", "private", "static", "readonly", "abstract"];
+    const filtered = order.filter((tag) => tags.includes(tag));
+    if (filtered.length === 0) {
+        return "";
+    }
+    return `${filtered.join(" ")} `;
 }
 
 function buildTreeModel(analysis) {
@@ -894,7 +1051,8 @@ function createEmptyAnalysis() {
         functions: [],
         functionObjects: [],
         interfaces: [],
-        enums: []
+        enums: [],
+        entries: []
     };
 }
 

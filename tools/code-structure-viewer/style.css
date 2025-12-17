@@ -154,6 +154,10 @@ textarea:focus {
     margin-top: var(--space-3);
 }
 
+.header-panel {
+    margin-top: var(--space-3);
+}
+
 .panel-header {
     display: flex;
     align-items: center;
@@ -280,6 +284,21 @@ textarea:focus {
 .tree .empty {
     color: var(--muted);
     padding: var(--space-2);
+}
+
+.header-view {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: #e2e8f0;
+    background: #05080f;
+    border: 1px solid #0c1422;
+    border-radius: calc(var(--radius) - 4px);
+    padding: var(--space-3);
+    margin: 0;
+    white-space: pre-wrap;
+    min-height: 220px;
+    overflow: auto;
 }
 
 .graph {
