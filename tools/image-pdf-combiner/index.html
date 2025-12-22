@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image PDF Combiner</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">画像PDF結合</span>
+            <h1>Image PDF Combiner</h1>
+            <p class="lede">同じサイズの画像をまとめてPDF化。ページサイズ・DPI・圧縮を細かく調整できます。</p>
+        </header>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">Input</span>
+                    <h2>画像を読み込む</h2>
+                </div>
+                <p class="hint">ドラッグ&ドロップまたはファイル選択。並び順は追加順です。</p>
+            </div>
+
+            <div class="layout layout--split">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-inner">
+                        <p class="primary">ここに画像をドロップ</p>
+                        <p class="secondary">または画像ファイルを選択（複数可）</p>
+                        <button class="ghost-button" type="button" id="fileSelect">画像を選択</button>
+                        <input id="fileInput" type="file" accept="image/*" multiple hidden>
+                        <p class="hint">PNG / JPG / WEBP などに対応。ローカルファイルのみ。</p>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="summary-grid">
+                        <div class="summary-row">
+                            <span class="label">画像枚数</span>
+                            <span class="value" id="fileCount">0</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="label">合計サイズ</span>
+                            <span class="value" id="totalSize">-</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="label">先頭サイズ</span>
+                            <span class="value" id="firstDims">-</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="label">ページサイズ</span>
+                            <span class="value" id="pageSizeInfo">-</span>
+                        </div>
+                    </div>
+                    <div class="size-warning hidden" id="sizeWarning"></div>
+                    <div class="preview">
+                        <div class="preview-header">
+                            <span class="section-label">Preview</span>
+                            <span class="mono" id="previewMeta">-</span>
+                        </div>
+                        <div class="preview-frame">
+                            <img id="previewImage" alt="先頭画像のプレビュー" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="list-header">
+                    <div>
+                        <span class="section-label">Order</span>
+                        <h3>並び順</h3>
+                    </div>
+                    <div class="list-actions">
+                        <button class="ghost-button" type="button" id="sortName">ファイル名順</button>
+                        <button class="ghost-button" type="button" id="reverseOrder">逆順</button>
+                    </div>
+                </div>
+                <ul class="file-list" id="fileList"></ul>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">Settings</span>
+                    <h2>詳細設定</h2>
+                </div>
+                <p class="hint">PDFのサイズと画質を用途に合わせて調整できます。</p>
+            </div>
+
+            <div class="options-grid">
+                <div class="option">
+                    <span class="option-label">ページサイズ</span>
+                    <label class="field">
+                        <select id="pageSize">
+                            <option value="auto" selected>画像サイズに合わせる</option>
+                            <option value="a4">A4 (210 x 297 mm)</option>
+                            <option value="b5">B5 (176 x 250 mm)</option>
+                            <option value="letter">Letter (216 x 279 mm)</option>
+                        </select>
+                    </label>
+                    <label class="field" id="orientationRow">
+                        <span>向き</span>
+                        <select id="orientation">
+                            <option value="portrait" selected>縦</option>
+                            <option value="landscape">横</option>
+                        </select>
+                    </label>
+                    <label class="field">
+                        <span>余白 (mm)</span>
+                        <input id="margin" type="number" min="0" max="30" value="0" inputmode="decimal">
+                    </label>
+                    <label class="field">
+                        <span>配置</span>
+                        <select id="fitMode">
+                            <option value="contain" selected>収める (余白あり)</option>
+                            <option value="cover">はみ出して合わせる</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="option">
+                    <span class="option-label">解像度</span>
+                    <div class="field">
+                        <span>DPIプリセット</span>
+                        <div class="field-row">
+                            <select id="dpiPreset">
+                                <option value="150">Web向け (150)</option>
+                                <option value="300" selected>印刷標準 (300)</option>
+                                <option value="450">高精細 (450)</option>
+                                <option value="custom">カスタム</option>
+                            </select>
+                            <input id="dpiCustom" type="number" min="72" max="600" value="300" inputmode="numeric" disabled>
+                        </div>
+                    </div>
+                    <p class="option-hint">画像のピクセルをmmへ換算するときに使用します。</p>
+                </div>
+
+                <div class="option">
+                    <span class="option-label">画像フォーマット</span>
+                    <label class="field">
+                        <span>形式</span>
+                        <select id="imageFormat">
+                            <option value="image/jpeg" selected>JPEG</option>
+                            <option value="image/png">PNG</option>
+                        </select>
+                    </label>
+                    <label class="field" id="qualityRow">
+                        <span>品質</span>
+                        <input id="quality" type="range" min="60" max="100" value="90">
+                        <span class="mono" id="qualityValue">90%</span>
+                    </label>
+                    <label class="field" id="bgRow">
+                        <span>背景色</span>
+                        <input id="bgColor" type="color" value="#0b1220">
+                        <span class="mono" id="bgColorValue">#0b1220</span>
+                    </label>
+                </div>
+
+                <div class="option">
+                    <span class="option-label">PDF圧縮</span>
+                    <label class="field">
+                        <span>圧縮レベル</span>
+                        <select id="compression">
+                            <option value="FAST" selected>高速</option>
+                            <option value="MEDIUM">標準</option>
+                            <option value="SLOW">高圧縮</option>
+                            <option value="NONE">なし</option>
+                        </select>
+                    </label>
+                    <p class="option-hint">PNG時に効果が大きく、JPEGでは影響が小さめです。</p>
+                </div>
+
+                <div class="option">
+                    <span class="option-label">出力ファイル名</span>
+                    <input id="fileName" type="text" placeholder="例: manga-pages">
+                    <p class="option-hint">拡張子 .pdf は自動で付与されます。</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">Export</span>
+                    <h2>PDFを書き出す</h2>
+                </div>
+            </div>
+
+            <div id="errorBanner" class="error-banner hidden" role="alert"></div>
+
+            <div class="controls">
+                <div class="status" id="status">画像を読み込んでください。</div>
+                <div class="actions">
+                    <button class="pill-button" type="button" id="buildPdf">PDF作成</button>
+                    <button class="ghost-button" type="button" id="resetAll">リセット</button>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
