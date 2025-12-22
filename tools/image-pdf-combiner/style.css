@@ -337,10 +337,9 @@ body {
 }
 
 .field-row {
-    display: grid;
-    grid-template-columns: 1fr 120px;
-    gap: 10px;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .field-row input[disabled] {
