@@ -1,6 +1,13 @@
 const dropZone = document.getElementById('dropZone');
+const fileModeBtn = document.getElementById('fileModeBtn');
+const folderModeBtn = document.getElementById('folderModeBtn');
+const modeHint = document.getElementById('modeHint');
+const filePane = document.getElementById('filePane');
+const folderPane = document.getElementById('folderPane');
 const fileSelect = document.getElementById('fileSelect');
 const fileInput = document.getElementById('fileInput');
+const folderSelect = document.getElementById('folderSelect');
+const folderInput = document.getElementById('folderInput');
 const fileList = document.getElementById('fileList');
 const fileCount = document.getElementById('fileCount');
 const totalSize = document.getElementById('totalSize');
@@ -79,6 +86,15 @@ function setError(message) {
     }
     errorBanner.textContent = message;
     errorBanner.classList.remove('hidden');
+}
+
+function setInputMode(mode) {
+    const isFile = mode === 'file';
+    fileModeBtn.classList.toggle('is-active', isFile);
+    folderModeBtn.classList.toggle('is-active', !isFile);
+    filePane.classList.toggle('hidden', !isFile);
+    folderPane.classList.toggle('hidden', isFile);
+    modeHint.textContent = isFile ? 'ドラッグ&ドロップ対応' : 'フォルダは選択のみ';
 }
 
 function getDpi() {
@@ -270,6 +286,7 @@ function clearAll() {
     state.items.forEach((item) => URL.revokeObjectURL(item.url));
     state.items = [];
     fileInput.value = '';
+    folderInput.value = '';
     setError('');
     setStatus('画像を読み込んでください。');
     updateList();
@@ -423,8 +440,16 @@ async function buildPdf() {
     }
 }
 
-fileSelect.addEventListener('click', () => fileInput.click());
+fileSelect.addEventListener('click', (event) => {
+    event.stopPropagation();
+    fileInput.click();
+});
 fileInput.addEventListener('change', (event) => addFiles(event.target.files));
+folderSelect.addEventListener('click', (event) => {
+    event.stopPropagation();
+    folderInput.click();
+});
+folderInput.addEventListener('change', (event) => addFiles(event.target.files));
 
 ['dragenter', 'dragover'].forEach((eventName) => {
     dropZone.addEventListener(eventName, (event) => {
@@ -464,6 +489,9 @@ reverseOrderBtn.addEventListener('click', () => {
     updateList();
 });
 
+fileModeBtn.addEventListener('click', () => setInputMode('file'));
+folderModeBtn.addEventListener('click', () => setInputMode('folder'));
+
 pageSizeSelect.addEventListener('change', () => {
     updateOrientationControl();
     updateSummary();
@@ -490,4 +518,5 @@ updateBgColorLabel();
 updateFormatControls();
 updateOrientationControl();
 updateDpiControls();
+setInputMode('file');
 updateList();

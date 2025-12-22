@@ -22,17 +22,38 @@
                     <span class="section-label">Input</span>
                     <h2>画像を読み込む</h2>
                 </div>
-                <p class="hint">ドラッグ&ドロップまたはファイル選択。並び順は追加順です。</p>
+                <p class="hint">入力モードを選択して読み込みます。並び順は追加順です。</p>
+            </div>
+
+            <div class="mode-toggle" role="group" aria-label="入力モード">
+                <button type="button" class="mode-btn is-active" data-mode="file" id="fileModeBtn">ファイル</button>
+                <button type="button" class="mode-btn" data-mode="folder" id="folderModeBtn">フォルダ</button>
+                <span class="mode-hint" id="modeHint">ドラッグ&ドロップ対応</span>
             </div>
 
             <div class="layout layout--split">
-                <div class="drop-zone" id="dropZone">
-                    <div class="drop-inner">
-                        <p class="primary">ここに画像をドロップ</p>
-                        <p class="secondary">または画像ファイルを選択（複数可）</p>
-                        <button class="ghost-button" type="button" id="fileSelect">画像を選択</button>
-                        <input id="fileInput" type="file" accept="image/*" multiple hidden>
-                        <p class="hint">PNG / JPG / WEBP などに対応。ローカルファイルのみ。</p>
+                <div class="input-stack">
+                    <div class="input-pane" id="filePane">
+                        <div class="drop-zone" id="dropZone">
+                            <div class="drop-inner">
+                                <p class="primary">ここに画像をドロップ</p>
+                                <p class="secondary">または画像ファイルを選択（複数可）</p>
+                                <button class="ghost-button" type="button" id="fileSelect">画像を選択</button>
+                                <input id="fileInput" type="file" accept="image/*" multiple hidden>
+                                <p class="hint">ドラッグ&ドロップはファイルのみ対応。</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="input-pane hidden" id="folderPane">
+                        <div class="folder-picker">
+                            <div class="drop-inner">
+                                <p class="primary">フォルダを選択して読み込み</p>
+                                <p class="secondary">ドラッグ&ドロップには対応していません</p>
+                                <button class="ghost-button" type="button" id="folderSelect">フォルダを選択</button>
+                                <input id="folderInput" type="file" webkitdirectory multiple hidden>
+                                <p class="hint">フォルダ内の画像をまとめて読み込みます。</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="panel">
