@@ -1,0 +1,186 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTMLメディア資産 棚卸しツール</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <p class="eyebrow">Media Inventory</p>
+            <h1>HTMLメディア資産 棚卸しツール</h1>
+            <p class="lede">ページ内の画像・音声・動画・埋め込み・SVG・canvas・資産リンクをまとめて可視化します。</p>
+        </header>
+
+        <section class="card input-panel">
+            <div class="input-grid">
+                <div class="field">
+                    <label for="url-input">URLから取得</label>
+                    <input id="url-input" type="url" placeholder="https://example.com/page.html" autocomplete="off">
+                    <p class="field-hint">CORS制約で取得できない場合があります。失敗時はHTML貼り付けを使ってください。</p>
+                </div>
+                <div class="field">
+                    <label for="html-input">HTMLを貼り付け</label>
+                    <textarea id="html-input" rows="10" placeholder="解析したいHTMLを貼り付けてください"></textarea>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="action-row">
+                    <button class="primary-button" id="analyze-btn">解析</button>
+                    <button class="ghost-button" id="sample-btn">サンプルHTML</button>
+                    <button class="ghost-button" id="clear-btn">クリア</button>
+                </div>
+                <div class="status" id="status-text">待機中</div>
+            </div>
+            <div class="notice hidden" id="error-banner"></div>
+            <p class="privacy-note">※ 貼り付けたHTMLはブラウザ内のみで解析され、外部へ送信されません。ネットワーク通信はURL取得とメディアメタ情報取得のときのみ発生します。</p>
+        </section>
+
+        <section class="card main-panel">
+            <div class="main-grid">
+                <aside class="panel category-panel">
+                    <h2>カテゴリ</h2>
+                    <div class="category-list" id="category-list"></div>
+                    <div class="summary" id="summary-panel">
+                        <div class="summary-row">
+                            <span class="summary-label">Base URL</span>
+                            <span class="summary-value" id="summary-base">-</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">抽出件数</span>
+                            <span class="summary-value" id="summary-total">0</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label">ユニーク件数</span>
+                            <span class="summary-value" id="summary-unique">0</span>
+                        </div>
+                    </div>
+                </aside>
+
+                <section class="panel table-panel">
+                    <div class="table-controls">
+                        <div class="filter-row">
+                            <input id="search-input" type="search" placeholder="URL / タグ / 種別で検索">
+                            <select id="domain-filter">
+                                <option value="all">ドメイン: すべて</option>
+                            </select>
+                            <select id="ext-filter">
+                                <option value="all">拡張子: すべて</option>
+                            </select>
+                        </div>
+                        <div class="filter-row">
+                            <select id="data-filter">
+                                <option value="all">data-* 属性: すべて</option>
+                                <option value="with">data-* あり</option>
+                                <option value="without">data-* なし</option>
+                            </select>
+                            <label class="checkbox">
+                                <input id="dupe-filter" type="checkbox">
+                                <span>重複のみ</span>
+                            </label>
+                            <label class="checkbox">
+                                <input id="ignore-query" type="checkbox">
+                                <span>クエリ無視で正規化</span>
+                            </label>
+                            <label class="checkbox">
+                                <input id="fetch-meta" type="checkbox" checked>
+                                <span>メタ情報取得</span>
+                            </label>
+                        </div>
+                        <div class="filter-row">
+                            <div class="size-filter">
+                                <label>最小幅</label>
+                                <input id="min-width" type="number" min="0" placeholder="px">
+                            </div>
+                            <div class="size-filter">
+                                <label>最小高</label>
+                                <input id="min-height" type="number" min="0" placeholder="px">
+                            </div>
+                            <div class="size-filter">
+                                <label>最小面積</label>
+                                <input id="min-area" type="number" min="0" placeholder="px²">
+                            </div>
+                            <select id="sort-select">
+                                <option value="count-desc">並び替え: 件数(多)</option>
+                                <option value="count-asc">並び替え: 件数(少)</option>
+                                <option value="url-asc">並び替え: URL(A-Z)</option>
+                                <option value="url-desc">並び替え: URL(Z-A)</option>
+                                <option value="size-desc">並び替え: サイズ(大)</option>
+                                <option value="size-asc">並び替え: サイズ(小)</option>
+                            </select>
+                            <button class="ghost-button" id="export-json">JSON</button>
+                            <button class="ghost-button" id="export-csv">CSV</button>
+                        </div>
+                        <div class="table-meta">
+                            <div class="table-counts">
+                                <span class="count-strong" id="filtered-count">0</span>
+                                <span class="muted">件表示 / 全</span>
+                                <span class="count-strong" id="total-count">0</span>
+                                <span class="muted">件</span>
+                            </div>
+                            <div class="table-pagination">
+                                <button class="ghost-button" id="page-prev" disabled>前へ</button>
+                                <span class="page-info" id="page-info">1 / 1</span>
+                                <button class="ghost-button" id="page-next" disabled>次へ</button>
+                                <select id="page-size">
+                                    <option value="25">25件</option>
+                                    <option value="50" selected>50件</option>
+                                    <option value="100">100件</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>サムネ</th>
+                                    <th>種別</th>
+                                    <th>URL</th>
+                                    <th>回数</th>
+                                    <th>拡張子</th>
+                                    <th>サイズ/時間</th>
+                                    <th>Content-Type</th>
+                                </tr>
+                            </thead>
+                            <tbody id="asset-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="empty-state" id="table-empty">カテゴリを選択すると結果が表示されます。</div>
+                </section>
+
+                <aside class="panel detail-panel">
+                    <h2>詳細</h2>
+                    <div class="detail-content" id="detail-content">
+                        <p class="muted">左のカテゴリから一覧を選択すると詳細が表示されます。</p>
+                    </div>
+                </aside>
+            </div>
+
+            <div class="panel preview-panel">
+                <div class="preview-toolbar">
+                    <div>
+                        <span class="section-label">プレビュー</span>
+                        <span class="preview-base" id="preview-base">-</span>
+                    </div>
+                    <div class="preview-actions">
+                        <label class="toggle">
+                            <input id="advanced-toggle" type="checkbox">
+                            <span class="toggle-knob"></span>
+                        </label>
+                        <span class="toggle-label">高度モード: 背景画像を抽出</span>
+                        <button class="ghost-button" id="cancel-advanced" disabled>中断</button>
+                    </div>
+                </div>
+                <div class="preview-status" id="preview-status">プレビューは解析後に表示されます。</div>
+                <iframe id="preview-frame" title="HTMLプレビュー" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
