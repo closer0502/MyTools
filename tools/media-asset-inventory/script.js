@@ -7,6 +7,7 @@
         { id: "embed", label: "埋め込み" },
         { id: "svg", label: "SVG" },
         { id: "canvas", label: "canvas" },
+        { id: "text", label: "テキスト" },
         { id: "link", label: "リンク" }
     ];
 
@@ -156,6 +157,7 @@
             pageNext: document.getElementById("page-next"),
             pageInfo: document.getElementById("page-info"),
             pageSize: document.getElementById("page-size"),
+            tableHead: document.getElementById("asset-table-head"),
             tableBody: document.getElementById("asset-table-body"),
             tableEmpty: document.getElementById("table-empty"),
             detailContent: document.getElementById("detail-content"),
@@ -466,6 +468,7 @@
     }
 
     function renderTable() {
+        updateTableHeader();
         const rows = getFilteredRows();
         state.filteredRows = rows;
         ui.tableBody.innerHTML = "";
@@ -490,35 +493,92 @@
                 tr.classList.add("is-selected");
             }
 
-            const thumbCell = document.createElement("td");
-            thumbCell.className = "thumb-cell";
-            thumbCell.appendChild(buildThumbnail(row.group));
+            if (state.activeCategory === "text") {
+                const snippetCell = document.createElement("td");
+                snippetCell.textContent = row.textSnippet || "(text)";
 
-            const typeCell = document.createElement("td");
-            typeCell.textContent = row.typeLabel;
+                const tagCell = document.createElement("td");
+                tagCell.textContent = row.elementTag || "-";
 
-            const urlCell = document.createElement("td");
+                const countCell = document.createElement("td");
+                countCell.textContent = row.count.toString();
+
+                const lengthCell = document.createElement("td");
+                lengthCell.textContent = row.textLength ? row.textLength.toString() : "-";
+
+                const pathCell = document.createElement("td");
+                const pathSpan = document.createElement("span");
+                pathSpan.className = "mono";
+                pathSpan.textContent = row.domPath || "-";
+                pathCell.appendChild(pathSpan);
+
+                tr.append(snippetCell, tagCell, countCell, lengthCell, pathCell);
+            } else {
+                const thumbCell = document.createElement("td");
+                thumbCell.className = "thumb-cell";
+                thumbCell.appendChild(buildThumbnail(row.group));
+
+                const typeCell = document.createElement("td");
+                typeCell.textContent = row.typeLabel;
+
+                const urlCell = document.createElement("td");
             const urlSpan = document.createElement("span");
             urlSpan.className = "mono";
-            urlSpan.textContent = row.displayUrl;
+            urlSpan.textContent = formatDisplayUrl(row.displayUrl);
+            urlSpan.title = row.displayUrl;
             urlCell.appendChild(urlSpan);
 
-            const countCell = document.createElement("td");
-            countCell.textContent = row.count.toString();
+                const countCell = document.createElement("td");
+                countCell.textContent = row.count.toString();
 
-            const extCell = document.createElement("td");
-            extCell.textContent = row.extension ? `.${row.extension}` : "-";
+                const extCell = document.createElement("td");
+                extCell.textContent = row.extension ? `.${row.extension}` : "-";
 
-            const sizeCell = document.createElement("td");
-            sizeCell.textContent = row.sizeLabel;
+                const sizeCell = document.createElement("td");
+                sizeCell.textContent = row.sizeLabel;
 
-            const typeMetaCell = document.createElement("td");
-            typeMetaCell.textContent = row.contentType || row.fileType || "-";
+                const typeMetaCell = document.createElement("td");
+                typeMetaCell.textContent = row.contentType || row.fileType || "-";
 
-            tr.append(thumbCell, typeCell, urlCell, countCell, extCell, sizeCell, typeMetaCell);
+                tr.append(thumbCell, typeCell, urlCell, countCell, extCell, sizeCell, typeMetaCell);
+            }
+
             tr.addEventListener("click", () => selectGroup(row.group.id));
             ui.tableBody.appendChild(tr);
         });
+    }
+
+    function updateTableHeader() {
+        if (!ui.tableHead) {
+            return;
+        }
+        ui.tableHead.innerHTML = "";
+        const row = document.createElement("tr");
+        if (state.activeCategory === "text") {
+            ["抜粋", "要素", "回数", "文字数", "DOMパス"].forEach((label) => {
+                const th = document.createElement("th");
+                th.textContent = label;
+                row.appendChild(th);
+            });
+        } else {
+            ["サムネ", "種別", "URL", "回数", "拡張子", "サイズ/時間", "Content-Type"].forEach((label) => {
+                const th = document.createElement("th");
+                th.textContent = label;
+                row.appendChild(th);
+            });
+        }
+        ui.tableHead.appendChild(row);
+    }
+
+    function formatDisplayUrl(url) {
+        if (!url) {
+            return "-";
+        }
+        const maxLength = 100;
+        if (url.length <= maxLength) {
+            return url;
+        }
+        return `${url.slice(0, maxLength - 3)}...`;
     }
 
     function updateCounts(filteredCount) {
@@ -600,6 +660,8 @@
             } else {
                 label = group.extension || "link";
             }
+        } else if (category === "text") {
+            label = "text";
         }
 
         return { url, label };
@@ -638,6 +700,9 @@
         addGridRow(summaryGrid, "推定種別", group.fileType || "-");
         addGridRow(summaryGrid, "ホスト", group.host || "-");
         addGridRow(summaryGrid, "拡張子", group.extension ? `.${group.extension}` : "-");
+        if (representative && representative.textLength) {
+            addGridRow(summaryGrid, "文字数", representative.textLength.toString());
+        }
         if (group.meta && (group.meta.contentLength || group.meta.duration)) {
             addGridRow(summaryGrid, "サイズ", group.meta.contentLength || "-");
             addGridRow(summaryGrid, "時間", group.meta.duration ? formatDuration(group.meta.duration) : "-");
@@ -715,6 +780,24 @@
         }
         occSection.append(occTitle, occList);
         ui.detailContent.appendChild(occSection);
+
+        if (state.activeCategory === "text" && group.textSnippets && group.textSnippets.size) {
+            const textSection = document.createElement("div");
+            textSection.className = "detail-section";
+            const textTitle = document.createElement("div");
+            textTitle.className = "detail-label";
+            textTitle.textContent = "テキスト抜粋";
+            const textList = document.createElement("div");
+            textList.className = "detail-list";
+            Array.from(group.textSnippets).slice(0, 6).forEach((snippet) => {
+                const item = document.createElement("div");
+                item.className = "detail-item";
+                item.textContent = snippet;
+                textList.appendChild(item);
+            });
+            textSection.append(textTitle, textList);
+            ui.detailContent.appendChild(textSection);
+        }
     }
 
     function selectGroup(groupId) {
@@ -818,11 +901,17 @@
                 return;
             }
 
-            const displayUrl = group.primaryResolvedUrl || group.primaryRawUrl || "(inline)";
+            const displayUrl = getDisplayLabel(group);
             const haystack = `${displayUrl} ${group.primaryElementTag || ""} ${group.primaryAttrName || ""} ${group.fileType || ""}`.toLowerCase();
             if (search && !haystack.includes(search)) {
                 return;
             }
+
+            const representative = getRepresentativeOccurrence(group, state.activeCategory) || group.occurrences[0];
+            const textSnippet = getTextPreview(group);
+            const textLength = group.textLength || (representative && representative.textLength) || 0;
+            const domPath = representative ? representative.domPath : "";
+            const elementTag = representative ? representative.elementTag : "";
 
             rows.push({
                 group,
@@ -832,12 +921,35 @@
                 typeLabel: getTypeLabel(group),
                 fileType: group.fileType,
                 contentType: group.meta.contentType || "",
-                sizeLabel: formatSizeLabel(group)
+                sizeLabel: formatSizeLabel(group),
+                textSnippet,
+                textLength,
+                domPath,
+                elementTag
             });
         });
 
         sortRows(rows, state.filters.sort);
         return rows;
+    }
+
+    function getDisplayLabel(group) {
+        if (state.activeCategory === "text") {
+            const preview = getTextPreview(group);
+            return preview || "(text)";
+        }
+        return group.primaryResolvedUrl || group.primaryRawUrl || "(inline)";
+    }
+
+    function getTextPreview(group) {
+        if (!group.textSnippets || !group.textSnippets.size) {
+            return "";
+        }
+        const first = Array.from(group.textSnippets)[0];
+        if (!first) {
+            return "";
+        }
+        return first.length > 80 ? `${first.slice(0, 80)}...` : first;
     }
 
     function getRepresentativeOccurrence(group, category) {
@@ -882,6 +994,9 @@
     }
 
     function sizeScore(group) {
+        if (state.activeCategory === "text") {
+            return group.textLength || 0;
+        }
         const width = group.meta.width || group.meta.naturalWidth || group.meta.videoWidth || 0;
         const height = group.meta.height || group.meta.naturalHeight || group.meta.videoHeight || 0;
         return width * height;
@@ -922,7 +1037,9 @@
                     rawUrls: new Set(),
                     resolvedUrls: new Set(),
                     hasDataAttributes: false,
-                    meta: {}
+                    meta: {},
+                    textSnippets: new Set(),
+                    textLength: 0
                 });
             }
 
@@ -938,6 +1055,10 @@
             }
             if (occ.hasDataAttributes) {
                 group.hasDataAttributes = true;
+            }
+            if (occ.textSnippet) {
+                group.textSnippets.add(occ.textSnippet);
+                group.textLength = Math.max(group.textLength, occ.textLength || 0);
             }
             if (!group.primaryResolvedUrl && occ.resolvedUrl) {
                 group.primaryResolvedUrl = occ.resolvedUrl;
@@ -975,7 +1096,7 @@
 
         resetElementIds(doc);
 
-        const addOccurrence = (element, category, attrName, rawUrl, sourceHint) => {
+        const addOccurrence = (element, category, attrName, rawUrl, sourceHint, extra) => {
             if (rawUrl && isUnsafeUrl(rawUrl)) {
                 return;
             }
@@ -992,7 +1113,9 @@
                 attrName: attrName || "",
                 rawUrl: rawUrl || "",
                 resolvedUrl,
-                sourceHint: sourceHint || ""
+                sourceHint: sourceHint || "",
+                textSnippet: extra && extra.snippet ? extra.snippet : "",
+                textLength: extra && extra.length ? extra.length : 0
             });
         };
 
@@ -1117,6 +1240,50 @@
             urls.forEach((url) => {
                 addUrlOccurrence(styleTag, "image", "style-tag", url);
             });
+        }
+
+        const textElements = new Map();
+        const root = doc.body || doc;
+        if (root && root.nodeType === 1) {
+            const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+            let textCounter = 0;
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const parent = node.parentElement;
+                if (!parent || parent.hasAttribute("data-tool")) {
+                    continue;
+                }
+                const tag = parent.tagName ? parent.tagName.toLowerCase() : "";
+                if (isTextIgnoredTag(tag)) {
+                    continue;
+                }
+                const text = node.textContent ? node.textContent.replace(/\s+/g, " ").trim() : "";
+                if (!text) {
+                    continue;
+                }
+                if (!textElements.has(parent)) {
+                    textElements.set(parent, []);
+                }
+                textElements.get(parent).push(text);
+                textCounter += 1;
+                if (textCounter % 400 === 0) {
+                    await yieldToMain();
+                }
+            }
+        }
+
+        let elementCounter = 0;
+        for (const [element, texts] of textElements.entries()) {
+            const joined = texts.join(" ").replace(/\s+/g, " ").trim();
+            if (!joined) {
+                continue;
+            }
+            const snippet = joined.length > 120 ? `${joined.slice(0, 120)}...` : joined;
+            addOccurrence(element, "text", "text", "", "", { snippet, length: joined.length });
+            elementCounter += 1;
+            if (elementCounter % 200 === 0) {
+                await yieldToMain();
+            }
         }
 
         return occurrences;
@@ -1398,9 +1565,31 @@
         style.setAttribute("data-tool", "true");
         style.textContent = `
             .asset-highlight {
-                outline: 2px solid #38bdf8;
-                outline-offset: 2px;
-                box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+                position: relative;
+                z-index: 0;
+                outline: 1px solid rgba(56, 189, 248, 0.35);
+                box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+            }
+
+            .asset-highlight::after {
+                content: "";
+                position: absolute;
+                inset: -4px;
+                border-radius: 10px;
+                padding: 2px;
+                background: linear-gradient(120deg, #38bdf8, #f472b6, #22d3ee, #38bdf8);
+                background-size: 300% 300%;
+                animation: asset-glow 2.4s ease infinite;
+                -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+                -webkit-mask-composite: xor;
+                mask-composite: exclude;
+                pointer-events: none;
+            }
+
+            @keyframes asset-glow {
+                0% { background-position: 0% 50%; }
+                50% { background-position: 100% 50%; }
+                100% { background-position: 0% 50%; }
             }
         `;
         doc.head.appendChild(style);
@@ -1511,6 +1700,10 @@
 
     function isAbsoluteUrl(url) {
         return /^[a-z][a-z0-9+.-]*:/i.test(url);
+    }
+
+    function isTextIgnoredTag(tag) {
+        return ["script", "style", "noscript", "head", "title"].includes(tag);
     }
 
     async function fetchHtml(url) {
@@ -1840,7 +2033,9 @@
                 attribute: occ.attrName,
                 rawUrl: occ.rawUrl,
                 resolvedUrl: occ.resolvedUrl,
-                domPath: occ.domPath
+                domPath: occ.domPath,
+                textSnippet: occ.textSnippet || "",
+                textLength: occ.textLength || null
             }))
         };
     }
