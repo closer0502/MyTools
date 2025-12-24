@@ -1,56 +1,56 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Text Difference Checker</title>
+    <title>テキスト差分チェッカー</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="app">
         <header class="header">
             <span class="eyebrow">Diff Tool</span>
-            <h1>Text Difference Checker</h1>
-            <p>Compare two texts at the sentence level with side-by-side differences.</p>
+            <h1>テキスト差分チェッカー</h1>
+            <p>文章を文単位で比較し、差異と移動を左右分割で見やすく表示します。</p>
         </header>
 
         <section class="panel">
             <div class="inputs">
                 <div class="input-block">
-                    <label for="textA">Text A</label>
-                    <textarea id="textA" placeholder="Paste or type Text A here..."></textarea>
+                    <label for="textA">文章A</label>
+                    <textarea id="textA" placeholder="ここに文章Aを入力してください..."></textarea>
                 </div>
                 <div class="input-block">
-                    <label for="textB">Text B</label>
-                    <textarea id="textB" placeholder="Paste or type Text B here..."></textarea>
+                    <label for="textB">文章B</label>
+                    <textarea id="textB" placeholder="ここに文章Bを入力してください..."></textarea>
                 </div>
             </div>
 
             <div class="actions">
-                <button class="pill-button" id="compareBtn" type="button">Compare</button>
-                <button class="ghost-button" id="swapBtn" type="button">Swap</button>
-                <button class="ghost-button" id="clearBtn" type="button">Clear</button>
+                <button class="pill-button" id="compareBtn" type="button">比較</button>
+                <button class="ghost-button" id="swapBtn" type="button">入れ替え</button>
+                <button class="ghost-button" id="clearBtn" type="button">クリア</button>
             </div>
 
             <div class="stats">
                 <div class="stat">
-                    <span class="label">Added</span>
+                    <span class="label">追加</span>
                     <span class="value" id="addedCount">0</span>
                 </div>
                 <div class="stat">
-                    <span class="label">Removed</span>
+                    <span class="label">削除</span>
                     <span class="value" id="removedCount">0</span>
                 </div>
                 <div class="stat">
-                    <span class="label">Moved</span>
+                    <span class="label">移動</span>
                     <span class="value" id="movedCount">0</span>
                 </div>
                 <div class="stat">
-                    <span class="label">Unchanged</span>
+                    <span class="label">同一</span>
                     <span class="value" id="sameCount">0</span>
                 </div>
                 <div class="stat">
-                    <span class="label">Total Entries</span>
+                    <span class="label">合計</span>
                     <span class="value" id="totalCount">0</span>
                 </div>
             </div>
@@ -58,11 +58,11 @@
 
         <section class="panel result-panel">
             <div class="result-header">
-                <h2>Diff Output</h2>
-                <span class="result-meta" id="resultMeta">No comparison yet.</span>
+                <h2>差分結果</h2>
+                <span class="result-meta" id="resultMeta">まだ比較していません。</span>
             </div>
             <div class="diff-output" id="diffOutput">
-                <div class="empty-state">Run a comparison to see the sentence differences.</div>
+                <div class="empty-state">比較すると文単位の差分が表示されます。</div>
             </div>
         </section>
     </div>
