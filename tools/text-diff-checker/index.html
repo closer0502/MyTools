@@ -11,7 +11,7 @@
         <header class="header">
             <span class="eyebrow">Diff Tool</span>
             <h1>Text Difference Checker</h1>
-            <p>Compare two texts and highlight line-by-line differences.</p>
+            <p>Compare two texts at the sentence level with side-by-side differences.</p>
         </header>
 
         <section class="panel">
@@ -42,11 +42,15 @@
                     <span class="value" id="removedCount">0</span>
                 </div>
                 <div class="stat">
+                    <span class="label">Moved</span>
+                    <span class="value" id="movedCount">0</span>
+                </div>
+                <div class="stat">
                     <span class="label">Unchanged</span>
                     <span class="value" id="sameCount">0</span>
                 </div>
                 <div class="stat">
-                    <span class="label">Total Lines</span>
+                    <span class="label">Total Entries</span>
                     <span class="value" id="totalCount">0</span>
                 </div>
             </div>
@@ -58,7 +62,7 @@
                 <span class="result-meta" id="resultMeta">No comparison yet.</span>
             </div>
             <div class="diff-output" id="diffOutput">
-                <div class="empty-state">Run a comparison to see the differences.</div>
+                <div class="empty-state">Run a comparison to see the sentence differences.</div>
             </div>
         </section>
     </div>
