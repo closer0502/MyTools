@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Difference Checker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Diff Tool</span>
+            <h1>Text Difference Checker</h1>
+            <p>Compare two texts and highlight line-by-line differences.</p>
+        </header>
+
+        <section class="panel">
+            <div class="inputs">
+                <div class="input-block">
+                    <label for="textA">Text A</label>
+                    <textarea id="textA" placeholder="Paste or type Text A here..."></textarea>
+                </div>
+                <div class="input-block">
+                    <label for="textB">Text B</label>
+                    <textarea id="textB" placeholder="Paste or type Text B here..."></textarea>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="pill-button" id="compareBtn" type="button">Compare</button>
+                <button class="ghost-button" id="swapBtn" type="button">Swap</button>
+                <button class="ghost-button" id="clearBtn" type="button">Clear</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <span class="label">Added</span>
+                    <span class="value" id="addedCount">0</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Removed</span>
+                    <span class="value" id="removedCount">0</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Unchanged</span>
+                    <span class="value" id="sameCount">0</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Total Lines</span>
+                    <span class="value" id="totalCount">0</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel result-panel">
+            <div class="result-header">
+                <h2>Diff Output</h2>
+                <span class="result-meta" id="resultMeta">No comparison yet.</span>
+            </div>
+            <div class="diff-output" id="diffOutput">
+                <div class="empty-state">Run a comparison to see the differences.</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
