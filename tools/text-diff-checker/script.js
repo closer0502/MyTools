@@ -12,9 +12,19 @@ const totalCountEl = document.getElementById("totalCount");
 const diffOutput = document.getElementById("diffOutput");
 const resultMeta = document.getElementById("resultMeta");
 
+// 空の比較表示時に使うメッセージ
 const EMPTY_STATE = "Run a comparison to see the sentence differences.";
+// 移動（移動元／移動先）を表示する際に使う色の配列
 const MOVE_COLORS = ["#38bdf8", "#f472b6", "#4ade80", "#facc15", "#fb923c", "#a78bfa"];
 
+/**
+ * テキストを文単位に分割する
+ * - 改行で分割して各行ごとに正規表現で文を切り出す。
+ * - 日本語句点（。！？など）や英語の終端記号も考慮する。
+ * - 空行は無視し、トリム後に空でない文のみを返す。
+ * @param {string} text 入力テキスト
+ * @returns {string[]} 文の配列（順序保持）
+ */
 function splitSentences(text) {
     if (!text) {
         return [];
@@ -45,10 +55,21 @@ function splitSentences(text) {
     return sentences;
 }
 
+/**
+ * 移動検出用にテキストを正規化する
+ * - 連続する空白を単一スペースへ置換し、前後の空白を除去する。
+ * - 完全一致で移動を判定する際に使う。
+ */
 function normalizeForMove(text) {
     return text.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * LCS（最長共通部分列）テーブルを構築する
+ * - シーケンスaLines, bLinesに対して動的計画法でテーブルを作る。
+ * - buildDiff で差分を決めるために利用する。
+ * @returns {number[][]} DPテーブル
+ */
 function buildLcsTable(aLines, bLines) {
     const aLen = aLines.length;
     const bLen = bLines.length;
@@ -67,6 +88,12 @@ function buildLcsTable(aLines, bLines) {
     return table;
 }
 
+/**
+ * 文列の差分を LCS に基づいて構築する
+ * - 同一文は `same`、aにあってbにない文は `removed`、逆は `added` とする。
+ * - テーブルから前向きに歩いて差分エントリの配列を返す。
+ * @returns {Array<Object>} diff エントリの配列
+ */
 function buildDiff(aLines, bLines) {
     const table = buildLcsTable(aLines, bLines);
     const diff = [];
@@ -100,6 +127,11 @@ function buildDiff(aLines, bLines) {
     return diff;
 }
 
+/**
+ * 同一の文が順序を変えて移動したケースに対して move 情報を付与する
+ * - `normalizeForMove` で正規化した文字列をキーにして、removed/added のインデックスを収集
+ * - 同じキーが removed と added に存在する限りペアリングし `moveId`/`moveRole`/`moveColor` を設定する
+ */
 function annotateMoves(diff) {
     const removedMap = new Map();
     const addedMap = new Map();
@@ -140,6 +172,11 @@ function annotateMoves(diff) {
     });
 }
 
+/**
+ * 類似度計算用の正規化
+ * - 句読点や各種括弧・引用記号を除去し、空白も削除して文字だけを残す。
+ * - 主に文字バイグラムによる比較でノイズを減らすための前処理。
+ */
 function normalizeForSimilarity(text) {
     return text
         .replace(/[「」『』【】()（）［］\[\]"'”“’‘]/g, "")
@@ -147,6 +184,11 @@ function normalizeForSimilarity(text) {
         .trim();
 }
 
+/**
+ * 文字バイグラムを生成する（文字列 -> 隣接2文字のペア配列）
+ * - 文字列長が1の場合はその文字自身を配列で返す（特殊扱い）
+ * - Unicode文字（サロゲート対含む）に対応するため Array.from を使う
+ */
 function buildBigrams(text) {
     if (!text) {
         return [];
@@ -162,6 +204,12 @@ function buildBigrams(text) {
     return bigrams;
 }
 
+/**
+ * 2つの文の類似度を計算する
+ * - 正規化 -> バイグラム生成 -> 集合のJaccard類似度（|A∩B| / |A∪B|）を返す
+ * - 出現回数は無視して集合として扱うため、頻度情報は失われる点に注意
+ * @returns {number} 0.0〜1.0 の類似度スコア
+ */
 function similarityScore(aText, bText) {
     const aNorm = normalizeForSimilarity(aText);
     const bNorm = normalizeForSimilarity(bText);
@@ -185,6 +233,12 @@ function similarityScore(aText, bText) {
     return intersection / union;
 }
 
+/**
+ * 削除/追加の差分から類似度に基づいて変更（modified）ペアを作る
+ * - 移動として既にマークされたものは無視
+ * - インデックス差が `window` 以下の追加エントリのみを候補にし、類似度が `threshold` 以上ならペアリングする
+ * - ペアになった削除/追加は `modified` としてまとめて返す
+ */
 function pairSimilarChanges(diff) {
     const removedIndices = [];
     const addedIndices = [];
@@ -250,6 +304,10 @@ function pairSimilarChanges(diff) {
     return merged;
 }
 
+/**
+ * 文字単位の差分セグメントをマージして出力用のセグメント配列にする
+ * - 同じタイプ（same/remove/add）が連続する場合は文字列を連結して1つのセグメントにまとめる
+ */
 function pushSegment(list, type, text) {
     if (!text) {
         return;
@@ -262,6 +320,12 @@ function pushSegment(list, type, text) {
     list.push({ type, text });
 }
 
+/**
+ * 2つの文の文字単位の差分セグメントを作る
+ * - 文字配列に対して LCS を取り、追加/削除/同一のオペレーション列を作成
+ * - そのオペレーション列から表示用のセグメント（a側/b側）を構築して返す
+ * @returns {{aSegments: Array, bSegments: Array}}
+ */
 function buildCharDiffSegments(aText, bText) {
     const aChars = Array.from(aText);
     const bChars = Array.from(bText);
@@ -311,6 +375,11 @@ function buildCharDiffSegments(aText, bText) {
     return { aSegments, bSegments };
 }
 
+/**
+ * 差分情報に基づいて統計（追加/削除/移動/同一/合計）を更新し返す
+ * - `moveId` を持つエントリは移動としてカウントする（個別ID扱い）
+ * - DOM内のカウンタ表示も更新する
+ */
 function updateStats(diff) {
     let added = 0;
     let removed = 0;
@@ -351,6 +420,12 @@ function updateStats(diff) {
     };
 }
 
+/**
+ * 差分を HTML としてレンダリングする
+ * - ヘッダ、グリッド行、セルの構築
+ * - 文字差分がある場合は `buildCharDiffSegments` を使って強調表示
+ * - 移動ペアにはジャンプボタンを付け、クリックで相互にスクロールする挙動を与える
+ */
 function renderDiff(diff) {
     diffOutput.innerHTML = "";
 
@@ -487,6 +562,11 @@ function renderDiff(diff) {
     });
 }
 
+/**
+ * 比較処理のエントリポイント
+ * - 入力テキストを文に分割し、差分生成→移動注釈→類似度ペアリング→統計更新→描画の順に処理する
+ * - 結果メタ情報（差分件数や移動の有無）を更新する
+ */
 function runComparison() {
     const aLines = splitSentences(textAInput.value);
     const bLines = splitSentences(textBInput.value);
