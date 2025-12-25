@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>改行表現コンバーター</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">改行変換ツール</span>
+            <h1>改行表現コンバーター</h1>
+            <p>実際の改行と \n などのエスケープ表現を相互に同期します。</p>
+        </header>
+
+        <section class="panel controls">
+            <div class="rule-grid">
+                <div class="rule-card">
+                    <h2>置換ルール</h2>
+                    <p>エスケープ側の改行表現を選びます。</p>
+                    <div class="segmented" role="group" aria-label="改行トークン">
+                        <button class="segmented-button is-active" type="button" data-linebreak="lf">LF (\n)</button>
+                        <button class="segmented-button" type="button" data-linebreak="crlf">CRLF (\r\n)</button>
+                    </div>
+                    <div class="toggle-list">
+                        <label class="toggle">
+                            <input type="checkbox" id="tabToggle" checked>
+                            <span>タブ &lt;-&gt; \t</span>
+                        </label>
+                        <label class="toggle">
+                            <input type="checkbox" id="fullWidthToggle">
+                            <span>全角スペース &lt;-&gt; \u3000</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="rule-card">
+                    <h2>テキスト整形プリセット</h2>
+                    <p>アクティブなペインに整形を適用し、同期を維持します。</p>
+                    <div class="preset-buttons">
+                        <button class="ghost-button" type="button" data-preset="trim-trailing">行末スペースを削除</button>
+                        <button class="ghost-button" type="button" data-preset="collapse-blank">空行を圧縮</button>
+                        <button class="ghost-button" type="button" data-preset="trim-edges">前後の空白を削除</button>
+                    </div>
+                    <div class="target-indicator">
+                        対象: <span id="presetTarget">生</span>
+                    </div>
+                </div>
+                <div class="rule-card">
+                    <h2>クリップボード</h2>
+                    <p>用途に合わせた表現をコピーします。</p>
+                    <div class="preset-buttons">
+                        <button class="pill-button" type="button" data-copy="raw">生をコピー</button>
+                        <button class="ghost-button" type="button" data-copy="escaped">エスケープをコピー</button>
+                        <button class="ghost-button" type="button" data-copy="json">JSON文字列をコピー</button>
+                    </div>
+                    <p class="helper">JSON文字列は生側を使用し、引用符とエスケープを付けます。</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel panes">
+            <div class="sync-banner">
+                <span class="sync-dot"></span>
+                <span>双方向同期が有効です。最終編集: <strong id="lastEdited">生</strong></span>
+            </div>
+            <div class="pane-grid">
+                <div class="pane">
+                    <div class="pane-header">
+                        <div>
+                            <h2>生テキスト</h2>
+                            <p>実際の改行を保持します。</p>
+                        </div>
+                        <div class="pane-meta">
+                            <span><strong id="rawLines">0</strong> 行</span>
+                            <span><strong id="rawChars">0</strong> 文字</span>
+                        </div>
+                    </div>
+                    <textarea id="rawInput" placeholder="ここに実際の改行を含むテキストを貼り付けてください。"></textarea>
+                    <div class="pane-actions">
+                        <button class="ghost-button" type="button" data-copy="raw">生をコピー</button>
+                        <button class="ghost-button" type="button" data-action="clear-raw">クリア</button>
+                    </div>
+                </div>
+
+                <div class="pane">
+                    <div class="pane-header">
+                        <div>
+                            <h2>エスケープ表現</h2>
+                            <p>リテラルの \n または \r\n を使用します。</p>
+                        </div>
+                        <div class="pane-meta">
+                            <span><strong id="escapedLines">0</strong> 行</span>
+                            <span><strong id="escapedChars">0</strong> 文字</span>
+                        </div>
+                    </div>
+                    <textarea id="escapedInput" placeholder="例: Foo\nBar を貼り付けてください。"></textarea>
+                    <div class="pane-actions">
+                        <button class="ghost-button" type="button" data-copy="escaped">エスケープをコピー</button>
+                        <button class="ghost-button" type="button" data-action="clear-escaped">クリア</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel status-panel">
+            <div class="status">
+                <span class="status-dot"></span>
+                <span id="statusText">準備完了。</span>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
