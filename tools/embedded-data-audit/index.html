@@ -11,17 +11,17 @@
         <header class="header">
             <span class="eyebrow">Embed Audit</span>
             <h1>埋め込みデータ監査</h1>
-            <p class="lede">ファイル内の構造情報・メタ情報・末尾データ・別形式シグネチャの痕跡を可視化します（現在はPNG/JPEG対応）。</p>
+            <p class="lede">ファイル内の構造情報・メタ情報・末尾データ・別形式シグネチャの痕跡を可視化します（PNG/JPEG/WebP/WAV/MP3/MP4 対応）。</p>
         </header>
 
         <div class="card">
             <section class="input-panel">
                 <div class="drop-zone" id="dropZone">
                     <div class="drop-inner">
-                        <p class="primary">ここに PNG/JPEG をドロップ</p>
+                        <p class="primary">ここに PNG/JPEG/WebP/WAV/MP3/MP4 をドロップ</p>
                         <p class="secondary">または</p>
                         <button class="ghost-button" type="button" id="fileSelect">ファイルを選ぶ</button>
-                        <input id="fileInput" type="file" accept="image/png,image/jpeg" hidden>
+                        <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp,video/mp4,audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/mp4" hidden>
                         <p class="file-name" id="fileName">ファイル未選択</p>
                     </div>
                 </div>

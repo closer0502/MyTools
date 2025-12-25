@@ -31,6 +31,8 @@
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
+const RIFF_SIGNATURE = [0x52, 0x49, 0x46, 0x46];
+const ID3_SIGNATURE = [0x49, 0x44, 0x33];
 
 const PNG_KNOWN_CHUNKS = new Set([
     'IHDR', 'PLTE', 'IDAT', 'IEND', 'tEXt', 'iTXt', 'zTXt', 'iCCP', 'sRGB', 'pHYs',
@@ -38,6 +40,35 @@ const PNG_KNOWN_CHUNKS = new Set([
 ]);
 
 const PNG_META_CHUNKS = new Set(['tEXt', 'iTXt', 'zTXt', 'iCCP', 'eXIf']);
+
+const WEBP_KNOWN_CHUNKS = new Set([
+    'VP8 ', 'VP8L', 'VP8X', 'ALPH', 'ANIM', 'ANMF', 'EXIF', 'XMP ', 'ICCP'
+]);
+
+const WEBP_META_CHUNKS = new Set(['EXIF', 'XMP ', 'ICCP']);
+
+const WAV_KNOWN_CHUNKS = new Set([
+    'fmt ', 'data', 'LIST', 'INFO', 'bext', 'iXML', 'cue ', 'smpl', 'fact'
+]);
+
+const WAV_META_CHUNKS = new Set(['LIST', 'INFO', 'bext', 'iXML']);
+
+const MP4_KNOWN_BOXES = new Set([
+    'ftyp', 'moov', 'mdat', 'free', 'skip', 'wide', 'uuid', 'moof', 'mfra',
+    'mvhd', 'trak', 'tkhd', 'mdia', 'mdhd', 'hdlr', 'minf', 'vmhd', 'smhd',
+    'dinf', 'dref', 'stbl', 'stsd', 'stts', 'ctts', 'stsc', 'stsz', 'stz2',
+    'stco', 'co64', 'stss', 'udta', 'meta', 'ilst', 'mvex', 'mehd', 'trex',
+    'edts', 'elst', 'sidx', 'mfhd', 'traf', 'tfhd', 'tfdt', 'trun', 'dref',
+    'btrt', 'pasp', 'colr', 'clap', 'iprp', 'ipco', 'ipma', 'sinf', 'schm',
+    'schi', 'name', 'data', 'cprt', 'emsg', 'pssh'
+]);
+
+const MP4_CONTAINER_BOXES = new Set([
+    'moov', 'trak', 'mdia', 'minf', 'stbl', 'udta', 'meta', 'ilst', 'moof',
+    'traf', 'mvex', 'dinf', 'iprp', 'ipco', 'sinf', 'schi', 'mfra', 'edts'
+]);
+
+const MP4_META_BOXES = new Set(['udta', 'meta', 'ilst', 'cprt']);
 
 const JPEG_MARKERS = {
     0x01: 'TEM',
@@ -70,10 +101,14 @@ const JPEG_MARKERS = {
 const SIGNATURES = [
     { name: 'PNG', bytes: PNG_SIGNATURE },
     { name: 'JPEG', bytes: JPEG_SIGNATURE },
+    { name: 'WEBP', bytes: [0x57, 0x45, 0x42, 0x50] },
+    { name: 'WAVE', bytes: [0x57, 0x41, 0x56, 0x45] },
+    { name: 'ID3', bytes: ID3_SIGNATURE },
+    { name: 'MP4', bytes: [0x66, 0x74, 0x79, 0x70] },
     { name: 'ZIP', bytes: [0x50, 0x4b, 0x03, 0x04] },
     { name: 'PDF', bytes: [0x25, 0x50, 0x44, 0x46, 0x2d] },
     { name: 'GIF', bytes: [0x47, 0x49, 0x46, 0x38] },
-    { name: 'RIFF', bytes: [0x52, 0x49, 0x46, 0x46] }
+    { name: 'RIFF', bytes: RIFF_SIGNATURE }
 ];
 
 const state = {
@@ -153,6 +188,27 @@ function readUint16BE(bytes, offset) {
     return (bytes[offset] << 8) | bytes[offset + 1];
 }
 
+function readUint32LE(bytes, offset) {
+    return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+
+function readUint16LE(bytes, offset) {
+    return (bytes[offset] | (bytes[offset + 1] << 8)) >>> 0;
+}
+
+function readUint64BE(bytes, offset) {
+    const high = readUint32BE(bytes, offset);
+    const low = readUint32BE(bytes, offset + 4);
+    return (BigInt(high) << 32n) + BigInt(low);
+}
+
+function readSynchsafe(bytes, offset) {
+    return ((bytes[offset] & 0x7f) << 21)
+        | ((bytes[offset + 1] & 0x7f) << 14)
+        | ((bytes[offset + 2] & 0x7f) << 7)
+        | (bytes[offset + 3] & 0x7f);
+}
+
 function readAscii(bytes, start, length) {
     let value = '';
     for (let i = 0; i < length; i++) {
@@ -176,6 +232,24 @@ function detectFormat(bytes) {
     }
     if (bytes.length >= 3 && JPEG_SIGNATURE.every((b, i) => bytes[i] === b)) {
         return 'JPEG';
+    }
+    if (bytes.length >= 12 && RIFF_SIGNATURE.every((b, i) => bytes[i] === b)) {
+        const riffType = readAscii(bytes, 8, 4);
+        if (riffType === 'WEBP') {
+            return 'WEBP';
+        }
+        if (riffType === 'WAVE') {
+            return 'WAV';
+        }
+    }
+    if (bytes.length >= 12 && readAscii(bytes, 4, 4) === 'ftyp') {
+        return 'MP4';
+    }
+    if (bytes.length >= 3 && ID3_SIGNATURE.every((b, i) => bytes[i] === b)) {
+        return 'MP3';
+    }
+    if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) {
+        return 'MP3';
     }
     return 'UNKNOWN';
 }
@@ -685,6 +759,534 @@ function findScanEnd(bytes, start) {
     return -1;
 }
 
+function parseRiffChunks(bytes, riffType, knownChunks, metaChunks, chunkParser) {
+    const items = [];
+    const meta = [];
+    const warnings = [];
+    let unknownCount = 0;
+
+    if (bytes.length < 12) {
+        warnings.push('RIFF ヘッダーが不足しています。');
+        return {
+            items,
+            meta,
+            warnings,
+            unknownCount,
+            trailingBytes: 0,
+            tableLabel: `${riffType} chunks: 0`
+        };
+    }
+
+    const riffId = readAscii(bytes, 0, 4);
+    const declaredSize = readUint32LE(bytes, 4);
+    const format = readAscii(bytes, 8, 4);
+    const expectedEnd = declaredSize + 8;
+    const parseEnd = Math.min(bytes.length, expectedEnd);
+
+    if (riffId !== 'RIFF') {
+        warnings.push('RIFF 署名が見つかりません。');
+    }
+    if (format !== riffType) {
+        warnings.push(`RIFF タイプが ${format} です。`);
+    }
+    if (expectedEnd > bytes.length) {
+        warnings.push('RIFF サイズが実ファイルより大きい可能性があります。');
+    }
+
+    items.push({
+        kind: 'riff',
+        type: 'RIFF',
+        offset: 0,
+        dataOffset: 8,
+        dataLength: 4,
+        totalLength: 12,
+        tags: ['info'],
+        details: [
+            { label: 'Container', value: `RIFF/${format}` },
+            { label: 'Declared Size', value: `${formatBytes(declaredSize)} (${declaredSize} B)` },
+            { label: 'File Size', value: `${formatBytes(bytes.length)} (${bytes.length} B)` }
+        ]
+    });
+
+    let offset = 12;
+    while (offset + 8 <= parseEnd) {
+        const type = readAscii(bytes, offset, 4);
+        const size = readUint32LE(bytes, offset + 4);
+        const dataStart = offset + 8;
+        const dataEnd = dataStart + size;
+        const paddedEnd = dataEnd + (size % 2);
+
+        if (dataEnd > bytes.length) {
+            warnings.push(`チャンク ${type} がファイル末尾を超えています。`);
+            break;
+        }
+
+        const known = knownChunks.has(type);
+        if (!known) {
+            unknownCount += 1;
+        }
+
+        const tags = [];
+        if (metaChunks.has(type)) {
+            tags.push('metadata');
+        }
+        if (!known) {
+            tags.push('unknown');
+        }
+
+        const item = {
+            kind: 'chunk',
+            type,
+            offset,
+            dataOffset: dataStart,
+            dataLength: size,
+            totalLength: size + 8,
+            tags,
+            details: [
+                { label: 'Chunk', value: type },
+                { label: 'Offset', value: `${formatOffset(offset)} (${offset})` },
+                { label: 'Data Size', value: `${formatBytes(size)} (${size} B)` },
+                { label: 'Total Size', value: `${formatBytes(size + 8)} (${size + 8} B)` }
+            ]
+        };
+
+        if (size % 2 === 1) {
+            item.details.push({ label: 'Padding', value: '1 byte' });
+        }
+
+        if (chunkParser) {
+            const parsed = chunkParser(type, bytes.slice(dataStart, dataEnd), offset, dataStart);
+            if (parsed) {
+                if (parsed.details) {
+                    item.details.push(...parsed.details);
+                }
+                if (parsed.metaEntry) {
+                    meta.push(parsed.metaEntry);
+                }
+            }
+        }
+
+        items.push(item);
+        offset = paddedEnd;
+    }
+
+    const trailingBytes = bytes.length > parseEnd ? bytes.length - parseEnd : 0;
+    if (trailingBytes > 0) {
+        warnings.push(`RIFF 終端以降に ${trailingBytes} バイトの余剰データがあります。`);
+    }
+
+    return {
+        items,
+        meta,
+        warnings,
+        unknownCount,
+        trailingBytes,
+        tableLabel: `${riffType} chunks: ${items.length}`
+    };
+}
+
+function parseWebp(bytes) {
+    return parseRiffChunks(bytes, 'WEBP', WEBP_KNOWN_CHUNKS, WEBP_META_CHUNKS, (type, data, offset) => {
+        if (type === 'EXIF') {
+            return {
+                details: [{ label: 'EXIF Size', value: `${formatBytes(data.length)} (${data.length} B)` }],
+                metaEntry: {
+                    title: 'EXIF (WEBP)',
+                    detail: `${formatBytes(data.length)} EXIF`,
+                    size: data.length,
+                    offset
+                }
+            };
+        }
+        if (type === 'XMP ') {
+            const text = decodeUtf8(data);
+            return {
+                details: [{ label: 'XMP', value: truncateText(text, 200) }],
+                metaEntry: {
+                    title: 'XMP (WEBP)',
+                    detail: truncateText(text, 200),
+                    size: data.length,
+                    offset
+                }
+            };
+        }
+        if (type === 'ICCP') {
+            return {
+                details: [{ label: 'ICC Profile', value: `${formatBytes(data.length)} (${data.length} B)` }],
+                metaEntry: {
+                    title: 'ICC Profile (WEBP)',
+                    detail: `${formatBytes(data.length)} profile`,
+                    size: data.length,
+                    offset
+                }
+            };
+        }
+        if (type === 'VP8X' && data.length >= 10) {
+            const width = 1 + (data[4] | (data[5] << 8) | (data[6] << 16));
+            const height = 1 + (data[7] | (data[8] << 8) | (data[9] << 16));
+            return {
+                details: [
+                    { label: 'Canvas', value: `${width} x ${height}` },
+                    { label: 'Flags', value: `0x${data[0].toString(16).padStart(2, '0').toUpperCase()}` }
+                ]
+            };
+        }
+        return null;
+    });
+}
+
+function parseWav(bytes) {
+    return parseRiffChunks(bytes, 'WAVE', WAV_KNOWN_CHUNKS, WAV_META_CHUNKS, (type, data, offset) => {
+        if (type === 'fmt ' && data.length >= 16) {
+            const audioFormat = readUint16LE(data, 0);
+            const channels = readUint16LE(data, 2);
+            const sampleRate = readUint32LE(data, 4);
+            const byteRate = readUint32LE(data, 8);
+            const blockAlign = readUint16LE(data, 12);
+            const bitsPerSample = readUint16LE(data, 14);
+            return {
+                details: [
+                    { label: 'Audio Format', value: audioFormat.toString() },
+                    { label: 'Channels', value: channels.toString() },
+                    { label: 'Sample Rate', value: `${sampleRate} Hz` },
+                    { label: 'Byte Rate', value: `${byteRate} B/s` },
+                    { label: 'Block Align', value: `${blockAlign} B` },
+                    { label: 'Bits Per Sample', value: bitsPerSample.toString() }
+                ]
+            };
+        }
+        if (type === 'LIST' && data.length >= 4) {
+            const listType = readAscii(data, 0, 4);
+            return {
+                details: [{ label: 'List Type', value: listType }],
+                metaEntry: WAV_META_CHUNKS.has(type)
+                    ? {
+                        title: `LIST/${listType}`,
+                        detail: `${formatBytes(data.length)} list`,
+                        size: data.length,
+                        offset
+                    }
+                    : null
+            };
+        }
+        if (type === 'iXML') {
+            const text = decodeUtf8(data);
+            return {
+                details: [{ label: 'iXML', value: truncateText(text, 200) }],
+                metaEntry: {
+                    title: 'iXML',
+                    detail: truncateText(text, 200),
+                    size: data.length,
+                    offset
+                }
+            };
+        }
+        if (type === 'bext') {
+            const text = decodeLatin1(data.slice(0, 256));
+            return {
+                details: [{ label: 'BEXT', value: truncateText(trimNulls(text), 200) }],
+                metaEntry: {
+                    title: 'BEXT',
+                    detail: truncateText(trimNulls(text), 200),
+                    size: data.length,
+                    offset
+                }
+            };
+        }
+        return null;
+    });
+}
+
+function parseMp3(bytes) {
+    const items = [];
+    const meta = [];
+    const warnings = [];
+    let unknownCount = 0;
+
+    let offset = 0;
+    let id3v2Size = 0;
+    if (bytes.length >= 10 && ID3_SIGNATURE.every((b, i) => bytes[i] === b)) {
+        const major = bytes[3];
+        const minor = bytes[4];
+        const flags = bytes[5];
+        const tagSize = readSynchsafe(bytes, 6);
+        id3v2Size = tagSize + 10;
+        if (id3v2Size > bytes.length) {
+            warnings.push('ID3v2 タグサイズがファイル末尾を超えています。');
+            id3v2Size = bytes.length;
+        }
+        items.push({
+            kind: 'tag',
+            type: 'ID3v2',
+            offset: 0,
+            dataOffset: 10,
+            dataLength: Math.max(0, id3v2Size - 10),
+            totalLength: id3v2Size,
+            tags: ['metadata'],
+            details: [
+                { label: 'Tag', value: 'ID3v2' },
+                { label: 'Version', value: `2.${major}.${minor}` },
+                { label: 'Flags', value: `0x${flags.toString(16).padStart(2, '0').toUpperCase()}` },
+                { label: 'Size', value: `${formatBytes(tagSize)} (${tagSize} B)` }
+            ]
+        });
+        meta.push({
+            title: `ID3v2.${major}.${minor}`,
+            detail: `${formatBytes(tagSize)} tag`,
+            size: tagSize,
+            offset: 0
+        });
+        offset = id3v2Size;
+    }
+
+    let apeOffset = findApeTag(bytes);
+    let id3v1Offset = -1;
+    if (bytes.length >= 128 && readAscii(bytes, bytes.length - 128, 3) === 'TAG') {
+        id3v1Offset = bytes.length - 128;
+    }
+
+    let audioEnd = bytes.length;
+    if (apeOffset !== -1) {
+        audioEnd = Math.min(audioEnd, apeOffset);
+    }
+    if (id3v1Offset !== -1) {
+        audioEnd = Math.min(audioEnd, id3v1Offset);
+    }
+
+    if (audioEnd > offset) {
+        items.push({
+            kind: 'audio',
+            type: 'MPEG Audio',
+            offset,
+            dataOffset: offset,
+            dataLength: audioEnd - offset,
+            totalLength: audioEnd - offset,
+            tags: ['info'],
+            details: [
+                { label: 'Section', value: 'Audio Data' },
+                { label: 'Offset', value: `${formatOffset(offset)} (${offset})` },
+                { label: 'Size', value: `${formatBytes(audioEnd - offset)} (${audioEnd - offset} B)` }
+            ]
+        });
+    }
+
+    if (apeOffset !== -1 && apeOffset + 32 <= bytes.length) {
+        const version = readUint32LE(bytes, apeOffset + 8);
+        const size = readUint32LE(bytes, apeOffset + 12);
+        const itemCount = readUint32LE(bytes, apeOffset + 16);
+        items.push({
+            kind: 'tag',
+            type: 'APEv2',
+            offset: apeOffset,
+            dataOffset: apeOffset + 32,
+            dataLength: Math.max(0, size - 32),
+            totalLength: size,
+            tags: ['metadata'],
+            details: [
+                { label: 'Tag', value: 'APEv2' },
+                { label: 'Version', value: version.toString() },
+                { label: 'Items', value: itemCount.toString() },
+                { label: 'Size', value: `${formatBytes(size)} (${size} B)` }
+            ]
+        });
+        meta.push({
+            title: 'APEv2',
+            detail: `${formatBytes(size)} tag`,
+            size,
+            offset: apeOffset
+        });
+    }
+
+    if (id3v1Offset !== -1) {
+        const title = trimNulls(decodeLatin1(bytes.slice(id3v1Offset + 3, id3v1Offset + 33)));
+        const artist = trimNulls(decodeLatin1(bytes.slice(id3v1Offset + 33, id3v1Offset + 63)));
+        const album = trimNulls(decodeLatin1(bytes.slice(id3v1Offset + 63, id3v1Offset + 93)));
+        const year = trimNulls(decodeLatin1(bytes.slice(id3v1Offset + 93, id3v1Offset + 97)));
+        items.push({
+            kind: 'tag',
+            type: 'ID3v1',
+            offset: id3v1Offset,
+            dataOffset: id3v1Offset,
+            dataLength: 128,
+            totalLength: 128,
+            tags: ['metadata'],
+            details: [
+                { label: 'Tag', value: 'ID3v1' },
+                { label: 'Title', value: title || '-' },
+                { label: 'Artist', value: artist || '-' },
+                { label: 'Album', value: album || '-' },
+                { label: 'Year', value: year || '-' }
+            ]
+        });
+        meta.push({
+            title: 'ID3v1',
+            detail: [title, artist, album].filter(Boolean).join(' / ') || 'tag',
+            size: 128,
+            offset: id3v1Offset
+        });
+    }
+
+    return {
+        items,
+        meta,
+        warnings,
+        unknownCount,
+        trailingBytes: 0,
+        tableLabel: `MP3 sections: ${items.length}`
+    };
+}
+
+function findApeTag(bytes) {
+    const signature = 'APETAGEX';
+    const start = Math.max(0, bytes.length - 512);
+    for (let i = bytes.length - 32; i >= start; i -= 1) {
+        if (readAscii(bytes, i, 8) === signature) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+function parseMp4(bytes) {
+    const items = [];
+    const meta = [];
+    const warnings = [];
+    let unknownCount = 0;
+
+    const topLevel = parseMp4Boxes(bytes, 0, bytes.length, '');
+    items.push(...topLevel.items);
+    meta.push(...topLevel.meta);
+    warnings.push(...topLevel.warnings);
+    unknownCount += topLevel.unknownCount;
+
+    const trailingBytes = topLevel.lastEnd < bytes.length ? bytes.length - topLevel.lastEnd : 0;
+    if (trailingBytes > 0) {
+        warnings.push(`MP4 終端以降に ${trailingBytes} バイトの余剰データがあります。`);
+    }
+
+    return {
+        items,
+        meta,
+        warnings,
+        unknownCount,
+        trailingBytes,
+        tableLabel: `MP4 boxes: ${items.length}`
+    };
+}
+
+function parseMp4Boxes(bytes, start, end, path) {
+    const items = [];
+    const meta = [];
+    const warnings = [];
+    let unknownCount = 0;
+    let offset = start;
+    let lastEnd = start;
+
+    while (offset + 8 <= end) {
+        const size32 = readUint32BE(bytes, offset);
+        const type = readAscii(bytes, offset + 4, 4);
+        let headerSize = 8;
+        let size = size32;
+
+        if (size32 === 1) {
+            if (offset + 16 > end) {
+                warnings.push(`box ${type} のサイズが取得できません。`);
+                break;
+            }
+            const size64 = readUint64BE(bytes, offset + 8);
+            if (size64 > BigInt(Number.MAX_SAFE_INTEGER)) {
+                warnings.push(`box ${type} のサイズが大きすぎます。`);
+                break;
+            }
+            size = Number(size64);
+            headerSize = 16;
+        } else if (size32 === 0) {
+            size = end - offset;
+        }
+
+        if (size < headerSize) {
+            warnings.push(`box ${type} のサイズが不正です。`);
+            break;
+        }
+
+        const boxEnd = offset + size;
+        if (boxEnd > end) {
+            warnings.push(`box ${type} がファイル末尾を超えています。`);
+            break;
+        }
+
+        const boxPath = path ? `${path}/${type}` : type;
+        const known = MP4_KNOWN_BOXES.has(type);
+        if (!known) {
+            unknownCount += 1;
+        }
+
+        const tags = [];
+        if (MP4_META_BOXES.has(type)) {
+            tags.push('metadata');
+        }
+        if (!known) {
+            tags.push('unknown');
+        }
+
+        const item = {
+            kind: 'box',
+            type: boxPath,
+            offset,
+            dataOffset: offset + headerSize,
+            dataLength: size - headerSize,
+            totalLength: size,
+            tags,
+            details: [
+                { label: 'Box', value: type },
+                { label: 'Path', value: boxPath },
+                { label: 'Offset', value: `${formatOffset(offset)} (${offset})` },
+                { label: 'Size', value: `${formatBytes(size)} (${size} B)` }
+            ]
+        };
+
+        if (size32 === 1) {
+            item.details.push({ label: 'Size Type', value: '64-bit' });
+        } else if (size32 === 0) {
+            item.details.push({ label: 'Size Type', value: 'to end' });
+        }
+
+        items.push(item);
+
+        if (MP4_META_BOXES.has(type)) {
+            meta.push({
+                title: `MP4 ${boxPath}`,
+                detail: `${formatBytes(size)} box`,
+                size,
+                offset
+            });
+        }
+
+        let childStart = offset + headerSize;
+        if (type === 'meta') {
+            childStart += 4;
+        }
+        if (MP4_CONTAINER_BOXES.has(type) && childStart < boxEnd) {
+            const child = parseMp4Boxes(bytes, childStart, boxEnd, boxPath);
+            items.push(...child.items);
+            meta.push(...child.meta);
+            warnings.push(...child.warnings);
+            unknownCount += child.unknownCount;
+        }
+
+        offset = boxEnd;
+        lastEnd = boxEnd;
+    }
+
+    return {
+        items,
+        meta,
+        warnings,
+        unknownCount,
+        lastEnd
+    };
+}
+
 function scanSignatures(bytes) {
     const hits = [];
     for (const signature of SIGNATURES) {
@@ -707,6 +1309,28 @@ function scanSignatures(bytes) {
         }
     }
     return hits;
+}
+
+function isHeaderSignature(hit, format) {
+    if (format === 'PNG' && hit.name === 'PNG' && hit.offset === 0) {
+        return true;
+    }
+    if (format === 'JPEG' && hit.name === 'JPEG' && hit.offset === 0) {
+        return true;
+    }
+    if (format === 'WEBP') {
+        return (hit.name === 'RIFF' && hit.offset === 0) || (hit.name === 'WEBP' && hit.offset === 8);
+    }
+    if (format === 'WAV') {
+        return (hit.name === 'RIFF' && hit.offset === 0) || (hit.name === 'WAVE' && hit.offset === 8);
+    }
+    if (format === 'MP3' && hit.name === 'ID3' && hit.offset === 0) {
+        return true;
+    }
+    if (format === 'MP4' && hit.name === 'MP4' && hit.offset === 4) {
+        return true;
+    }
+    return false;
 }
 
 function setStatus(message) {
@@ -765,7 +1389,7 @@ async function handleFile(file) {
         const format = detectFormat(bytes);
 
         if (format === 'UNKNOWN') {
-            showError('PNG/JPEG 以外の形式です。');
+            showError('対応外の形式です。');
             setStatus('失敗');
             return;
         }
@@ -773,7 +1397,26 @@ async function handleFile(file) {
         state.format = format;
         dom.fileFormat.textContent = format;
 
-        const result = format === 'PNG' ? parsePng(bytes) : parseJpeg(bytes);
+        let result = null;
+        if (format === 'PNG') {
+            result = parsePng(bytes);
+        } else if (format === 'JPEG') {
+            result = parseJpeg(bytes);
+        } else if (format === 'WEBP') {
+            result = parseWebp(bytes);
+        } else if (format === 'WAV') {
+            result = parseWav(bytes);
+        } else if (format === 'MP3') {
+            result = parseMp3(bytes);
+        } else if (format === 'MP4') {
+            result = parseMp4(bytes);
+        }
+
+        if (!result) {
+            showError('解析できない形式です。');
+            setStatus('失敗');
+            return;
+        }
         const signatures = scanSignatures(bytes);
 
         state.items = result.items;
@@ -785,7 +1428,7 @@ async function handleFile(file) {
         dom.metaCount.textContent = formatCount(result.meta.length);
         dom.unknownCount.textContent = formatCount(result.unknownCount);
         dom.trailingBytes.textContent = formatBytes(result.trailingBytes);
-        dom.signatureCount.textContent = formatCount(signatures.filter((hit) => hit.offset > 0).length);
+        dom.signatureCount.textContent = formatCount(signatures.filter((hit) => !isHeaderSignature(hit, format)).length);
         dom.tableMeta.textContent = result.tableLabel;
 
         renderWarnings(result.warnings);
@@ -972,7 +1615,7 @@ function renderSignatures(signatures, format) {
         title.className = 'item-title';
         title.textContent = hit.name;
         const detail = document.createElement('div');
-        const note = hit.offset === 0 && hit.name === format ? 'file header' : 'embedded candidate';
+        const note = isHeaderSignature(hit, format) ? 'file header' : 'embedded candidate';
         detail.textContent = note;
         const meta = document.createElement('div');
         meta.className = 'item-meta';
