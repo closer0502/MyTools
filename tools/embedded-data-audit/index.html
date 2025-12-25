@@ -1,0 +1,126 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>埋め込みデータ監査</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Embed Audit</span>
+            <h1>埋め込みデータ監査</h1>
+            <p class="lede">ファイル内の構造情報・メタ情報・末尾データ・別形式シグネチャの痕跡を可視化します（現在はPNG/JPEG対応）。</p>
+        </header>
+
+        <div class="card">
+            <section class="input-panel">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-inner">
+                        <p class="primary">ここに PNG/JPEG をドロップ</p>
+                        <p class="secondary">または</p>
+                        <button class="ghost-button" type="button" id="fileSelect">ファイルを選ぶ</button>
+                        <input id="fileInput" type="file" accept="image/png,image/jpeg" hidden>
+                        <p class="file-name" id="fileName">ファイル未選択</p>
+                    </div>
+                </div>
+                <div class="file-panel">
+                    <div class="file-row">
+                        <span class="label">Format</span>
+                        <span class="value" id="fileFormat">-</span>
+                    </div>
+                    <div class="file-row">
+                        <span class="label">Size</span>
+                        <span class="value" id="fileSize">-</span>
+                    </div>
+                    <div class="file-row">
+                        <span class="label">Items</span>
+                        <span class="value" id="itemCount">0</span>
+                    </div>
+                    <div class="file-row">
+                        <span class="label">Status</span>
+                        <span class="value" id="statusText">待機</span>
+                    </div>
+                    <button class="ghost-button" type="button" id="clearButton">リセット</button>
+                    <p class="privacy-note">ローカルで解析され、外部送信はありません。</p>
+                </div>
+            </section>
+
+            <div class="notice hidden" id="errorBanner" role="alert"></div>
+
+            <section class="summary-panel hidden" id="summaryPanel">
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <span class="summary-label">Metadata</span>
+                        <span class="summary-value" id="metaCount">0</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-label">Unknown</span>
+                        <span class="summary-value" id="unknownCount">0</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-label">Trailing</span>
+                        <span class="summary-value" id="trailingBytes">0</span>
+                    </div>
+                    <div class="summary-card">
+                        <span class="summary-label">Signatures</span>
+                        <span class="summary-value" id="signatureCount">0</span>
+                    </div>
+                </div>
+                <div class="warning-list" id="warningList"></div>
+            </section>
+
+            <section class="main-grid hidden" id="mainGrid">
+                <div class="panel table-panel">
+                    <div class="panel-header">
+                        <span class="section-label">構造一覧</span>
+                        <span class="panel-meta" id="tableMeta">-</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Offset</th>
+                                    <th>Size</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemTable"></tbody>
+                        </table>
+                    </div>
+                    <div class="empty-state hidden" id="emptyState">解析結果はありません。</div>
+                </div>
+                <div class="panel detail-panel">
+                    <div class="panel-header">
+                        <span class="section-label">詳細</span>
+                        <span class="panel-meta" id="detailTitle">-</span>
+                    </div>
+                    <div class="detail-content" id="detailContent">
+                        <div class="detail-placeholder">項目を選択すると詳細が表示されます。</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel info-panel hidden" id="metaPanel">
+                <div class="panel-header">
+                    <span class="section-label">メタ情報</span>
+                    <span class="panel-meta" id="metaHint">-</span>
+                </div>
+                <div class="detail-list" id="metaList"></div>
+            </section>
+
+            <section class="panel info-panel hidden" id="signaturePanel">
+                <div class="panel-header">
+                    <span class="section-label">埋め込み候補シグネチャ</span>
+                    <span class="panel-meta" id="signatureHint">-</span>
+                </div>
+                <div class="detail-list" id="signatureList"></div>
+            </section>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
