@@ -178,6 +178,7 @@
             tableBody: document.getElementById("asset-table-body"),
             tableEmpty: document.getElementById("table-empty"),
             detailContent: document.getElementById("detail-content"),
+            focusSelected: document.getElementById("focus-selected"),
             previewFrame: document.getElementById("preview-frame"),
             previewBase: document.getElementById("preview-base"),
             previewStatus: document.getElementById("preview-status"),
@@ -262,6 +263,7 @@
             state.pagination.page = 1;
             renderTable();
         });
+        ui.focusSelected.addEventListener("click", focusSelectedGroup);
         ui.exportJson.addEventListener("click", exportJson);
         ui.exportCsv.addEventListener("click", exportCsv);
         ui.advancedToggle.addEventListener("change", () => {
@@ -276,6 +278,7 @@
         updateCategoryList();
         updateSummary();
         renderTable();
+        updateFocusButton();
     });
 
     async function handleAnalyze() {
@@ -387,18 +390,21 @@
         setPreviewStatus("プレビューは解析後に表示されます。");
         setStatus("待機中");
         clearError();
+        updateFocusButton();
     }
 
     function updatePreview(doc) {
         state.previewReady = false;
+        updateFocusButton();
         const html = `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;
         ui.previewFrame.onload = () => {
             state.previewReady = true;
             setPreviewStatus("プレビュー準備完了");
             if (state.selectedGroupId) {
                 const selected = state.groups.find((group) => group.id === state.selectedGroupId);
-                highlightGroup(selected);
+                focusGroupInPreview(selected, { scroll: false });
             }
+            updateFocusButton();
         };
         ui.previewFrame.srcdoc = html;
         ui.previewBase.textContent = state.baseUrl || "-";
@@ -957,17 +963,26 @@
         renderTable();
         const group = state.groups.find((item) => item.id === groupId);
         renderDetails(group);
-        highlightGroup(group);
+        focusGroupInPreview(group, { scroll: false });
+        updateFocusButton();
+    }
+
+    function focusGroupInPreview(group, options = {}) {
+        const { scroll = true } = options;
+        const firstTarget = highlightGroup(group);
+        if (scroll && firstTarget) {
+            firstTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
     }
 
     function highlightGroup(group) {
         if (!group || !state.previewReady) {
-            return;
+            return null;
         }
 
         const doc = ui.previewFrame.contentDocument;
         if (!doc) {
-            return;
+            return null;
         }
 
         doc.querySelectorAll(".asset-highlight").forEach((el) => el.classList.remove("asset-highlight"));
@@ -984,9 +999,22 @@
             }
         });
 
-        if (firstTarget) {
-            firstTarget.scrollIntoView({ behavior: "smooth", block: "center" });
+        return firstTarget;
+    }
+
+    function focusSelectedGroup() {
+        if (!state.selectedGroupId || !state.previewReady) {
+            return;
         }
+        const group = state.groups.find((item) => item.id === state.selectedGroupId);
+        focusGroupInPreview(group, { scroll: true });
+    }
+
+    function updateFocusButton() {
+        if (!ui.focusSelected) {
+            return;
+        }
+        ui.focusSelected.disabled = !(state.selectedGroupId && state.previewReady);
     }
 
     function computeCategoryStats() {
