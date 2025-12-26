@@ -47,6 +47,23 @@
         pdf: "application/pdf"
     };
 
+    const ACTION_ICONS = {
+        copy: `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <rect x="9" y="9" width="11" height="12" rx="2"></rect>
+  <rect x="4" y="3" width="11" height="12" rx="2"></rect>
+</svg>`,
+        open: `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <path d="M14 4h6v6"></path>
+  <path d="M10 14L20 4"></path>
+  <path d="M20 14v6H4V4h6"></path>
+</svg>`,
+        download: `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+  <path d="M12 3v12"></path>
+  <path d="M7 10l5 5 5-5"></path>
+  <path d="M5 21h14"></path>
+</svg>`
+    };
+
     const SAMPLE_HTML = `<!doctype html>
 <html lang="ja">
 <head>
@@ -522,11 +539,11 @@
                 typeCell.textContent = row.typeLabel;
 
                 const urlCell = document.createElement("td");
-            const urlSpan = document.createElement("span");
-            urlSpan.className = "mono";
-            urlSpan.textContent = formatDisplayUrl(row.displayUrl);
-            urlSpan.title = row.displayUrl;
-            urlCell.appendChild(urlSpan);
+                const urlSpan = document.createElement("span");
+                urlSpan.className = "mono";
+                urlSpan.textContent = formatDisplayUrl(row.displayUrl);
+                urlSpan.title = row.displayUrl;
+                urlCell.appendChild(urlSpan);
 
                 const countCell = document.createElement("td");
                 countCell.textContent = row.count.toString();
@@ -579,6 +596,137 @@
             return url;
         }
         return `${url.slice(0, maxLength - 3)}...`;
+    }
+
+    function buildDetailActions(group) {
+        const actionUrl = getActionUrl(group);
+        if (!actionUrl) {
+            return null;
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "detail-actions";
+
+        const copyButton = createActionButton("URLをコピー", ACTION_ICONS.copy, async () => {
+            await copyToClipboard(actionUrl);
+            flashButton(copyButton);
+        });
+        const openButton = createActionButton("新しいタブで開く", ACTION_ICONS.open, () => {
+            openInNewTab(actionUrl);
+        });
+        actions.append(copyButton, openButton);
+
+        if (isDownloadableGroup(group, actionUrl)) {
+            const downloadButton = createActionButton("ダウンロード", ACTION_ICONS.download, () => {
+                triggerDownload(actionUrl);
+            });
+            actions.append(downloadButton);
+        }
+
+        return actions;
+    }
+
+    function createActionButton(label, iconMarkup, onClick) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "icon-button";
+        button.setAttribute("aria-label", label);
+        button.title = label;
+        button.innerHTML = iconMarkup;
+        button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            Promise.resolve(onClick()).catch(() => {});
+        });
+        return button;
+    }
+
+    function flashButton(button) {
+        if (!button) {
+            return;
+        }
+        button.classList.add("is-active");
+        window.setTimeout(() => button.classList.remove("is-active"), 900);
+    }
+
+    function getActionUrl(group) {
+        return pickSafeUrl(group.primaryResolvedUrl, group.primaryRawUrl);
+    }
+
+    function isDownloadableGroup(group, url) {
+        const extension = getExtension(url);
+        if (extension && ASSET_EXTENSIONS.has(extension)) {
+            return true;
+        }
+        const type = group.fileType || group.meta.contentType || "";
+        if (/^(image|audio|video)\//.test(type)) {
+            return true;
+        }
+        return group.categories.has("image")
+            || group.categories.has("audio")
+            || group.categories.has("video")
+            || group.categories.has("svg");
+    }
+
+    async function copyToClipboard(text) {
+        if (!text) {
+            return;
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return;
+            } catch (error) {
+            }
+        }
+        fallbackCopyText(text);
+    }
+
+    function fallbackCopyText(text) {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+            document.execCommand("copy");
+        } catch (error) {
+        }
+        textarea.remove();
+    }
+
+    function openInNewTab(url) {
+        if (!url) {
+            return;
+        }
+        window.open(url, "_blank", "noopener,noreferrer");
+    }
+
+    function triggerDownload(url) {
+        if (!url) {
+            return;
+        }
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        const filename = getFilenameFromUrl(url);
+        anchor.download = filename || "";
+        anchor.rel = "noopener";
+        anchor.target = "_blank";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+    }
+
+    function getFilenameFromUrl(url) {
+        try {
+            const { pathname } = new URL(url);
+            const name = pathname.split("/").pop();
+            return name || "";
+        } catch (error) {
+            return "";
+        }
     }
 
     function updateCounts(filteredCount) {
@@ -720,6 +868,10 @@
         addGridRow(urlGrid, "解決後URL", uniqueListText(group.resolvedUrls));
         addGridRow(urlGrid, "正規化", group.normalizedUrl || "-");
         urlSection.appendChild(urlGrid);
+        const detailActions = buildDetailActions(group);
+        if (detailActions) {
+            urlSection.appendChild(detailActions);
+        }
         ui.detailContent.appendChild(urlSection);
 
         const attrSection = document.createElement("div");
