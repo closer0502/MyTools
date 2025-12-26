@@ -808,6 +808,13 @@ body.modal-open {
     }
 }
 
+@media (max-width: 1400px) {
+    .app {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
 @media (max-width: 640px) {
     .app {
         padding: 0 var(--space-3) var(--space-4);
