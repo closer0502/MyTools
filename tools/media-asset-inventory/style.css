@@ -8,7 +8,8 @@ body {
 }
 
 .app {
-    max-width: 1280px;
+    width: 75vw;
+    max-width: 75vw;
     margin: 40px auto;
     padding: 0 var(--space-3) var(--space-5);
 }
@@ -352,16 +353,47 @@ body {
     border-radius: 12px;
     overflow: hidden;
     background: #0d1525;
+    --table-head-height: 44px;
+    --table-row-height: 64px;
+    min-height: calc(var(--table-head-height) + (var(--table-row-height) * 5));
 }
 
 .table-wrap table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
+    table-layout: fixed;
 }
 
 .table-wrap thead {
     background: rgba(255, 255, 255, 0.05);
+}
+
+.table-wrap thead tr {
+    height: var(--table-head-height);
+}
+
+.table-wrap tbody tr {
+    height: var(--table-row-height);
+}
+
+.table-wrap thead th {
+    height: var(--table-head-height);
+}
+
+.table-wrap tbody td {
+    height: var(--table-row-height);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table-wrap tbody td .mono {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
 }
 
 .table-wrap th,
@@ -408,6 +440,18 @@ body {
 
 .table-wrap tbody tr:hover {
     background: rgba(56, 189, 248, 0.08);
+}
+
+.table-wrap tbody tr.row-placeholder {
+    cursor: default;
+}
+
+.table-wrap tbody tr.row-placeholder:hover {
+    background: transparent;
+}
+
+.table-wrap tbody tr.row-placeholder td {
+    color: transparent;
 }
 
 .table-wrap tbody tr.is-selected {
@@ -599,7 +643,8 @@ body {
 
 #preview-frame {
     width: 100%;
-    min-height: 320px;
+    height: 90dvh;
+    min-height: 90dvh;
     border-radius: 12px;
     border: 1px dashed var(--border);
     background: #0d1525;

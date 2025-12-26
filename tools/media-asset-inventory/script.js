@@ -117,7 +117,7 @@
         htmlInputValue: "",
         pagination: {
             page: 1,
-            perPage: 50
+            perPage: 5
         },
         filters: {
             search: "",
@@ -391,7 +391,7 @@
         state.metaCache = new Map();
         state.pendingMeta = new Set();
         state.pagination.page = 1;
-        state.pagination.perPage = 50;
+        state.pagination.perPage = 5;
         state.filters.search = "";
         state.filters.domain = "all";
         state.filters.extension = "all";
@@ -535,6 +535,7 @@
         const pagedRows = paginateRows(rows);
         updateCounts(rows.length);
         updatePagination(rows.length);
+        const columnCount = state.activeCategory === "text" ? 5 : 7;
 
         pagedRows.forEach((row) => {
             const tr = document.createElement("tr");
@@ -596,6 +597,18 @@
             tr.addEventListener("click", () => selectGroup(row.group.id));
             ui.tableBody.appendChild(tr);
         });
+
+        const fillerCount = Math.max(0, state.pagination.perPage - pagedRows.length);
+        for (let i = 0; i < fillerCount; i += 1) {
+            const tr = document.createElement("tr");
+            tr.className = "row-placeholder";
+            for (let col = 0; col < columnCount; col += 1) {
+                const td = document.createElement("td");
+                td.innerHTML = "&nbsp;";
+                tr.appendChild(td);
+            }
+            ui.tableBody.appendChild(tr);
+        }
     }
 
     function updateTableHeader() {
@@ -603,6 +616,15 @@
             return;
         }
         ui.tableHead.innerHTML = "";
+        const colgroup = document.createElement("colgroup");
+        const widths = state.activeCategory === "text"
+            ? ["28%", "14%", "10%", "10%", "38%"]
+            : ["14%", "14%", "34%", "8%", "8%", "12%", "10%"];
+        widths.forEach((width) => {
+            const col = document.createElement("col");
+            col.style.width = width;
+            colgroup.appendChild(col);
+        });
         const row = document.createElement("tr");
         if (state.activeCategory === "text") {
             ["抜粋", "要素", "回数", "文字数", "DOMパス"].forEach((label) => {
@@ -617,14 +639,14 @@
                 row.appendChild(th);
             });
         }
-        ui.tableHead.appendChild(row);
+        ui.tableHead.append(colgroup, row);
     }
 
     function formatDisplayUrl(url) {
         if (!url) {
             return "-";
         }
-        const maxLength = 100;
+        const maxLength = 20;
         if (url.length <= maxLength) {
             return url;
         }
