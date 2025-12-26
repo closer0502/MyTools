@@ -114,6 +114,7 @@
         metaCache: new Map(),
         pendingMeta: new Set(),
         selectedGroupId: null,
+        htmlInputValue: "",
         pagination: {
             page: 1,
             perPage: 50
@@ -146,6 +147,11 @@
         ui = {
             urlInput: document.getElementById("url-input"),
             htmlInput: document.getElementById("html-input"),
+            htmlModal: document.getElementById("html-modal"),
+            htmlModalBackdrop: document.getElementById("html-modal-backdrop"),
+            htmlModalClose: document.getElementById("html-modal-close"),
+            htmlModalInput: document.getElementById("html-modal-input"),
+            htmlModalDone: document.getElementById("html-modal-done"),
             analyzeBtn: document.getElementById("analyze-btn"),
             sampleBtn: document.getElementById("sample-btn"),
             clearBtn: document.getElementById("clear-btn"),
@@ -188,10 +194,29 @@
 
         ui.analyzeBtn.addEventListener("click", handleAnalyze);
         ui.sampleBtn.addEventListener("click", () => {
-            ui.htmlInput.value = SAMPLE_HTML.trim();
+            setHtmlInputValue(SAMPLE_HTML.trim());
             setStatus("サンプルHTMLを読み込みました。");
         });
         ui.clearBtn.addEventListener("click", resetAll);
+        ui.htmlInput.addEventListener("click", openHtmlModal);
+        ui.htmlInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                openHtmlModal();
+            }
+        });
+        ui.htmlModalClose.addEventListener("click", () => closeHtmlModal(true));
+        ui.htmlModalDone.addEventListener("click", () => closeHtmlModal(true));
+        ui.htmlModalBackdrop.addEventListener("click", () => closeHtmlModal(true));
+        ui.htmlModalInput.addEventListener("input", () => {
+            setHtmlInputValue(ui.htmlModalInput.value);
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && isHtmlModalOpen()) {
+                event.preventDefault();
+                closeHtmlModal(true);
+            }
+        });
 
         const searchHandler = debounce(() => {
             state.filters.search = ui.searchInput.value.trim().toLowerCase();
@@ -279,6 +304,7 @@
         updateSummary();
         renderTable();
         updateFocusButton();
+        updateHtmlInputDisplay(state.htmlInputValue);
     });
 
     async function handleAnalyze() {
@@ -294,7 +320,7 @@
         state.pagination.page = 1;
 
         const urlInput = ui.urlInput.value.trim();
-        const htmlInput = ui.htmlInput.value.trim();
+        const htmlInput = state.htmlInputValue.trim();
 
         let html = htmlInput;
         if (!html && urlInput) {
@@ -340,7 +366,7 @@
 
     function resetAll() {
         ui.urlInput.value = "";
-        ui.htmlInput.value = "";
+        setHtmlInputValue("");
         ui.searchInput.value = "";
         ui.domainFilter.value = "all";
         ui.extFilter.value = "all";
@@ -391,6 +417,7 @@
         setStatus("待機中");
         clearError();
         updateFocusButton();
+        closeHtmlModal(false);
     }
 
     function updatePreview(doc) {
@@ -1914,6 +1941,54 @@
     function clearError() {
         ui.errorBanner.textContent = "";
         ui.errorBanner.classList.add("hidden");
+    }
+
+    function setHtmlInputValue(value) {
+        state.htmlInputValue = value || "";
+        updateHtmlInputDisplay(state.htmlInputValue);
+    }
+
+    function updateHtmlInputDisplay(value) {
+        if (!ui.htmlInput) {
+            return;
+        }
+        const length = value ? value.length : 0;
+        ui.htmlInput.value = `貼り付け済み: ${length.toLocaleString("ja-JP")}文字`;
+    }
+
+    function isHtmlModalOpen() {
+        return ui.htmlModal && !ui.htmlModal.classList.contains("hidden");
+    }
+
+    function openHtmlModal() {
+        if (!ui.htmlModal || !ui.htmlModalInput) {
+            return;
+        }
+        if (isHtmlModalOpen()) {
+            return;
+        }
+        ui.htmlModalInput.value = state.htmlInputValue;
+        updateHtmlInputDisplay(state.htmlInputValue);
+        ui.htmlModal.classList.remove("hidden");
+        ui.htmlModal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("modal-open");
+        requestAnimationFrame(() => {
+            ui.htmlModalInput.focus();
+            ui.htmlModalInput.select();
+        });
+    }
+
+    function closeHtmlModal(shouldSync = true) {
+        if (!isHtmlModalOpen()) {
+            return;
+        }
+        if (shouldSync && ui.htmlModalInput) {
+            setHtmlInputValue(ui.htmlModalInput.value);
+        }
+        ui.htmlModal.classList.add("hidden");
+        ui.htmlModal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+        ui.htmlInput.focus();
     }
 
     function parseNumber(value) {

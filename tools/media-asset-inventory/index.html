@@ -25,7 +25,7 @@
                 </div>
                 <div class="field">
                     <label for="html-input">HTMLを貼り付け</label>
-                    <textarea id="html-input" rows="10" placeholder="解析したいHTMLを貼り付けてください"></textarea>
+                    <textarea id="html-input" rows="1" placeholder="クリックしてHTMLを貼り付け" readonly></textarea>
                 </div>
             </div>
             <div class="controls">
@@ -174,6 +174,20 @@
                 <iframe id="preview-frame" title="HTMLプレビュー" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>
             </div>
         </section>
+    </div>
+
+    <div class="modal hidden" id="html-modal" aria-hidden="true">
+        <div class="modal-backdrop" id="html-modal-backdrop"></div>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="html-modal-title">
+            <div class="modal-header">
+                <h3 id="html-modal-title">HTMLを貼り付け</h3>
+                <button class="ghost-button" id="html-modal-close" type="button">閉じる</button>
+            </div>
+            <textarea id="html-modal-input" rows="12" placeholder="解析したいHTMLを貼り付けてください"></textarea>
+            <div class="modal-actions">
+                <button class="primary-button" id="html-modal-done" type="button">完了</button>
+            </div>
+        </div>
     </div>
 </body>
 </html>
