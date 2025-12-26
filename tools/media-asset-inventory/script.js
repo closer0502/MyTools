@@ -655,30 +655,43 @@
 
     function buildDetailActions(group) {
         const actionUrl = getActionUrl(group);
-        if (!actionUrl) {
-            return null;
-        }
-
         const actions = document.createElement("div");
         actions.className = "detail-actions";
+        let hasActions = false;
 
-        const copyButton = createActionButton("URLをコピー", ACTION_ICONS.copy, async () => {
-            await copyToClipboard(actionUrl);
-            flashButton(copyButton);
-        });
-        const openButton = createActionButton("新しいタブで開く", ACTION_ICONS.open, () => {
-            openInNewTab(actionUrl);
-        });
-        actions.append(copyButton, openButton);
+        if (actionUrl) {
+            const copyButton = createActionButton("URLをコピー", ACTION_ICONS.copy, async () => {
+                await copyToClipboard(actionUrl);
+                flashButton(copyButton);
+            });
+            const openButton = createActionButton("新しいタブで開く", ACTION_ICONS.open, () => {
+                openInNewTab(actionUrl);
+            });
+            actions.append(copyButton, openButton);
+            hasActions = true;
+        }
 
-        if (isDownloadableGroup(group, actionUrl)) {
+        if (actionUrl && isDownloadableGroup(group, actionUrl)) {
             const downloadButton = createActionButton("ダウンロード", ACTION_ICONS.download, () => {
                 triggerDownload(actionUrl);
             });
             actions.append(downloadButton);
+            hasActions = true;
         }
 
-        return actions;
+        if (state.activeCategory === "text") {
+            const textValue = getTextCopyValue(group);
+            if (textValue) {
+                const copyTextButton = createActionButton("テキストをコピー", ACTION_ICONS.copy, async () => {
+                    await copyToClipboard(textValue);
+                    flashButton(copyTextButton);
+                });
+                actions.append(copyTextButton);
+                hasActions = true;
+            }
+        }
+
+        return hasActions ? actions : null;
     }
 
     function createActionButton(label, iconMarkup, onClick) {
@@ -1181,6 +1194,19 @@
         return first.length > 80 ? `${first.slice(0, 80)}...` : first;
     }
 
+    function getTextCopyValue(group) {
+        if (!group) {
+            return "";
+        }
+        if (group.textFulls && group.textFulls.size) {
+            return Array.from(group.textFulls).join("\n");
+        }
+        if (group.textSnippets && group.textSnippets.size) {
+            return Array.from(group.textSnippets).join("\n");
+        }
+        return "";
+    }
+
     function getRepresentativeOccurrence(group, category) {
         return group.occurrences.find((occ) => occ.category === category);
     }
@@ -1268,6 +1294,7 @@
                     hasDataAttributes: false,
                     meta: {},
                     textSnippets: new Set(),
+                    textFulls: new Set(),
                     textLength: 0
                 });
             }
@@ -1287,6 +1314,10 @@
             }
             if (occ.textSnippet) {
                 group.textSnippets.add(occ.textSnippet);
+                group.textLength = Math.max(group.textLength, occ.textLength || 0);
+            }
+            if (occ.textFull) {
+                group.textFulls.add(occ.textFull);
                 group.textLength = Math.max(group.textLength, occ.textLength || 0);
             }
             if (!group.primaryResolvedUrl && occ.resolvedUrl) {
@@ -1344,7 +1375,8 @@
                 resolvedUrl,
                 sourceHint: sourceHint || "",
                 textSnippet: extra && extra.snippet ? extra.snippet : "",
-                textLength: extra && extra.length ? extra.length : 0
+                textLength: extra && extra.length ? extra.length : 0,
+                textFull: extra && extra.fullText ? extra.fullText : ""
             });
         };
 
@@ -1508,7 +1540,11 @@
                 continue;
             }
             const snippet = joined.length > 120 ? `${joined.slice(0, 120)}...` : joined;
-            addOccurrence(element, "text", "text", "", "", { snippet, length: joined.length });
+            addOccurrence(element, "text", "text", "", "", {
+                snippet,
+                length: joined.length,
+                fullText: joined
+            });
             elementCounter += 1;
             if (elementCounter % 200 === 0) {
                 await yieldToMain();
