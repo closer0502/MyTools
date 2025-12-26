@@ -213,6 +213,15 @@ body {
     gap: 8px;
 }
 
+.category-note {
+    margin: -2px 0 var(--space-2);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-align: right;
+}
+
 .category-button {
     display: flex;
     justify-content: space-between;
