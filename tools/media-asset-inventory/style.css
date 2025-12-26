@@ -377,6 +377,35 @@ body {
     height: var(--table-row-height);
 }
 
+.table-wrap th.is-sortable {
+    padding: 0;
+}
+
+.sort-button {
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    cursor: pointer;
+    text-align: left;
+}
+
+.sort-button::after {
+    content: attr(data-direction);
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.table-wrap th.is-sortable:hover .sort-button {
+    color: var(--accent);
+}
+
 .table-wrap thead th {
     height: var(--table-head-height);
 }

@@ -627,16 +627,28 @@
         });
         const row = document.createElement("tr");
         if (state.activeCategory === "text") {
-            ["抜粋", "要素", "回数", "文字数", "DOMパス"].forEach((label) => {
-                const th = document.createElement("th");
-                th.textContent = label;
-                row.appendChild(th);
+            const headers = [
+                { label: "抜粋", sortKey: "url" },
+                { label: "要素", sortKey: "" },
+                { label: "回数", sortKey: "count" },
+                { label: "文字数", sortKey: "size" },
+                { label: "DOMパス", sortKey: "" }
+            ];
+            headers.forEach((header) => {
+                row.appendChild(createSortableHeader(header.label, header.sortKey));
             });
         } else {
-            ["サムネ", "種別", "URL", "回数", "拡張子", "サイズ/時間", "Content-Type"].forEach((label) => {
-                const th = document.createElement("th");
-                th.textContent = label;
-                row.appendChild(th);
+            const headers = [
+                { label: "サムネ", sortKey: "" },
+                { label: "種別", sortKey: "" },
+                { label: "URL", sortKey: "url" },
+                { label: "回数", sortKey: "count" },
+                { label: "拡張子", sortKey: "" },
+                { label: "サイズ/時間", sortKey: "size" },
+                { label: "Content-Type", sortKey: "" }
+            ];
+            headers.forEach((header) => {
+                row.appendChild(createSortableHeader(header.label, header.sortKey));
             });
         }
         ui.tableHead.append(colgroup, row);
@@ -651,6 +663,60 @@
             return url;
         }
         return `${url.slice(0, maxLength - 3)}...`;
+    }
+
+    function createSortableHeader(label, sortKey) {
+        const th = document.createElement("th");
+        if (!sortKey) {
+            th.textContent = label;
+            return th;
+        }
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "sort-button";
+        button.textContent = label;
+        button.addEventListener("click", () => toggleSort(sortKey));
+
+        const direction = getSortDirection(sortKey);
+        button.dataset.direction = direction === "asc" ? "↑" : direction === "desc" ? "↓" : "↕";
+        th.classList.add("is-sortable");
+        th.setAttribute("aria-sort", direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none");
+        th.appendChild(button);
+        return th;
+    }
+
+    function getSortDirection(sortKey) {
+        if (!state.filters.sort || !state.filters.sort.startsWith(`${sortKey}-`)) {
+            return "";
+        }
+        return state.filters.sort.endsWith("-asc") ? "asc" : "desc";
+    }
+
+    function toggleSort(sortKey) {
+        const current = state.filters.sort || "";
+        const prefix = `${sortKey}-`;
+        const defaults = {
+            count: "desc",
+            size: "desc",
+            url: "asc"
+        };
+        let next = "";
+        if (current.startsWith(prefix)) {
+            next = current.endsWith("-asc") ? `${sortKey}-desc` : `${sortKey}-asc`;
+        } else {
+            const fallback = defaults[sortKey] || "asc";
+            next = `${sortKey}-${fallback}`;
+        }
+        state.filters.sort = next;
+        state.pagination.page = 1;
+        if (ui.sortSelect) {
+            const values = Array.from(ui.sortSelect.options).map((option) => option.value);
+            if (values.includes(next)) {
+                ui.sortSelect.value = next;
+            }
+        }
+        renderTable();
     }
 
     function buildDetailActions(group) {
