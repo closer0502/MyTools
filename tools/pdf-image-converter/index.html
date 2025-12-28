@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF画像変換ツール</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">PDF画像変換</span>
+            <h1>PDF画像変換ツール</h1>
+            <p class="lede">PDFの各ページをPNG/JPEGに変換。ページ選択と一括書き出しに対応します。</p>
+        </header>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">入力</span>
+                    <h2>PDFを読み込む</h2>
+                </div>
+                <p class="hint">ローカルファイルのみ対応。推奨サイズは30MB前後です。</p>
+            </div>
+
+            <div class="drop-row">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-inner">
+                        <p class="primary">ここにPDFをドロップ</p>
+                        <p class="secondary">またはファイルを選択</p>
+                        <button class="ghost-button" type="button" id="fileSelect">PDFを選択</button>
+                        <input id="fileInput" type="file" accept="application/pdf" hidden>
+                        <p class="hint">ドラッグ&ドロップはローカルのみ対応。</p>
+                    </div>
+                </div>
+                <div class="file-info" id="fileInfo">
+                    <div class="label">ファイル</div>
+                    <div class="value" id="fileName">未選択</div>
+                    <div class="meta" id="fileMeta">サイズ目安: 30MB</div>
+                    <div class="label">ページ数</div>
+                    <div class="value" id="pageCount">-</div>
+                    <div class="file-actions">
+                        <button class="ghost-button accent-button" type="button" id="resetAll">クリア</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">ページ</span>
+                    <h2>ページを選択</h2>
+                </div>
+                <p class="hint">サムネイルは選択用の低解像度プレビューです。</p>
+            </div>
+            <div class="page-toolbar">
+                <div class="selection-meta">
+                    <span class="label">選択中</span>
+                    <span class="value" id="selectionCount">0 / 0</span>
+                </div>
+                <div class="actions">
+                    <button class="ghost-button" type="button" id="selectAll" disabled>すべて選択</button>
+                    <button class="ghost-button" type="button" id="clearSelection" disabled>解除</button>
+                    <button class="ghost-button" type="button" id="invertSelection" disabled>反転</button>
+                </div>
+            </div>
+            <div class="empty-state" id="pageEmpty">PDFを読み込むとページ一覧が表示されます。</div>
+            <ul class="page-grid" id="pageList"></ul>
+        </section>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">書き出し</span>
+                    <h2>画像を書き出す</h2>
+                </div>
+                <p class="hint">複数ページ選択時はZIPにまとめて保存します。</p>
+            </div>
+
+            <div class="options-grid">
+                <div class="option">
+                    <span class="option-label">形式</span>
+                    <label class="field">
+                        <span>出力形式</span>
+                        <select id="imageFormat">
+                            <option value="image/png">PNG</option>
+                            <option value="image/jpeg" selected>JPEG</option>
+                        </select>
+                    </label>
+                    <label class="field" id="qualityRow">
+                        <span>JPEG品質</span>
+                        <div class="field-row">
+                            <input id="quality" type="range" min="60" max="100" value="92">
+                            <span class="mono" id="qualityValue">92%</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="option">
+                    <span class="option-label">解像度</span>
+                    <label class="field">
+                        <span>倍率</span>
+                        <select id="scale">
+                            <option value="1">1x</option>
+                            <option value="1.5" selected>1.5x</option>
+                            <option value="2">2x</option>
+                            <option value="3">3x</option>
+                        </select>
+                    </label>
+                    <p class="option-hint">倍率を上げるほど高精細ですが、メモリ使用量が増えます。</p>
+                    <p class="scale-size" id="scaledSize">変換後サイズ: -</p>
+                </div>
+
+                <div class="option">
+                    <span class="option-label">背景</span>
+                    <label class="field">
+                        <span>色</span>
+                        <div class="field-row">
+                            <input id="bgColor" type="color" value="#ffffff">
+                            <span class="mono" id="bgColorValue">#ffffff</span>
+                        </div>
+                    </label>
+                    <label class="field checkbox-row">
+                        <input type="checkbox" id="applyBg" checked>
+                        <span>背景色を適用（PNGは透明可）</span>
+                    </label>
+                </div>
+
+                <div class="option">
+                    <span class="option-label">ファイル名</span>
+                    <label class="field">
+                        <span>接頭辞</span>
+                        <input id="filePrefix" type="text" placeholder="例: brochure-pages">
+                    </label>
+                    <p class="option-hint">未入力の場合はPDFのファイル名を使用します。</p>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="status" id="status">PDFを読み込んでください。</div>
+                <div class="actions">
+                    <button class="pill-button" type="button" id="convertSelected" disabled>選択ページを書き出し</button>
+                    <button class="pill-button" type="button" id="convertAll" disabled>全ページを書き出し</button>
+                </div>
+            </div>
+
+            <div class="progress hidden" id="progressBar">
+                <div id="progressFill"></div>
+            </div>
+
+            <div id="errorBanner" class="error-banner hidden" role="alert"></div>
+        </section>
+    </div>
+</body>
+</html>
