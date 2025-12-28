@@ -57,6 +57,10 @@
                 </div>
                 <p class="hint">サムネイルは選択用の低解像度プレビューです。</p>
             </div>
+            <div class="page-loading hidden" id="pageLoading">読み込み中...</div>
+            <div class="progress hidden" id="pageProgress">
+                <div id="pageProgressFill"></div>
+            </div>
             <div class="page-toolbar">
                 <div class="selection-meta">
                     <span class="label">選択中</span>
@@ -66,6 +70,11 @@
                     <button class="ghost-button" type="button" id="selectAll" disabled>すべて選択</button>
                     <button class="ghost-button" type="button" id="clearSelection" disabled>解除</button>
                     <button class="ghost-button" type="button" id="invertSelection" disabled>反転</button>
+                </div>
+                <div class="page-nav">
+                    <button class="ghost-button" type="button" id="prevPage" disabled>前へ</button>
+                    <span class="page-indicator" id="pageIndicator">- / -</span>
+                    <button class="ghost-button" type="button" id="nextPage" disabled>次へ</button>
                 </div>
             </div>
             <div class="empty-state" id="pageEmpty">PDFを読み込むとページ一覧が表示されます。</div>

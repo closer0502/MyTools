@@ -12,6 +12,12 @@ const selectionCountEl = document.getElementById("selectionCount");
 const selectAllBtn = document.getElementById("selectAll");
 const clearSelectionBtn = document.getElementById("clearSelection");
 const invertSelectionBtn = document.getElementById("invertSelection");
+const pageLoading = document.getElementById("pageLoading");
+const pageProgress = document.getElementById("pageProgress");
+const pageProgressFill = document.getElementById("pageProgressFill");
+const prevPageBtn = document.getElementById("prevPage");
+const nextPageBtn = document.getElementById("nextPage");
+const pageIndicator = document.getElementById("pageIndicator");
 const imageFormat = document.getElementById("imageFormat");
 const qualityRow = document.getElementById("qualityRow");
 const qualityInput = document.getElementById("quality");
@@ -35,7 +41,12 @@ const state = {
     file: null,
     baseName: "",
     isBusy: false,
-    pageItems: []
+    pageItems: [],
+    pager: {
+        current: 0,
+        perPage: 0,
+        total: 0
+    }
 };
 
 const THUMB_MAX_WIDTH = 180;
@@ -69,9 +80,33 @@ function setProgress(current, total) {
     progressFill.style.width = `${percent}%`;
 }
 
+function setPageProgress(current, total) {
+    if (!pageProgress) return;
+    if (total <= 0) {
+        pageProgress.classList.add("hidden");
+        if (pageProgressFill) {
+            pageProgressFill.style.width = "0%";
+        }
+        return;
+    }
+    const percent = Math.min(100, Math.round((current / total) * 100));
+    pageProgress.classList.remove("hidden");
+    if (pageProgressFill) {
+        pageProgressFill.style.width = `${percent}%`;
+    }
+}
+
 function resetProgress() {
     progressBar.classList.add("hidden");
     progressFill.style.width = "0%";
+}
+
+function resetPageProgress() {
+    if (!pageProgress) return;
+    pageProgress.classList.add("hidden");
+    if (pageProgressFill) {
+        pageProgressFill.style.width = "0%";
+    }
 }
 
 function formatBytes(bytes) {
@@ -124,6 +159,7 @@ function setBusy(isBusy) {
     }
     updateFormatUI();
     updateSelectionCount();
+    updatePagination();
 }
 
 function updateFormatUI() {
@@ -141,6 +177,46 @@ function updateColorValue() {
 
 function updateQualityValue() {
     qualityValue.textContent = `${qualityInput.value}%`;
+}
+
+function setPageLoading(isLoading, message = "読み込み中...") {
+    if (!pageLoading) return;
+    pageLoading.textContent = message;
+    pageLoading.classList.toggle("hidden", !isLoading);
+}
+
+function getColumnCount() {
+    const styles = window.getComputedStyle(pageList);
+    const columns = styles.gridTemplateColumns;
+    if (!columns || columns === "none") return 1;
+    return columns.trim().split(/\s+/).length;
+}
+
+function updatePagination() {
+    if (!pageIndicator) return;
+    const totalItems = state.pageItems.length;
+    if (!totalItems) {
+        pageIndicator.textContent = "0 / 0";
+        prevPageBtn.disabled = true;
+        nextPageBtn.disabled = true;
+        return;
+    }
+    const columns = getColumnCount();
+    const perPage = Math.max(1, columns * 2);
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    if (state.pager.current >= totalPages) {
+        state.pager.current = totalPages - 1;
+    }
+    state.pager.perPage = perPage;
+    state.pager.total = totalPages;
+    const startIndex = state.pager.current * perPage;
+    const endIndex = startIndex + perPage;
+    state.pageItems.forEach((item, index) => {
+        item.root.classList.toggle("hidden", index < startIndex || index >= endIndex);
+    });
+    pageIndicator.textContent = `${state.pager.current + 1} / ${totalPages}`;
+    prevPageBtn.disabled = state.isBusy || state.pager.current === 0;
+    nextPageBtn.disabled = state.isBusy || state.pager.current >= totalPages - 1;
 }
 
 function updateScaledSize() {
@@ -249,7 +325,11 @@ async function loadPdf(file) {
         pageList.innerHTML = "";
         state.pageItems = [];
         pageEmpty.classList.add("hidden");
+        pageList.classList.add("hidden");
         updateScaledSize();
+        state.pager.current = 0;
+        setPageLoading(true, "サムネイルを読み込み中...");
+        setPageProgress(0, state.pdfDoc.numPages);
 
         const fragment = document.createDocumentFragment();
         for (let pageNumber = 1; pageNumber <= state.pdfDoc.numPages; pageNumber += 1) {
@@ -270,6 +350,7 @@ async function loadPdf(file) {
             `;
             fragment.appendChild(listItem);
             state.pageItems.push({
+                root: listItem,
                 checkbox: listItem.querySelector("input"),
                 meta: listItem.querySelector("[data-meta]"),
                 placeholder: listItem.querySelector(".thumb-placeholder"),
@@ -293,13 +374,21 @@ async function loadPdf(file) {
                 item.size = { width, height };
                 updateScaledSize();
             }
-            setProgress(pageNumber, state.pageItems.length);
+            setPageProgress(pageNumber, state.pageItems.length);
         }
+        setPageLoading(false);
+        setTimeout(resetPageProgress, 400);
+        pageList.classList.remove("hidden");
+        requestAnimationFrame(updatePagination);
         setStatus("書き出し準備完了。");
         setTimeout(resetProgress, 400);
     } catch (error) {
         showError("PDFの読み込みに失敗しました。サイズの小さいPDFで試してください。");
         setStatus("読み込みに失敗しました。");
+        setPageLoading(false);
+        resetPageProgress();
+        pageList.classList.add("hidden");
+        pageEmpty.classList.remove("hidden");
     } finally {
         setBusy(false);
     }
@@ -397,9 +486,12 @@ function resetAll() {
     pageCountEl.textContent = "-";
     pageList.innerHTML = "";
     pageEmpty.classList.remove("hidden");
+    pageList.classList.add("hidden");
     state.pageItems = [];
     state.baseName = "";
     filePrefixInput.value = "";
+    setPageLoading(false);
+    resetPageProgress();
     if (state.pdfDoc) {
         state.pdfDoc.destroy();
     }
@@ -407,6 +499,7 @@ function resetAll() {
     state.file = null;
     updateSelectionCount();
     updateScaledSize();
+    updatePagination();
 }
 
 fileSelect.addEventListener("click", () => fileInput.click());
@@ -463,6 +556,20 @@ invertSelectionBtn.addEventListener("click", () => {
     updateSelectionCount();
 });
 
+prevPageBtn.addEventListener("click", () => {
+    if (state.pager.current > 0) {
+        state.pager.current -= 1;
+        updatePagination();
+    }
+});
+
+nextPageBtn.addEventListener("click", () => {
+    if (state.pager.current < state.pager.total - 1) {
+        state.pager.current += 1;
+        updatePagination();
+    }
+});
+
 convertSelectedBtn.addEventListener("click", () => {
     const pages = getSelectedPages();
     convertPages(pages, false);
@@ -481,8 +588,16 @@ qualityInput.addEventListener("input", updateQualityValue);
 scaleSelect.addEventListener("change", updateScaledSize);
 bgColorInput.addEventListener("input", updateColorValue);
 
+if (typeof ResizeObserver !== "undefined") {
+    const pageListObserver = new ResizeObserver(() => updatePagination());
+    pageListObserver.observe(pageList);
+} else {
+    window.addEventListener("resize", updatePagination);
+}
+
 updateFormatUI();
 updateQualityValue();
 updateColorValue();
 updateSelectionCount();
 updateScaledSize();
+updatePagination();
