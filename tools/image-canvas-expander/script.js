@@ -42,7 +42,6 @@
     };
 
     const formatDims = (w, h) => `${Math.round(w)} x ${Math.round(h)} px`;
-    const formatType = (type) => type?.replace("image/", "").toUpperCase() || "-";
     const toInt = (value, fallback = 0) => {
         const num = Number(value);
         if (!Number.isFinite(num)) return fallback;
@@ -70,11 +69,8 @@
         fileName: $("fileName"),
         fileDims: $("fileDims"),
         inputInfo: $("inputInfo"),
-        outputInfo: $("outputInfo"),
         outputSize: $("outputSize"),
         paddingInfo: $("paddingInfo"),
-        formatBadge: $("formatBadge"),
-        outputImage: $("outputImage"),
         statusText: $("statusText"),
         statusDot: $("status").querySelector(".status-dot"),
         outputWidth: $("outputWidth"),
@@ -83,6 +79,8 @@
         padRight: $("padRight"),
         padTop: $("padTop"),
         padBottom: $("padBottom"),
+        padCustom: $("padCustom"),
+        padApplyBtn: $("padApplyBtn"),
         bgColor: $("bgColor"),
         downloadBtn: $("downloadBtn"),
         resetBtn: $("resetBtn"),
@@ -122,6 +120,8 @@
             els.padRight,
             els.padTop,
             els.padBottom,
+            els.padCustom,
+            els.padApplyBtn,
             els.bgColor,
             ...els.alignButtons,
             ...els.presetButtons,
@@ -231,18 +231,8 @@
     };
 
     const updateOutputPreview = () => {
-        if (!state.image) {
-            els.outputImage.src = "";
-            els.outputInfo.textContent = "-";
-            els.formatBadge.textContent = "-";
-            els.downloadBtn.disabled = true;
-            return;
-        }
+        if (!state.image) return;
         drawOutputCanvas();
-        els.outputImage.src = outputCanvas.toDataURL(state.fileType || "image/png");
-        els.outputInfo.textContent = formatDims(state.output.width, state.output.height);
-        els.formatBadge.textContent = formatType(state.fileType);
-        els.downloadBtn.disabled = false;
     };
 
     const scheduleOutputPreview = (immediate = false) => {
@@ -322,7 +312,6 @@
             els.fileName.textContent = file.name || "-";
             els.fileDims.textContent = formatDims(img.naturalWidth, img.naturalHeight);
             els.inputInfo.textContent = formatDims(img.naturalWidth, img.naturalHeight);
-            els.formatBadge.textContent = formatType(state.fileType);
             setStatus("ドラッグで余白を追加できます", "ok");
             setControlsEnabled(true);
             fitEditorCanvas();
@@ -375,6 +364,12 @@
         const width = state.image.naturalWidth + pad * 2;
         const height = state.image.naturalHeight + pad * 2;
         commitState({ width, height, offsetX: pad, offsetY: pad }, { immediatePreview: true });
+    };
+
+    const applyCustomPadding = () => {
+        if (!state.image) return;
+        const padValue = Math.max(0, toInt(els.padCustom.value, 0));
+        applyPaddingPreset(padValue);
     };
 
     const downloadOutput = () => {
@@ -476,6 +471,8 @@
         active: false,
         mode: null,
         start: null,
+        startScale: 1,
+        startRect: null,
         startPadding: null,
         startOffset: null,
         startOutput: null,
@@ -487,10 +484,13 @@
         const handle = hitHandle(pointer);
         const mode = handle || (isInsideImage(pointer) ? "move" : null);
         if (!mode) return;
+        const rect = editorCanvas.getBoundingClientRect();
         dragState = {
             active: true,
             mode,
             start: pointer,
+            startScale: state.scale,
+            startRect: rect,
             startPadding: getPadding(),
             startOffset: { ...state.offset },
             startOutput: { ...state.output },
@@ -501,9 +501,11 @@
 
     const dragMove = (evt) => {
         if (!dragState.active || !state.image) return;
-        const pointer = getPointer(evt);
-        const dx = pointer.ix - dragState.start.ix;
-        const dy = pointer.iy - dragState.start.iy;
+        const rect = dragState.startRect;
+        const px = evt.clientX - rect.left;
+        const py = evt.clientY - rect.top;
+        const dx = px / dragState.startScale - dragState.start.ix;
+        const dy = py / dragState.startScale - dragState.start.iy;
         const iw = state.image.naturalWidth;
         const ih = state.image.naturalHeight;
         const { left, right, top, bottom } = dragState.startPadding;
@@ -526,7 +528,7 @@
                 break;
             }
             case "w": {
-                const nextLeft = Math.max(0, left + dx);
+                const nextLeft = Math.max(0, left - dx);
                 const width = iw + nextLeft + right;
                 commitState(
                     { width, height: dragState.startOutput.height, offsetX: nextLeft, offsetY: dragState.startOffset.y },
@@ -544,7 +546,7 @@
                 break;
             }
             case "n": {
-                const nextTop = Math.max(0, top + dy);
+                const nextTop = Math.max(0, top - dy);
                 const height = ih + nextTop + bottom;
                 commitState(
                     { width: dragState.startOutput.width, height, offsetX: dragState.startOffset.x, offsetY: nextTop },
@@ -562,8 +564,8 @@
                 break;
             }
             case "nw": {
-                const nextLeft = Math.max(0, left + dx);
-                const nextTop = Math.max(0, top + dy);
+                const nextLeft = Math.max(0, left - dx);
+                const nextTop = Math.max(0, top - dy);
                 const width = iw + nextLeft + right;
                 const height = ih + nextTop + bottom;
                 commitState({ width, height, offsetX: nextLeft, offsetY: nextTop }, { immediatePreview: false });
@@ -571,14 +573,14 @@
             }
             case "ne": {
                 const nextRight = Math.max(0, right + dx);
-                const nextTop = Math.max(0, top + dy);
+                const nextTop = Math.max(0, top - dy);
                 const width = iw + left + nextRight;
                 const height = ih + nextTop + bottom;
                 commitState({ width, height, offsetX: left, offsetY: nextTop }, { immediatePreview: false });
                 break;
             }
             case "sw": {
-                const nextLeft = Math.max(0, left + dx);
+                const nextLeft = Math.max(0, left - dx);
                 const nextBottom = Math.max(0, bottom + dy);
                 const width = iw + nextLeft + right;
                 const height = ih + top + nextBottom;
@@ -625,6 +627,12 @@
 
     els.presetButtons.forEach((btn) => {
         btn.addEventListener("click", () => applyPaddingPreset(Number(btn.dataset.pad) || 0));
+    });
+
+    els.padApplyBtn.addEventListener("click", applyCustomPadding);
+    els.padCustom.addEventListener("keydown", (evt) => {
+        if (evt.key !== "Enter") return;
+        applyCustomPadding();
     });
 
     els.bgModeRadios.forEach((radio) => {

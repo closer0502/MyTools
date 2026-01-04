@@ -119,6 +119,12 @@
                                 <button class="ghost-button" type="button" data-pad="128">全方向 128px</button>
                                 <button class="ghost-button" type="button" data-pad="256">全方向 256px</button>
                             </div>
+                            <div class="preset-custom">
+                                <label>数値で指定
+                                    <input type="number" id="padCustom" min="0" step="1" placeholder="512">
+                                </label>
+                                <button class="ghost-button" type="button" id="padApplyBtn">適用</button>
+                            </div>
                         </div>
 
                         <div class="control">
@@ -158,23 +164,9 @@
                                 </div>
                                 <span class="hint">ハンドルとドラッグで操作</span>
                             </div>
-                            <div class="canvas-frame">
+                            <div class="canvas-frame canvas-frame--square">
                                 <div class="checkerboard"></div>
                                 <canvas id="editorCanvas"></canvas>
-                            </div>
-                        </div>
-
-                        <div class="preview-block">
-                            <div class="canvas-header">
-                                <div>
-                                    <span class="section-label">出力プレビュー</span>
-                                    <div class="muted mono" id="outputInfo">-</div>
-                                </div>
-                                <div class="pill" id="formatBadge">-</div>
-                            </div>
-                            <div class="canvas-frame">
-                                <div class="checkerboard"></div>
-                                <img id="outputImage" alt="拡張後のプレビュー">
                             </div>
                         </div>
                     </div>

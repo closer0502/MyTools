@@ -302,6 +302,22 @@ label input[type="color"] {
     flex-wrap: wrap;
 }
 
+.preset-custom {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.preset-custom label {
+    flex: 1;
+    min-width: 160px;
+}
+
+.preset-custom .ghost-button {
+    white-space: nowrap;
+}
+
 .toggle-row {
     display: flex;
     gap: 16px;
@@ -381,6 +397,10 @@ label input[type="color"] {
     background: #0d1525;
     overflow: hidden;
     min-height: 260px;
+}
+
+.canvas-frame--square {
+    border-radius: 0;
 }
 
 .canvas-frame img,
