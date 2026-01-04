@@ -371,6 +371,23 @@ label input[type="color"] {
     color: var(--muted);
 }
 
+.color-row--highlight {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(56, 189, 248, 0.5);
+    background: rgba(56, 189, 248, 0.08);
+}
+
+.color-row--highlight .color-label {
+    font-weight: 700;
+    color: var(--text);
+}
+
+.color-row--highlight .color-note {
+    font-size: 12px;
+    color: var(--muted);
+}
+
 .control-actions {
     gap: 12px;
 }
