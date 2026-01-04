@@ -154,17 +154,18 @@
         const h = editorCanvas.height;
         const handleSize = 10;
         const points = [
-            { x: 0, y: 0 },
-            { x: w / 2, y: 0 },
-            { x: w, y: 0 },
-            { x: w, y: h / 2 },
-            { x: w, y: h },
-            { x: w / 2, y: h },
-            { x: 0, y: h },
-            { x: 0, y: h / 2 },
+            { x: 0, y: 0, kind: "corner" },
+            { x: w / 2, y: 0, kind: "edge" },
+            { x: w, y: 0, kind: "corner" },
+            { x: w, y: h / 2, kind: "edge" },
+            { x: w, y: h, kind: "corner" },
+            { x: w / 2, y: h, kind: "edge" },
+            { x: 0, y: h, kind: "corner" },
+            { x: 0, y: h / 2, kind: "edge" },
         ];
-        editorCtx.fillStyle = "rgba(34, 211, 238, 0.9)";
         points.forEach((p) => {
+            editorCtx.fillStyle =
+                p.kind === "edge" ? "rgba(244, 114, 182, 0.9)" : "rgba(34, 211, 238, 0.9)";
             editorCtx.fillRect(p.x - handleSize / 2, p.y - handleSize / 2, handleSize, handleSize);
         });
     };
@@ -312,7 +313,7 @@
             els.fileName.textContent = file.name || "-";
             els.fileDims.textContent = formatDims(img.naturalWidth, img.naturalHeight);
             els.inputInfo.textContent = formatDims(img.naturalWidth, img.naturalHeight);
-            setStatus("ドラッグで余白を追加できます", "ok");
+            setStatus("準備完了", "ok");
             setControlsEnabled(true);
             fitEditorCanvas();
             syncInputs();
