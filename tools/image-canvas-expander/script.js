@@ -299,6 +299,10 @@
                 return "#ffffff";
             case "black":
                 return "#000000";
+            case "green":
+                return "#00ff00";
+            case "blue":
+                return "#0000ff";
             case "custom":
                 return state.background.color;
             default:
