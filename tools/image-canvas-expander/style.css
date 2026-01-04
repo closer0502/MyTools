@@ -249,6 +249,37 @@ body {
     gap: 10px;
 }
 
+.inputs-inline {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.inputs-pairs {
+    display: grid;
+    gap: 8px;
+}
+
+.input-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.inline-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.inline-field input[type="number"] {
+    margin-top: 0;
+    width: 120px;
+}
+
 label input[type="number"],
 label input[type="color"] {
     width: 100%;

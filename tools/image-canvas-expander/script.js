@@ -60,7 +60,7 @@
         scale: 1,
         output: { width: 0, height: 0 },
         offset: { x: 0, y: 0 },
-        background: { mode: "transparent", color: "#0f172a" },
+        background: { mode: "transparent", color: "#ffffff" },
     };
 
     const els = {
@@ -186,8 +186,9 @@
         const padding = getPadding();
 
         editorCtx.clearRect(0, 0, editorCanvas.width, editorCanvas.height);
-        if (state.background.mode === "solid") {
-            editorCtx.fillStyle = state.background.color;
+        const bgFill = getBackgroundFill();
+        if (bgFill) {
+            editorCtx.fillStyle = bgFill;
             editorCtx.fillRect(0, 0, editorCanvas.width, editorCanvas.height);
         }
 
@@ -225,8 +226,9 @@
         outputCanvas.height = state.output.height;
         const ctx = outputCanvas.getContext("2d");
         ctx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-        if (state.background.mode === "solid") {
-            ctx.fillStyle = state.background.color;
+        const bgFill = getBackgroundFill();
+        if (bgFill) {
+            ctx.fillStyle = bgFill;
             ctx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
         }
         ctx.drawImage(state.image, state.offset.x, state.offset.y);
@@ -291,9 +293,22 @@
         scheduleOutputPreview(opts.immediatePreview);
     };
 
+    const getBackgroundFill = () => {
+        switch (state.background.mode) {
+            case "white":
+                return "#ffffff";
+            case "black":
+                return "#000000";
+            case "custom":
+                return state.background.color;
+            default:
+                return null;
+        }
+    };
+
     const updateBackgroundUI = () => {
-        const isSolid = state.background.mode === "solid";
-        els.bgColor.disabled = !isSolid;
+        const isCustom = state.background.mode === "custom";
+        els.bgColor.disabled = !isCustom;
     };
 
     const handleFile = async (file, error) => {

@@ -57,11 +57,11 @@
                                 <span>キャンバスサイズ</span>
                                 <span class="muted mono" id="outputSize">-</span>
                             </div>
-                            <div class="inputs-quad">
-                                <label>幅
+                            <div class="inputs-inline">
+                                <label class="inline-field">幅
                                     <input type="number" id="outputWidth" min="1" step="1">
                                 </label>
-                                <label>高さ
+                                <label class="inline-field">高さ
                                     <input type="number" id="outputHeight" min="1" step="1">
                                 </label>
                             </div>
@@ -73,39 +73,25 @@
                                 <span>余白 (px)</span>
                                 <span class="muted mono" id="paddingInfo">-</span>
                             </div>
-                            <div class="inputs-quad">
-                                <label>左
-                                    <input type="number" id="padLeft" min="0" step="1">
-                                </label>
-                                <label>右
-                                    <input type="number" id="padRight" min="0" step="1">
-                                </label>
-                                <label>上
-                                    <input type="number" id="padTop" min="0" step="1">
-                                </label>
-                                <label>下
-                                    <input type="number" id="padBottom" min="0" step="1">
-                                </label>
+                            <div class="inputs-pairs">
+                                <div class="input-row">
+                                    <label class="inline-field">左
+                                        <input type="number" id="padLeft" min="0" step="1">
+                                    </label>
+                                    <label class="inline-field">右
+                                        <input type="number" id="padRight" min="0" step="1">
+                                    </label>
+                                </div>
+                                <div class="input-row">
+                                    <label class="inline-field">上
+                                        <input type="number" id="padTop" min="0" step="1">
+                                    </label>
+                                    <label class="inline-field">下
+                                        <input type="number" id="padBottom" min="0" step="1">
+                                    </label>
+                                </div>
                             </div>
                             <p class="hint">ドラッグでも数値でも余白を調整できます。</p>
-                        </div>
-
-                        <div class="control">
-                            <div class="label-row">
-                                <span>配置プリセット</span>
-                                <span class="muted">画像を一括配置</span>
-                            </div>
-                            <div class="align-grid" id="alignGrid">
-                                <button type="button" class="align-button" data-align="nw" aria-label="左上">↖</button>
-                                <button type="button" class="align-button" data-align="n" aria-label="上">↑</button>
-                                <button type="button" class="align-button" data-align="ne" aria-label="右上">↗</button>
-                                <button type="button" class="align-button" data-align="w" aria-label="左">←</button>
-                                <button type="button" class="align-button" data-align="c" aria-label="中央">•</button>
-                                <button type="button" class="align-button" data-align="e" aria-label="右">→</button>
-                                <button type="button" class="align-button" data-align="sw" aria-label="左下">↙</button>
-                                <button type="button" class="align-button" data-align="s" aria-label="下">↓</button>
-                                <button type="button" class="align-button" data-align="se" aria-label="右下">↘</button>
-                            </div>
                         </div>
 
                         <div class="control">
@@ -129,15 +115,35 @@
 
                         <div class="control">
                             <div class="label-row">
+                                <span>配置プリセット</span>
+                                <span class="muted">画像を一括配置</span>
+                            </div>
+                            <div class="align-grid" id="alignGrid">
+                                <button type="button" class="align-button" data-align="nw" aria-label="左上">↖</button>
+                                <button type="button" class="align-button" data-align="n" aria-label="上">↑</button>
+                                <button type="button" class="align-button" data-align="ne" aria-label="右上">↗</button>
+                                <button type="button" class="align-button" data-align="w" aria-label="左">←</button>
+                                <button type="button" class="align-button" data-align="c" aria-label="中央">•</button>
+                                <button type="button" class="align-button" data-align="e" aria-label="右">→</button>
+                                <button type="button" class="align-button" data-align="sw" aria-label="左下">↙</button>
+                                <button type="button" class="align-button" data-align="s" aria-label="下">↓</button>
+                                <button type="button" class="align-button" data-align="se" aria-label="右下">↘</button>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
                                 <span>背景</span>
                                 <span class="muted">透明/単色</span>
                             </div>
                             <div class="toggle-row">
                                 <label><input type="radio" name="bgMode" value="transparent" checked> 透明</label>
-                                <label><input type="radio" name="bgMode" value="solid"> 単色</label>
+                                <label><input type="radio" name="bgMode" value="white"> 白</label>
+                                <label><input type="radio" name="bgMode" value="black"> 黒</label>
+                                <label><input type="radio" name="bgMode" value="custom"> カスタム</label>
                             </div>
-                            <label class="color-row">背景色
-                                <input type="color" id="bgColor" value="#0f172a">
+                            <label class="color-row">カスタム色
+                                <input type="color" id="bgColor" value="#ffffff">
                             </label>
                         </div>
 
