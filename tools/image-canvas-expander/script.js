@@ -49,6 +49,7 @@
     };
 
     const editorCanvas = $("editorCanvas");
+    const editorFrame = $("editorFrame");
     const editorCtx = editorCanvas.getContext("2d");
     const outputCanvas = document.createElement("canvas");
 
@@ -139,7 +140,7 @@
             editorCanvas.height = 0;
             return;
         }
-        const maxW = 920;
+        const maxW = editorFrame?.clientWidth || 560;
         const maxH = 640;
         const ratio = Math.min(maxW / state.output.width, maxH / state.output.height, 1);
         state.scale = ratio;

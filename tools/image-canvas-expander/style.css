@@ -111,7 +111,7 @@ body {
 }
 
 .layout--split {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) 560px;
     align-items: start;
 }
 
