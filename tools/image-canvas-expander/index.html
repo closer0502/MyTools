@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Canvas Expander</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">画像キャンバス拡張</span>
+            <h1>Image Canvas Expander</h1>
+            <p class="lede">クロップの逆方向。画像の外側に余白を追加して、インペイントやレイアウト用の拡張キャンバスを作ります。</p>
+            <div class="steps">
+                <span class="step-pill">ドラッグ: 画像移動</span>
+                <span class="step-pill">ハンドル: 余白調整</span>
+                <span class="step-pill">数値入力: 精密指定</span>
+            </div>
+        </header>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">Canvas</span>
+                    <h2>拡張キャンバス</h2>
+                </div>
+                <p class="hint">キャンバスの外枠をドラッグして余白を追加。画像はドラッグで配置できます。</p>
+            </div>
+
+            <div class="layout layout--split">
+                <div class="panel">
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-inner">
+                            <p class="primary">ここに画像をドロップ</p>
+                            <p class="secondary">またはファイルを選択（PNG / JPG / WEBP）</p>
+                            <button class="ghost-button" type="button" id="fileButton">ファイルを選択</button>
+                            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" hidden>
+                            <p class="hint small">入力と出力のファイル形式は同じです。</p>
+                        </div>
+                    </div>
+
+                    <div class="file-meta">
+                        <div class="meta-row">
+                            <span class="label">ファイル</span>
+                            <span class="value" id="fileName">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">解像度</span>
+                            <span class="value" id="fileDims">-</span>
+                        </div>
+                    </div>
+
+                    <div class="control-grid">
+                        <div class="control">
+                            <div class="label-row">
+                                <span>キャンバスサイズ</span>
+                                <span class="muted mono" id="outputSize">-</span>
+                            </div>
+                            <div class="inputs-quad">
+                                <label>幅
+                                    <input type="number" id="outputWidth" min="1" step="1">
+                                </label>
+                                <label>高さ
+                                    <input type="number" id="outputHeight" min="1" step="1">
+                                </label>
+                            </div>
+                            <p class="hint">画像より小さくはできません。余白が0になるまで縮小できます。</p>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>余白 (px)</span>
+                                <span class="muted mono" id="paddingInfo">-</span>
+                            </div>
+                            <div class="inputs-quad">
+                                <label>左
+                                    <input type="number" id="padLeft" min="0" step="1">
+                                </label>
+                                <label>右
+                                    <input type="number" id="padRight" min="0" step="1">
+                                </label>
+                                <label>上
+                                    <input type="number" id="padTop" min="0" step="1">
+                                </label>
+                                <label>下
+                                    <input type="number" id="padBottom" min="0" step="1">
+                                </label>
+                            </div>
+                            <p class="hint">ドラッグでも数値でも余白を調整できます。</p>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>配置プリセット</span>
+                                <span class="muted">画像を一括配置</span>
+                            </div>
+                            <div class="align-grid" id="alignGrid">
+                                <button type="button" class="align-button" data-align="nw" aria-label="左上">↖</button>
+                                <button type="button" class="align-button" data-align="n" aria-label="上">↑</button>
+                                <button type="button" class="align-button" data-align="ne" aria-label="右上">↗</button>
+                                <button type="button" class="align-button" data-align="w" aria-label="左">←</button>
+                                <button type="button" class="align-button" data-align="c" aria-label="中央">•</button>
+                                <button type="button" class="align-button" data-align="e" aria-label="右">→</button>
+                                <button type="button" class="align-button" data-align="sw" aria-label="左下">↙</button>
+                                <button type="button" class="align-button" data-align="s" aria-label="下">↓</button>
+                                <button type="button" class="align-button" data-align="se" aria-label="右下">↘</button>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>余白プリセット</span>
+                                <span class="muted">全方向一括</span>
+                            </div>
+                            <div class="preset-row" id="paddingPresets">
+                                <button class="ghost-button" type="button" data-pad="32">全方向 32px</button>
+                                <button class="ghost-button" type="button" data-pad="64">全方向 64px</button>
+                                <button class="ghost-button" type="button" data-pad="128">全方向 128px</button>
+                                <button class="ghost-button" type="button" data-pad="256">全方向 256px</button>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>背景</span>
+                                <span class="muted">透明/単色</span>
+                            </div>
+                            <div class="toggle-row">
+                                <label><input type="radio" name="bgMode" value="transparent" checked> 透明</label>
+                                <label><input type="radio" name="bgMode" value="solid"> 単色</label>
+                            </div>
+                            <label class="color-row">背景色
+                                <input type="color" id="bgColor" value="#0f172a">
+                            </label>
+                        </div>
+
+                        <div class="control control-actions">
+                            <div class="status-box" id="status">
+                                <span class="status-dot"></span>
+                                <span id="statusText">ファイル待機中</span>
+                            </div>
+                            <div class="button-row">
+                                <button class="pill-button" type="button" id="downloadBtn" disabled>拡張画像を保存</button>
+                                <button class="ghost-button" type="button" id="resetBtn" disabled>リセット</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="preview-stack">
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">編集キャンバス</span>
+                                    <div class="muted mono" id="inputInfo">-</div>
+                                </div>
+                                <span class="hint">ハンドルとドラッグで操作</span>
+                            </div>
+                            <div class="canvas-frame">
+                                <div class="checkerboard"></div>
+                                <canvas id="editorCanvas"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">出力プレビュー</span>
+                                    <div class="muted mono" id="outputInfo">-</div>
+                                </div>
+                                <div class="pill" id="formatBadge">-</div>
+                            </div>
+                            <div class="canvas-frame">
+                                <div class="checkerboard"></div>
+                                <img id="outputImage" alt="拡張後のプレビュー">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
