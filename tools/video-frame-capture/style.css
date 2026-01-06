@@ -181,6 +181,49 @@ body {
     transition: border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
 
+.step-button {
+    position: relative;
+    overflow: hidden;
+    min-width: 120px;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.02) 0%,
+        rgba(255, 255, 255, 0.02) 49.5%,
+        rgba(255, 255, 255, 0.08) 50%,
+        rgba(255, 255, 255, 0.02) 50.5%,
+        rgba(255, 255, 255, 0.02) 100%
+    );
+}
+
+.step-button::before,
+.step-button::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    background: rgba(56, 189, 248, 0.18);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+
+.step-button::before {
+    left: 0;
+}
+
+.step-button::after {
+    right: 0;
+}
+
+.step-button.is-left::before {
+    opacity: 1;
+}
+
+.step-button.is-right::after {
+    opacity: 1;
+}
+
 .ghost-button:hover {
     border-color: rgba(56, 189, 248, 0.6);
     transform: translateY(-1px);

@@ -17,8 +17,7 @@ const fpsInput = document.getElementById("fpsInput");
 const timeSlider = document.getElementById("timeSlider");
 const currentTimeLabel = document.getElementById("currentTimeLabel");
 const currentFrameLabel = document.getElementById("currentFrameLabel");
-const prevFrameBtn = document.getElementById("prevFrameBtn");
-const nextFrameBtn = document.getElementById("nextFrameBtn");
+const stepButtons = Array.from(document.querySelectorAll(".step-button"));
 
 const formatSelect = document.getElementById("formatSelect");
 const qualityRange = document.getElementById("qualityRange");
@@ -42,8 +41,7 @@ const controls = [
     timecodeInput,
     fpsInput,
     timeSlider,
-    prevFrameBtn,
-    nextFrameBtn,
+    ...stepButtons,
     formatSelect,
     qualityRange,
     captureBtn,
@@ -321,11 +319,11 @@ const handleRangeToggle = () => {
     updateRangeLabels();
 };
 
-const handleFrameStep = async (direction) => {
+const handleFrameStep = async (direction, frames) => {
     if (!isReady || isBusy) {
         return;
     }
-    const step = 1 / getFps();
+    const step = frames / getFps();
     const nextTime = video.currentTime + direction * step;
     await seekTo(nextTime);
     drawFrame();
@@ -493,8 +491,28 @@ fpsInput.addEventListener("input", () => {
     updateTimeLabels();
 });
 
-prevFrameBtn.addEventListener("click", () => handleFrameStep(-1));
-nextFrameBtn.addEventListener("click", () => handleFrameStep(1));
+stepButtons.forEach((button) => {
+    button.addEventListener("mousemove", (event) => {
+        const rect = button.getBoundingClientRect();
+        const isLeft = event.clientX < rect.left + rect.width / 2;
+        button.classList.toggle("is-left", isLeft);
+        button.classList.toggle("is-right", !isLeft);
+    });
+
+    button.addEventListener("mouseleave", () => {
+        button.classList.remove("is-left", "is-right");
+    });
+
+    button.addEventListener("click", (event) => {
+        if (!isReady || isBusy) {
+            return;
+        }
+        const rect = button.getBoundingClientRect();
+        const direction = event.clientX < rect.left + rect.width / 2 ? -1 : 1;
+        const step = Number(button.dataset.step) || 1;
+        handleFrameStep(direction, step);
+    });
+});
 
 formatSelect.addEventListener("change", () => {
     updateFormatBadge();
