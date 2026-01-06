@@ -394,14 +394,22 @@ const handleRangeExport = async () => {
     setControlsEnabled(true);
 };
 
-fileButton.addEventListener("click", () => fileInput.click());
+fileButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    fileInput.click();
+});
 
 fileInput.addEventListener("change", (event) => {
     const file = event.target.files[0];
     handleFile(file);
 });
 
-dropZone.addEventListener("click", () => fileInput.click());
+dropZone.addEventListener("click", (event) => {
+    if (event.target.closest("#fileButton")) {
+        return;
+    }
+    fileInput.click();
+});
 
 dropZone.addEventListener("dragover", (event) => {
     event.preventDefault();
