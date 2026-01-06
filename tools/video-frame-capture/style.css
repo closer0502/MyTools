@@ -523,6 +523,10 @@ canvas {
     color: var(--muted);
 }
 
+.is-hidden {
+    display: none !important;
+}
+
 @media (max-width: 980px) {
     .layout--split {
         grid-template-columns: 1fr;

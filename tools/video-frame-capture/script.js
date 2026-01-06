@@ -131,6 +131,7 @@ const setControlsEnabled = (enabled) => {
         handleRangeToggle();
         updateQualityField();
     }
+    updateExportButtonsVisibility();
 };
 
 const syncSliderStep = () => {
@@ -159,6 +160,12 @@ const updateQualityField = () => {
     const isLossy = formatSelect.value !== "image/png";
     qualityRange.disabled = !isLossy || !isReady || isBusy;
     qualityField.style.opacity = isLossy ? "1" : "0.5";
+};
+
+const updateExportButtonsVisibility = () => {
+    const isRange = rangeToggle.checked && isReady;
+    captureBtn.classList.toggle("is-hidden", isRange);
+    exportRangeBtn.classList.toggle("is-hidden", !isRange);
 };
 
 const updateTimeLabels = () => {
@@ -316,7 +323,9 @@ const handleRangeToggle = () => {
     endFrameInput.disabled = !enabled;
     setEndBtn.disabled = !enabled;
     exportRangeBtn.disabled = !enabled;
+    captureBtn.disabled = !isReady || isBusy || enabled;
     updateRangeLabels();
+    updateExportButtonsVisibility();
 };
 
 const handleFrameStep = async (direction, frames) => {

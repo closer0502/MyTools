@@ -102,18 +102,15 @@
                                     <input type="range" id="qualityRange" min="0.5" max="1" step="0.01" value="0.92" disabled>
                                 </div>
                             </div>
-                            <div class="button-row">
-                                <button class="pill-button" type="button" id="captureBtn" disabled>このフレームを保存</button>
-                            </div>
                         </div>
 
                         <div class="control">
                             <div class="label-row">
-                                <span>複数フレーム書き出し</span>
+                                <span>フレーム書き出し</span>
                                 <label class="toggle">
                                     <input type="checkbox" id="rangeToggle" disabled>
                                     <span class="toggle-knob"></span>
-                                    <span class="muted">end_frame を有効化</span>
+                                    <span class="muted">複数フレーム書き出し</span>
                                 </label>
                             </div>
                             <div class="range-grid">
@@ -134,6 +131,7 @@
                                 <span class="muted">枚数: <span class="mono" id="rangeCountLabel">0</span></span>
                             </div>
                             <div class="button-row">
+                                <button class="pill-button" type="button" id="captureBtn" disabled>書き出し</button>
                                 <button class="pill-button" type="button" id="exportRangeBtn" disabled>範囲を書き出し (ZIP)</button>
                             </div>
                         </div>
