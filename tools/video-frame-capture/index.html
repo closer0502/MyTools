@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画フレームキャプチャ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Video Utility</span>
+            <h1>動画フレームキャプチャ</h1>
+            <p class="lede">ローカル動画の特定フレームを画像として保存します。</p>
+            <div class="steps">
+                <span class="step-pill">1. 動画を読み込み</span>
+                <span class="step-pill">2. フレームを選択</span>
+                <span class="step-pill">3. 画像を書き出し</span>
+            </div>
+        </header>
+
+        <section class="card">
+            <div class="layout layout--split">
+                <div class="panel">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-label">Video</span>
+                            <h2>動画入力とフレーム指定</h2>
+                        </div>
+                        <p class="hint">対応形式はブラウザ依存（mp4 / webm / ogg など）。フレーム精度はキーフレーム間隔に依存します。</p>
+                    </div>
+
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-inner">
+                            <p class="primary">ここに動画をドロップ</p>
+                            <p class="secondary">またはファイルを選択</p>
+                            <button class="ghost-button" type="button" id="fileButton">動画を選ぶ</button>
+                            <input type="file" id="fileInput" accept="video/*" hidden>
+                            <p class="hint small">ローカル動画のみ対応。外部URLは扱えません。</p>
+                        </div>
+                    </div>
+
+                    <div class="file-meta">
+                        <div class="meta-row">
+                            <span class="label">ファイル名</span>
+                            <span class="value" id="fileName">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">解像度</span>
+                            <span class="value" id="fileResolution">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">長さ</span>
+                            <span class="value mono" id="durationLabel">-</span>
+                        </div>
+                    </div>
+
+                    <div class="control-grid">
+                        <div class="control">
+                            <div class="label-row">
+                                <span>フレーム選択</span>
+                                <span class="muted">タイムコード / スライダー / コマ送り</span>
+                            </div>
+                            <div class="inputs-row">
+                                <label>タイムコード
+                                    <input type="text" id="timecodeInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                                <label>FPS
+                                    <input type="number" id="fpsInput" min="1" max="120" step="1" value="30" disabled>
+                                </label>
+                            </div>
+                            <input type="range" id="timeSlider" min="0" max="0" step="0.001" value="0" disabled>
+                            <div class="time-readout">
+                                <span class="mono" id="currentTimeLabel">00:00:00.000</span>
+                                <span class="mono" id="currentFrameLabel">0 frame</span>
+                            </div>
+                            <div class="button-row">
+                                <button class="ghost-button" type="button" id="prevFrameBtn" disabled>前のコマ</button>
+                                <button class="ghost-button" type="button" id="nextFrameBtn" disabled>次のコマ</button>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>出力設定</span>
+                                <span class="muted">PNG / JPEG / WebP</span>
+                            </div>
+                            <div class="output-grid">
+                                <label>形式
+                                    <select id="formatSelect" disabled>
+                                        <option value="image/png">PNG</option>
+                                        <option value="image/jpeg">JPEG</option>
+                                        <option value="image/webp">WebP</option>
+                                    </select>
+                                </label>
+                                <div class="quality-field" id="qualityField">
+                                    <span class="label-row">
+                                        <span>品質</span>
+                                        <span class="range-value" id="qualityValue">0.92</span>
+                                    </span>
+                                    <input type="range" id="qualityRange" min="0.5" max="1" step="0.01" value="0.92" disabled>
+                                </div>
+                            </div>
+                            <div class="button-row">
+                                <button class="pill-button" type="button" id="captureBtn" disabled>このフレームを保存</button>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>複数フレーム書き出し</span>
+                                <label class="toggle">
+                                    <input type="checkbox" id="rangeToggle" disabled>
+                                    <span class="toggle-knob"></span>
+                                    <span class="muted">end_frame を有効化</span>
+                                </label>
+                            </div>
+                            <div class="range-grid">
+                                <label>開始フレーム
+                                    <input type="number" id="startFrameInput" min="0" step="1" value="0" disabled>
+                                </label>
+                                <label>終了フレーム
+                                    <input type="number" id="endFrameInput" min="0" step="1" value="0" disabled>
+                                </label>
+                            </div>
+                            <div class="range-actions">
+                                <button class="ghost-button" type="button" id="setStartBtn" disabled>現在を開始に設定</button>
+                                <button class="ghost-button" type="button" id="setEndBtn" disabled>現在を終了に設定</button>
+                            </div>
+                            <div class="range-meta">
+                                <span class="muted">開始: <span class="mono" id="startTimeLabel">00:00:00.000</span></span>
+                                <span class="muted">終了: <span class="mono" id="endTimeLabel">-</span></span>
+                                <span class="muted">枚数: <span class="mono" id="rangeCountLabel">0</span></span>
+                            </div>
+                            <div class="button-row">
+                                <button class="pill-button" type="button" id="exportRangeBtn" disabled>範囲を書き出し (ZIP)</button>
+                            </div>
+                        </div>
+
+                        <div class="status-box" id="statusBox">
+                            <span class="status-dot"></span>
+                            <span id="statusText">動画を読み込んでください。</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="preview-stack">
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">Preview</span>
+                                    <div class="muted mono" id="videoInfo">-</div>
+                                </div>
+                            </div>
+                            <div class="video-frame">
+                                <video id="video" controls playsinline></video>
+                            </div>
+                        </div>
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">Frame</span>
+                                    <div class="muted mono" id="frameInfo">-</div>
+                                </div>
+                                <div class="pill" id="formatBadge">PNG</div>
+                            </div>
+                            <div class="canvas-frame">
+                                <div class="checkerboard"></div>
+                                <canvas id="frameCanvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
