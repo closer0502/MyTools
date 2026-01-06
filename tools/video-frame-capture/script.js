@@ -8,6 +8,7 @@ const frameContext = frameCanvas.getContext("2d");
 const fileNameLabel = document.getElementById("fileName");
 const fileResolutionLabel = document.getElementById("fileResolution");
 const durationLabel = document.getElementById("durationLabel");
+const fileFpsLabel = document.getElementById("fileFps");
 const videoInfo = document.getElementById("videoInfo");
 const frameInfo = document.getElementById("frameInfo");
 const formatBadge = document.getElementById("formatBadge");
@@ -57,6 +58,7 @@ let objectUrl = null;
 let currentFile = null;
 let isReady = false;
 let isBusy = false;
+let detectedFps = null;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -102,6 +104,25 @@ const parseTimecode = (value) => {
 const getFps = () => {
     const fps = Number(fpsInput.value);
     return Number.isFinite(fps) && fps > 0 ? fps : 30;
+};
+
+const detectVideoFps = () => {
+    try {
+        if (!video.captureStream) {
+            return null;
+        }
+        const stream = video.captureStream();
+        const track = stream.getVideoTracks()[0];
+        if (!track) {
+            return null;
+        }
+        const settings = track.getSettings();
+        const fps = settings && Number.isFinite(settings.frameRate) ? settings.frameRate : null;
+        track.stop();
+        return fps;
+    } catch (error) {
+        return null;
+    }
 };
 
 const getMaxFrame = () => {
@@ -278,11 +299,13 @@ const updateFileMeta = () => {
         fileNameLabel.textContent = "-";
         fileResolutionLabel.textContent = "-";
         durationLabel.textContent = "-";
+        fileFpsLabel.textContent = "-";
         return;
     }
     fileNameLabel.textContent = currentFile.name;
     fileResolutionLabel.textContent = `${video.videoWidth} x ${video.videoHeight}`;
     durationLabel.textContent = formatTime(video.duration);
+    fileFpsLabel.textContent = detectedFps ? `${detectedFps.toFixed(2)} fps` : "-";
 };
 
 const resetUI = () => {
@@ -298,6 +321,7 @@ const resetUI = () => {
     fileNameLabel.textContent = "-";
     fileResolutionLabel.textContent = "-";
     durationLabel.textContent = "-";
+    fileFpsLabel.textContent = "-";
     videoInfo.textContent = "-";
     frameInfo.textContent = "-";
     frameContext.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
@@ -438,6 +462,10 @@ dropZone.addEventListener("drop", (event) => {
 
 video.addEventListener("loadedmetadata", () => {
     isReady = true;
+    detectedFps = detectVideoFps();
+    if (detectedFps) {
+        fpsInput.value = Math.round(detectedFps);
+    }
     syncSliderStep();
     timeSlider.max = video.duration || 0;
     timeSlider.value = video.currentTime || 0;
