@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Text Eraser</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">画像テキスト消し</span>
+            <h1>Image Text Eraser</h1>
+            <p class="lede">OpenCV.jsでマスク指定した文字を自然に消します。ブラシで塗って、消したい範囲だけを指定してください。</p>
+            <div class="steps">
+                <span class="step-pill">画像を読み込む</span>
+                <span class="step-pill">マスクで塗る</span>
+                <span class="step-pill">文字を消す</span>
+            </div>
+        </header>
+
+        <section class="card">
+            <div class="section-heading">
+                <div>
+                    <span class="section-label">Workspace</span>
+                    <h2>マスク指定</h2>
+                </div>
+                <p class="hint">ブラシで消したい文字を塗ると、半透明で表示されます。</p>
+            </div>
+
+            <div class="layout layout--split">
+                <div class="panel">
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-inner">
+                            <p class="primary">ここに画像をドロップ</p>
+                            <p class="secondary">またはファイルを選択（PNG / JPG / WEBP）</p>
+                            <button class="ghost-button" type="button" id="fileButton">ファイルを選択</button>
+                            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" hidden>
+                            <p class="hint small">出力は元の拡張子に合わせて保存されます。</p>
+                        </div>
+                    </div>
+
+                    <div class="file-meta">
+                        <div class="meta-row">
+                            <span class="label">ファイル</span>
+                            <span class="value" id="fileName">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">解像度</span>
+                            <span class="value" id="fileDims">-</span>
+                        </div>
+                    </div>
+
+                    <div class="control-grid">
+                        <div class="control">
+                            <div class="label-row">
+                                <span>ブラシサイズ</span>
+                                <span class="muted mono" id="brushValue">-</span>
+                            </div>
+                            <input type="range" id="brushSize" min="4" max="96" step="1" value="32">
+                            <div class="toggle-row">
+                                <label><input type="radio" name="drawMode" value="paint" checked> マスク</label>
+                                <label><input type="radio" name="drawMode" value="erase"> 消しゴム</label>
+                                <label><input type="radio" name="drawMode" value="fill"> 塗りつぶし</label>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>マスクの透明度</span>
+                                <span class="muted mono" id="maskOpacityValue">-</span>
+                            </div>
+                            <input type="range" id="maskOpacity" min="10" max="80" step="1" value="45">
+                            <p class="hint">半透明のブルーで表示します。</p>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>消去アルゴリズム</span>
+                                <span class="muted">OpenCV</span>
+                            </div>
+                            <div class="radio-row">
+                                <label><input type="radio" name="inpaintAlgo" value="telea" checked> TELEA</label>
+                                <label><input type="radio" name="inpaintAlgo" value="ns"> NS</label>
+                            </div>
+                            <div class="label-row">
+                                <span>半径</span>
+                                <span class="muted mono" id="radiusValue">-</span>
+                            </div>
+                            <input type="range" id="inpaintRadius" min="1" max="20" step="1" value="6">
+                            <p class="hint">大きいほどなじみやすいですが、処理時間が長くなります。</p>
+                        </div>
+
+                        <div class="control control-actions">
+                            <div class="status-box" id="status">
+                                <span class="status-dot"></span>
+                                <span id="statusText">OpenCV読み込み中</span>
+                            </div>
+                            <div class="button-row">
+                                <button class="pill-button" type="button" id="applyBtn" disabled>文字を消す</button>
+                                <button class="ghost-button" type="button" id="clearMaskBtn" disabled>マスクをクリア</button>
+                                <button class="ghost-button" type="button" id="resetBtn" disabled>元画像に戻す</button>
+                                <button class="ghost-button" type="button" id="downloadBtn" disabled>保存</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="preview-stack">
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">Preview</span>
+                                    <div class="muted mono" id="previewInfo">-</div>
+                                </div>
+                                <span class="pill" id="cvBadge">OpenCV: Loading</span>
+                            </div>
+                            <div class="canvas-frame" id="previewFrame">
+                                <div class="checkerboard"></div>
+                                <div class="canvas-stack">
+                                    <canvas id="previewCanvas"></canvas>
+                                    <canvas id="overlayCanvas"></canvas>
+                                    <canvas id="cursorCanvas"></canvas>
+                                </div>
+                            </div>
+                            <p class="hint">ドラッグで塗りつぶし。消しゴムで戻せます。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        window.Module = {
+            onRuntimeInitialized() {
+                window.dispatchEvent(new Event("opencv-ready"));
+            }
+        };
+    </script>
+    <script src="https://docs.opencv.org/4.x/opencv.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
