@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像OCRツール</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">画像OCR</span>
+            <h1>Image OCR Reader</h1>
+            <p>PNG / JPG / WEBP から文字を抽出します。初回は言語データの取得に少し時間がかかります。</p>
+        </header>
+
+        <div class="card">
+            <div class="drop-row">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-inner">
+                        <p class="primary" id="dropPrimary">ここに画像をドロップ</p>
+                        <p class="secondary" id="dropSecondary">またはファイルを選択（PNG / JPG / WEBP）</p>
+                        <button class="ghost-button" type="button" id="fileSelect">ファイルを選択</button>
+                        <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+                        <p class="hint" id="dropHint">ローカル画像のみ対応。URLは非対応です。</p>
+                    </div>
+                </div>
+                <div class="file-info" id="fileInfo">
+                    <div class="label">ファイル</div>
+                    <div class="value" id="fileName">未選択</div>
+                    <div class="meta" id="fileMeta">PNG / JPG / WEBP のみ</div>
+                    <div class="label">サイズ</div>
+                    <div class="value" id="fileSize">-</div>
+                    <div class="label">解像度</div>
+                    <div class="value" id="fileDims">-</div>
+                </div>
+            </div>
+
+            <div class="preview-row">
+                <div class="preview-card">
+                    <div class="section-label">プレビュー</div>
+                    <div class="preview-box" id="previewBox">
+                        <div class="canvas-stack">
+                            <canvas id="previewCanvas"></canvas>
+                            <canvas id="overlayCanvas"></canvas>
+                        </div>
+                        <div class="preview-placeholder" id="previewPlaceholder">未選択</div>
+                    </div>
+                    <p class="hint">初期は全体選択。ハンドルをドラッグして範囲を調整できます。</p>
+                </div>
+                <div class="option-card">
+                    <div class="option-row">
+                        <label for="languageSelect">認識言語</label>
+                        <select id="languageSelect">
+                            <option value="jpn">日本語</option>
+                            <option value="eng">英語</option>
+                            <option value="jpn+eng">日本語 + 英語</option>
+                        </select>
+                    </div>
+                    <div class="option-row">
+                        <span class="option-label">抽出範囲</span>
+                        <div class="selection-row">
+                            <span class="selection-info" id="selectionInfo">未選択</span>
+                            <button class="ghost-button small" type="button" id="clearSelection" disabled>全体に戻す</button>
+                        </div>
+                        <p class="hint">プレビュー上で調整。全体に戻すと画像全体が対象になります。</p>
+                    </div>
+                    <div class="note">
+                        <div class="note-title">ヒント</div>
+                        <p>文字が小さい画像は拡大してから読み取ると精度が上がります。</p>
+                        <p>言語を絞ると処理速度が安定します。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="status" id="status">準備完了</div>
+                <div class="actions">
+                    <button class="pill-button" type="button" id="runButton" disabled>OCR実行</button>
+                    <button class="pill-button" type="button" id="copyButton" disabled>コピー</button>
+                    <button class="pill-button" type="button" id="downloadButton" disabled>テキスト保存</button>
+                    <button class="ghost-button" type="button" id="clearButton">リセット</button>
+                </div>
+            </div>
+
+            <div id="errorBanner" class="error-banner hidden" role="alert"></div>
+            <div class="progress" id="progressBar">
+                <div id="progressFill"></div>
+            </div>
+            <div class="progress-meta">
+                <span id="progressLabel">待機中</span>
+                <span id="progressValue">0%</span>
+            </div>
+
+            <div class="output-wrapper">
+                <div class="output-header">
+                    <span class="section-label">抽出結果</span>
+                    <span class="hint">結果をコピー / テキスト保存できます</span>
+                </div>
+                <pre id="output" class="output" aria-live="polite"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
