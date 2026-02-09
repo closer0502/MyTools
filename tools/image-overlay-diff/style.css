@@ -20,6 +20,16 @@ body {
     gap: var(--space-4);
 }
 
+.layout {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.layout--split {
+    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+    align-items: start;
+}
+
 .header {
     text-align: center;
     display: flex;
@@ -128,6 +138,35 @@ input[type="range"] {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: var(--space-2);
+}
+
+.step-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.micro-button {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: border-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.micro-button:hover {
+    border-color: rgba(56, 189, 248, 0.6);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.micro-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
 .actions {
@@ -276,6 +315,10 @@ input[type="range"] {
 @media (max-width: 720px) {
     .app {
         margin: 32px 0 48px;
+    }
+
+    .layout--split {
+        grid-template-columns: 1fr;
     }
 
     .header {

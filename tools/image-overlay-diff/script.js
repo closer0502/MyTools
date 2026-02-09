@@ -10,6 +10,10 @@ const offsetXRange = document.getElementById("offsetXRange");
 const offsetYRange = document.getElementById("offsetYRange");
 const offsetXValue = document.getElementById("offsetXValue");
 const offsetYValue = document.getElementById("offsetYValue");
+const offsetXMinusBtn = document.getElementById("offsetXMinusBtn");
+const offsetXPlusBtn = document.getElementById("offsetXPlusBtn");
+const offsetYMinusBtn = document.getElementById("offsetYMinusBtn");
+const offsetYPlusBtn = document.getElementById("offsetYPlusBtn");
 const fitBtn = document.getElementById("fitBtn");
 const resetBtn = document.getElementById("resetBtn");
 
@@ -153,6 +157,18 @@ const zoomBy = (deltaY) => {
     updateStageVars();
 };
 
+const nudgeOffset = (axis, delta) => {
+    if (axis === "x") {
+        state.offsetX = clamp(state.offsetX + delta, -400, 400);
+        offsetXRange.value = String(state.offsetX);
+    } else {
+        state.offsetY = clamp(state.offsetY + delta, -400, 400);
+        offsetYRange.value = String(state.offsetY);
+    }
+    updateLabels();
+    updateStageVars();
+};
+
 imageAInput.addEventListener("change", (event) => {
     loadImage(event.target.files[0], "A");
 });
@@ -186,6 +202,11 @@ offsetYRange.addEventListener("input", () => {
     updateLabels();
     updateStageVars();
 });
+
+offsetXMinusBtn.addEventListener("click", () => nudgeOffset("x", -1));
+offsetXPlusBtn.addEventListener("click", () => nudgeOffset("x", 1));
+offsetYMinusBtn.addEventListener("click", () => nudgeOffset("y", -1));
+offsetYPlusBtn.addEventListener("click", () => nudgeOffset("y", 1));
 
 fitBtn.addEventListener("click", fitToStage);
 
