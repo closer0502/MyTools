@@ -1,0 +1,88 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像オーバーレイ比較ツール</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Image Utility</span>
+            <h1>画像オーバーレイ比較ツール</h1>
+            <p class="lede">画像Aの上に半透明な画像Bを重ね、位置合わせしながら差異を確認できます。</p>
+        </header>
+
+        <section class="panel controls-panel">
+            <div class="upload-grid">
+                <label class="file-field">
+                    <span class="field-label">画像A（ベース）</span>
+                    <input type="file" id="imageAInput" accept="image/*">
+                </label>
+                <label class="file-field">
+                    <span class="field-label">画像B（オーバーレイ）</span>
+                    <input type="file" id="imageBInput" accept="image/*">
+                </label>
+            </div>
+
+            <div class="control-grid">
+                <label class="range-field">
+                    <span class="field-label">Bの透明度 <span class="mono" id="opacityValue">50%</span></span>
+                    <input type="range" id="opacityRange" min="0" max="100" step="1" value="50">
+                </label>
+
+                <label class="range-field">
+                    <span class="field-label">ズーム <span class="mono" id="zoomValue">100%</span></span>
+                    <input type="range" id="zoomRange" min="10" max="400" step="1" value="100">
+                </label>
+
+                <div class="toggle-row">
+                    <label class="toggle-item">
+                        <input type="checkbox" id="showBCheck" checked>
+                        <span>画像Bを表示</span>
+                    </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="differenceCheck">
+                        <span>差分強調（difference）</span>
+                    </label>
+                </div>
+
+                <div class="nudge-grid">
+                    <label class="range-field compact">
+                        <span class="field-label">B X補正 <span class="mono" id="offsetXValue">0px</span></span>
+                        <input type="range" id="offsetXRange" min="-400" max="400" step="1" value="0">
+                    </label>
+                    <label class="range-field compact">
+                        <span class="field-label">B Y補正 <span class="mono" id="offsetYValue">0px</span></span>
+                        <input type="range" id="offsetYRange" min="-400" max="400" step="1" value="0">
+                    </label>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="ghost-button" id="fitBtn" type="button">表示エリアにフィット</button>
+                <button class="ghost-button" id="resetBtn" type="button">位置と倍率をリセット</button>
+            </div>
+
+            <p class="hint">操作: ドラッグでパン / マウスホイールでズーム / 矢印キーでBを1px移動（Shiftで10px）</p>
+        </section>
+
+        <section class="panel viewer-panel">
+            <div class="viewer-header">
+                <h2>プレビュー</h2>
+                <span class="meta mono" id="metaInfo">画像Aと画像Bを読み込んでください</span>
+            </div>
+
+            <div class="viewer-stage" id="viewerStage" tabindex="0" aria-label="画像比較ビューア">
+                <div class="checkerboard" aria-hidden="true"></div>
+                <img id="imageALayer" class="layer base-layer" alt="画像A" draggable="false">
+                <img id="imageBLayer" class="layer overlay-layer" alt="画像B" draggable="false">
+                <div class="empty-state" id="emptyState">ここに画像Aと画像Bを読み込むと比較できます</div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

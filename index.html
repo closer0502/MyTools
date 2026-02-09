@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JS便利ツール</title>
+    <title>MyTools - ローカルユーティリティ集</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,20 +11,20 @@
         <header class="page-header">
             <div class="page-title">
                 <span class="eyebrow">Toolkit</span>
-                <h1>JS便利ツール</h1>
-                <p class="lede">用途別にまとめて、探しやすく整理したローカルツール集です。</p>
+                <h1>MyTools</h1>
+                <p class="lede">ブラウザだけで使える、ローカル完結型のユーティリティ集です。</p>
             </div>
             <div class="page-aside">
                 <div class="stat-card">
                     <span class="stat-label">ツール数</span>
-                    <span class="stat-value">20</span>
+                    <span class="stat-value">21</span>
                 </div>
                 <div class="stat-card">
                     <span class="stat-label">カテゴリ</span>
                     <span class="stat-value">5</span>
                 </div>
                 <div class="stat-card stat-note">
-                    <span class="stat-label">動作</span>
+                    <span class="stat-label">特徴</span>
                     <span class="stat-value">ブラウザ完結・ローカル処理</span>
                 </div>
             </div>
@@ -41,14 +41,14 @@
             </a>
             <a class="category-chip" href="#images">
                 <span class="chip-label">画像 &amp; グラフィック</span>
-                <span class="chip-count">7</span>
+                <span class="chip-count">8</span>
             </a>
             <a class="category-chip" href="#audio">
-                <span class="chip-label">オーディオ &amp; 解析</span>
+                <span class="chip-label">音声 &amp; 解析</span>
                 <span class="chip-count">2</span>
             </a>
             <a class="category-chip" href="#audit">
-                <span class="chip-label">Web資産 &amp; 監査</span>
+                <span class="chip-label">Web監査 &amp; 分析</span>
                 <span class="chip-count">2</span>
             </a>
         </nav>
@@ -57,9 +57,9 @@
             <section id="text-code" class="tool-section">
                 <header class="section-header">
                     <div class="section-heading">
-                        <span class="section-eyebrow">文字・コード整形</span>
+                        <span class="section-eyebrow">テキスト・コード処理</span>
                         <h2>テキスト &amp; コード</h2>
-                        <p>文章の整理、差分、構造化の作業をひとまとめに。</p>
+                        <p>文章比較、整形、文字コード確認など開発・編集の補助ツールです。</p>
                     </div>
                     <span class="section-count">6ツール</span>
                 </header>
@@ -68,7 +68,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Text</span>
                             <h3>テキスト文字数カウンター</h3>
-                            <p>入力したテキストの文字数をリアルタイムで表示します。</p>
+                            <p>入力テキストの文字数をリアルタイムで集計します。</p>
                         </div>
                         <a class="pill-button" href="tools/text-counter/index.html">開く</a>
                     </article>
@@ -76,7 +76,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Diff</span>
                             <h3>テキスト差分チェッカー</h3>
-                            <p>文章を文単位で比較し、差異と移動を左右分割で見やすく表示します。</p>
+                            <p>2つのテキストを比較し、追加・削除・移動差分を可視化します。</p>
                         </div>
                         <a class="pill-button" href="tools/text-diff-checker/index.html">開く</a>
                     </article>
@@ -84,15 +84,15 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Line</span>
                             <h3>改行コードコンバーター</h3>
-                            <p>改行コードやエスケープ表記を相互変換します。</p>
+                            <p>改行コード（LF/CRLF）を相互に変換します。</p>
                         </div>
                         <a class="pill-button" href="tools/linebreak-converter/index.html">開く</a>
                     </article>
                     <article class="tool-card">
                         <div class="tool-meta">
                             <span class="tool-tag">Format</span>
-                            <h3>構造化テキストフォーマッター</h3>
-                            <p>JSON/HTML/XMLをタブで切り替えて整形・表示。インデント幅も自由に変更できます。</p>
+                            <h3>構造化文書フォーマッター</h3>
+                            <p>JSON/HTML/XMLを読みやすく整形します。</p>
                         </div>
                         <a class="pill-button" href="tools/structured-doc-formatter/index.html">開く</a>
                     </article>
@@ -100,7 +100,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Code</span>
                             <h3>TS/JSコード構造ビューア</h3>
-                            <p>ソースコードの階層を解析し、シンボル構造を見やすく整理して表示します。</p>
+                            <p>ソースコードの構造を解析し、シンボルの関係を可視化します。</p>
                         </div>
                         <a class="pill-button" href="tools/code-structure-viewer/index.html">開く</a>
                     </article>
@@ -108,7 +108,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Encode</span>
                             <h3>文字コードビューア</h3>
-                            <p>日本語テキストをドラッグ＆ドロップで読み込み、エンコード自動判別・変換・BOM確認を行います。</p>
+                            <p>テキストのエンコード状態を確認し、表示結果を比較できます。</p>
                         </div>
                         <a class="pill-button" href="tools/encoding-viewer/index.html">開く</a>
                     </article>
@@ -118,9 +118,9 @@
             <section id="documents" class="tool-section">
                 <header class="section-header">
                     <div class="section-heading">
-                        <span class="section-eyebrow">書類・書き出し</span>
+                        <span class="section-eyebrow">ドキュメント処理</span>
                         <h2>ドキュメント &amp; PDF</h2>
-                        <p>抽出・変換・結合など、PDF周りの操作をまとめています。</p>
+                        <p>PDFのテキスト抽出、画像化、画像からPDF作成に対応します。</p>
                     </div>
                     <span class="section-count">3ツール</span>
                 </header>
@@ -129,7 +129,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">PDF</span>
                             <h3>PDFテキスト抽出</h3>
-                            <p>ローカルPDFからテキストを抽出し、コピーやTXTダウンロードができます。</p>
+                            <p>ローカルPDFからテキストを抽出します。</p>
                         </div>
                         <a class="pill-button" href="tools/pdf-text-extractor/index.html">開く</a>
                     </article>
@@ -137,7 +137,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">PDF</span>
                             <h3>PDF画像変換</h3>
-                            <p>PDFをページごとに画像化。選択変換と一括変換に対応します。</p>
+                            <p>PDFページを画像に変換し、保存できます。</p>
                         </div>
                         <a class="pill-button" href="tools/pdf-image-converter/index.html">開く</a>
                     </article>
@@ -145,7 +145,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">PDF</span>
                             <h3>画像PDF結合</h3>
-                            <p>同じサイズの画像をまとめてPDFへ。ページサイズやDPI、圧縮を調整できます。</p>
+                            <p>複数画像を1つのPDFにまとめます。</p>
                         </div>
                         <a class="pill-button" href="tools/image-pdf-combiner/index.html">開く</a>
                     </article>
@@ -155,18 +155,18 @@
             <section id="images" class="tool-section">
                 <header class="section-header">
                     <div class="section-heading">
-                    <span class="section-eyebrow">画像編集</span>
-                    <h2>画像 &amp; グラフィック</h2>
-                    <p>透過、変換、リサイズなど画像作業を集約しました。</p>
-                </div>
-                <span class="section-count">7ツール</span>
-            </header>
-            <div class="tool-grid">
+                        <span class="section-eyebrow">画像編集</span>
+                        <h2>画像 &amp; グラフィック</h2>
+                        <p>透明化、変換、リサイズ、比較など画像処理ツールを集約しています。</p>
+                    </div>
+                    <span class="section-count">8ツール</span>
+                </header>
+                <div class="tool-grid">
                     <article class="tool-card">
                         <div class="tool-meta">
                             <span class="tool-tag">PNG</span>
-                            <h3>透過PNGメーカー</h3>
-                            <p>画像を読み込んで透過したい色をクリック。しきい値で調整し、その場で透過PNGを書き出します。</p>
+                            <h3>透明PNGメーカー</h3>
+                            <p>画像の背景を透明化し、PNGとして保存します。</p>
                         </div>
                         <a class="pill-button" href="tools/transparent-png-maker/index.html">開く</a>
                     </article>
@@ -174,7 +174,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Convert</span>
                             <h3>画像フォーマット変換</h3>
-                            <p>WEBP / PNG / JPG の相互変換。品質やリサイズ、背景色を調整して書き出せます。</p>
+                            <p>PNG/JPEG/WebPなどの形式を相互変換します。</p>
                         </div>
                         <a class="pill-button" href="tools/image-format-converter/index.html">開く</a>
                     </article>
@@ -182,7 +182,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Crop</span>
                             <h3>画像クロップ &amp; リサイズ</h3>
-                            <p>ドラッグと数値指定でクロップし、比率プリセットやピクセル/パーセント/辺合わせのリサイズに対応。</p>
+                            <p>画像を切り抜き、任意サイズへ変更します。</p>
                         </div>
                         <a class="pill-button" href="tools/image-crop-resizer/index.html">開く</a>
                     </article>
@@ -190,7 +190,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Canvas</span>
                             <h3>画像キャンバス拡張</h3>
-                            <p>ドラッグと数値入力で余白を追加し、インペイントやレイアウト用の拡張キャンバスを作成します。</p>
+                            <p>余白を追加して画像キャンバスサイズを拡張します。</p>
                         </div>
                         <a class="pill-button" href="tools/image-canvas-expander/index.html">開く</a>
                     </article>
@@ -198,7 +198,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Erase</span>
                             <h3>画像テキスト消し</h3>
-                            <p>OpenCVでマスク指定した文字を自然に消去します。</p>
+                            <p>画像上の文字領域を選択して除去します。</p>
                         </div>
                         <a class="pill-button" href="tools/image-text-eraser/index.html">開く</a>
                     </article>
@@ -206,7 +206,7 @@
                         <div class="tool-meta">
                             <span class="tool-tag">OCR</span>
                             <h3>画像OCRリーダー</h3>
-                            <p>画像内の文字を抽出。矩形選択で狙った範囲だけOCRできます。</p>
+                            <p>画像内の文字を認識してテキスト化します。</p>
                         </div>
                         <a class="pill-button" href="tools/image-ocr-reader/index.html">開く</a>
                     </article>
@@ -214,9 +214,17 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Video</span>
                             <h3>動画フレームキャプチャ</h3>
-                            <p>ローカル動画から任意のフレームをPNG/JPEG/WebPで保存し、範囲書き出しにも対応します。</p>
+                            <p>動画から任意フレームを画像として切り出します。</p>
                         </div>
                         <a class="pill-button" href="tools/video-frame-capture/index.html">開く</a>
+                    </article>
+                    <article class="tool-card">
+                        <div class="tool-meta">
+                            <span class="tool-tag">Compare</span>
+                            <h3>画像オーバーレイ比較</h3>
+                            <p>画像A/Bを重ねて透明度や位置を調整し差異を確認します。</p>
+                        </div>
+                        <a class="pill-button" href="tools/image-overlay-diff/index.html">開く</a>
                     </article>
                 </div>
             </section>
@@ -224,9 +232,9 @@
             <section id="audio" class="tool-section">
                 <header class="section-header">
                     <div class="section-heading">
-                        <span class="section-eyebrow">音声加工</span>
-                        <h2>オーディオ &amp; 解析</h2>
-                        <p>音の変換と可視化を同じゾーンにまとめています。</p>
+                        <span class="section-eyebrow">音声処理</span>
+                        <h2>音声 &amp; 解析</h2>
+                        <p>ピッチ変更やスペクトラム可視化など音声分析向けツールです。</p>
                     </div>
                     <span class="section-count">2ツール</span>
                 </header>
@@ -235,15 +243,15 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Audio</span>
                             <h3>ピッチシフター</h3>
-                            <p>再生速度を維持したままピッチを ±24 半音で調整。波形プログレスとシーク対応。</p>
+                            <p>テンポを保ったまま音程を調整できます。</p>
                         </div>
                         <a class="pill-button" href="tools/pitch-shifter/index.html">開く</a>
                     </article>
                     <article class="tool-card">
                         <div class="tool-meta">
                             <span class="tool-tag">Spectrum</span>
-                            <h3>SpectralTerrain</h3>
-                            <p>ローカル音源を解析し、3D 地形と 2D スペクトラムを同時に可視化します。</p>
+                            <h3>3D Spectrum Analyzer</h3>
+                            <p>音声スペクトラムを立体表示して解析します。</p>
                         </div>
                         <a class="pill-button" href="tools/sound-terrain/index.html">開く</a>
                     </article>
@@ -253,9 +261,9 @@
             <section id="audit" class="tool-section">
                 <header class="section-header">
                     <div class="section-heading">
-                        <span class="section-eyebrow">資産チェック</span>
-                        <h2>Web資産 &amp; 監査</h2>
-                        <p>埋め込みや外部参照など、構成を把握するためのツール群です。</p>
+                        <span class="section-eyebrow">監査・分析</span>
+                        <h2>Web監査 &amp; 分析</h2>
+                        <p>埋め込みデータやHTML上のメディア資産を一覧化・監査します。</p>
                     </div>
                     <span class="section-count">2ツール</span>
                 </header>
@@ -264,15 +272,15 @@
                         <div class="tool-meta">
                             <span class="tool-tag">Audit</span>
                             <h3>埋め込みデータ監査</h3>
-                            <p>ファイル内のメタ情報や末尾データ、埋め込み候補を可視化します。</p>
+                            <p>ファイル内の埋め込みデータを検出して確認できます。</p>
                         </div>
                         <a class="pill-button" href="tools/embedded-data-audit/index.html">開く</a>
                     </article>
                     <article class="tool-card">
                         <div class="tool-meta">
                             <span class="tool-tag">HTML</span>
-                            <h3>HTMLメディア資産 棚卸し</h3>
-                            <p>HTML内の画像・音声・動画・埋め込み・SVG・canvas・資産リンクをカテゴリ別に棚卸しします。</p>
+                            <h3>HTMLメディア資産棚卸し</h3>
+                            <p>HTML内の画像・音声・動画などの参照を一覧化します。</p>
                         </div>
                         <a class="pill-button" href="tools/media-asset-inventory/index.html">開く</a>
                     </article>
@@ -281,7 +289,7 @@
         </main>
 
         <footer>
-            <p>&copy; 2025 JS便利ツール</p>
+            <p>&copy; 2026 MyTools</p>
         </footer>
     </div>
 </body>
