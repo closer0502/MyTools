@@ -18,6 +18,8 @@ const fpsInput = document.getElementById("fpsInput");
 const timeSlider = document.getElementById("timeSlider");
 const currentTimeLabel = document.getElementById("currentTimeLabel");
 const currentFrameLabel = document.getElementById("currentFrameLabel");
+const seekStartBtn = document.getElementById("seekStartBtn");
+const seekEndBtn = document.getElementById("seekEndBtn");
 const stepButtons = Array.from(document.querySelectorAll(".step-button"));
 
 const formatSelect = document.getElementById("formatSelect");
@@ -42,6 +44,8 @@ const controls = [
     timecodeInput,
     fpsInput,
     timeSlider,
+    seekStartBtn,
+    seekEndBtn,
     ...stepButtons,
     formatSelect,
     qualityRange,
@@ -604,6 +608,24 @@ setEndBtn.addEventListener("click", () => {
     const frameIndex = Math.round(video.currentTime * getFps());
     endFrameInput.value = frameIndex;
     updateRangeLabels();
+});
+
+seekStartBtn.addEventListener("click", async () => {
+    if (!isReady || isBusy) {
+        return;
+    }
+    await seekTo(0);
+    drawFrame();
+    updateTimeLabels();
+});
+
+seekEndBtn.addEventListener("click", async () => {
+    if (!isReady || isBusy) {
+        return;
+    }
+    await seekTo(video.duration || 0);
+    drawFrame();
+    updateTimeLabels();
 });
 
 exportRangeBtn.addEventListener("click", handleRangeExport);
