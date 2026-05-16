@@ -14,6 +14,8 @@ const bottomRuler = document.getElementById("bottomRuler");
 const waveCanvas = document.getElementById("waveCanvas");
 const waveSelection = document.getElementById("waveSelection");
 const playhead = document.getElementById("playhead");
+const leftChannelBtn = document.getElementById("leftChannelBtn");
+const rightChannelBtn = document.getElementById("rightChannelBtn");
 const startInput = document.getElementById("startInput");
 const endInput = document.getElementById("endInput");
 const setStartBtn = document.getElementById("setStartBtn");
@@ -30,7 +32,6 @@ const sampleRateSelect = document.getElementById("sampleRateSelect");
 const channelSelect = document.getElementById("channelSelect");
 const bitrateSelect = document.getElementById("bitrateSelect");
 const bitrateField = document.getElementById("bitrateField");
-const formatBadge = document.getElementById("formatBadge");
 const exportBtn = document.getElementById("exportBtn");
 const exportStatus = document.getElementById("exportStatus");
 const statusText = document.getElementById("statusText");
@@ -45,6 +46,8 @@ const controls = [
     playSelectionBtn,
     wavePlayBtn,
     waveStartBtn,
+    leftChannelBtn,
+    rightChannelBtn,
     formatSelect,
     sampleRateSelect,
     channelSelect,
@@ -73,6 +76,11 @@ let isBusy = false;
 let dragMode = null;
 let isRulerDrag = false;
 let stopAtSelectionEnd = false;
+let mediaSourceNode = null;
+let leftGainNode = null;
+let rightGainNode = null;
+let leftChannelEnabled = true;
+let rightChannelEnabled = true;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const pad = (value, length = 2) => String(value).padStart(length, "0");
@@ -159,7 +167,6 @@ function updateControls() {
 function updateFormatFields() {
     const profile = outputProfiles[formatSelect.value];
     bitrateField.style.opacity = profile.bitrate ? "1" : "0.48";
-    formatBadge.textContent = profile.ext.toUpperCase();
     updateControls();
 }
 
@@ -234,6 +241,52 @@ function ensureAudioContext() {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
     return audioCtx;
+}
+
+function ensurePlaybackChannelGraph() {
+    const context = ensureAudioContext();
+    if (mediaSourceNode) {
+        return context;
+    }
+    mediaSourceNode = context.createMediaElementSource(video);
+    const splitter = context.createChannelSplitter(2);
+    const merger = context.createChannelMerger(2);
+    leftGainNode = context.createGain();
+    rightGainNode = context.createGain();
+
+    mediaSourceNode.connect(splitter);
+    splitter.connect(leftGainNode, 0);
+    splitter.connect(rightGainNode, 1);
+    leftGainNode.connect(merger, 0, 0);
+    rightGainNode.connect(merger, 0, 1);
+    merger.connect(context.destination);
+    updateChannelMonitor();
+    return context;
+}
+
+function updateChannelMonitor() {
+    if (leftGainNode) {
+        leftGainNode.gain.value = leftChannelEnabled ? 1 : 0;
+    }
+    if (rightGainNode) {
+        rightGainNode.gain.value = rightChannelEnabled ? 1 : 0;
+    }
+    leftChannelBtn.classList.toggle("is-off", !leftChannelEnabled);
+    rightChannelBtn.classList.toggle("is-off", !rightChannelEnabled);
+    leftChannelBtn.classList.toggle("is-on", leftChannelEnabled);
+    rightChannelBtn.classList.toggle("is-on", rightChannelEnabled);
+    leftChannelBtn.setAttribute("aria-pressed", String(leftChannelEnabled));
+    rightChannelBtn.setAttribute("aria-pressed", String(rightChannelEnabled));
+}
+
+function toggleMonitorChannel(channel) {
+    if (channel === "left") {
+        leftChannelEnabled = !leftChannelEnabled;
+    } else {
+        rightChannelEnabled = !rightChannelEnabled;
+    }
+    ensurePlaybackChannelGraph();
+    updateChannelMonitor();
 }
 
 function getFFmpegGlobals() {
@@ -493,6 +546,7 @@ async function loadFile(file) {
     setFileMeta(file);
     try {
         await waitForVideoMetadata();
+        ensurePlaybackChannelGraph();
         duration = video.duration;
         selectionStart = 0;
         selectionEnd = duration;
@@ -545,7 +599,11 @@ function buildExportArgs(outputName) {
     if (sampleRateSelect.value !== "copy") {
         args.push("-ar", sampleRateSelect.value);
     }
-    if (channelSelect.value !== "copy") {
+    if (channelSelect.value === "mono-left") {
+        args.push("-af", "pan=mono|c0=FL");
+    } else if (channelSelect.value === "mono-right") {
+        args.push("-af", "pan=mono|c0=FR");
+    } else if (channelSelect.value !== "copy") {
         args.push("-ac", channelSelect.value);
     }
     if (profile.bitrate) {
@@ -609,6 +667,7 @@ function playSelection() {
     }
     stopAtSelectionEnd = true;
     video.currentTime = selectionStart;
+    ensurePlaybackChannelGraph().resume();
     video.play();
 }
 
@@ -617,6 +676,7 @@ function toggleWavePlayback() {
         return;
     }
     if (video.paused) {
+        ensurePlaybackChannelGraph().resume();
         video.play();
     } else {
         video.pause();
@@ -682,6 +742,7 @@ video.addEventListener("timeupdate", () => {
 video.addEventListener("seeking", updatePlayhead);
 video.addEventListener("seeked", updatePlayhead);
 video.addEventListener("play", () => {
+    ensurePlaybackChannelGraph().resume();
     if (!stopAtSelectionEnd) {
         stopAtSelectionEnd = false;
     }
@@ -709,6 +770,8 @@ fullRangeBtn.addEventListener("click", () => setSelection(0, duration));
 playSelectionBtn.addEventListener("click", playSelection);
 wavePlayBtn.addEventListener("click", toggleWavePlayback);
 waveStartBtn.addEventListener("click", seekWaveToStart);
+leftChannelBtn.addEventListener("click", () => toggleMonitorChannel("left"));
+rightChannelBtn.addEventListener("click", () => toggleMonitorChannel("right"));
 startInput.addEventListener("change", applyInputTimes);
 endInput.addEventListener("change", applyInputTimes);
 formatSelect.addEventListener("change", updateFormatFields);
@@ -725,3 +788,4 @@ updateControls();
 drawWaveform();
 updatePlayhead();
 updateTransportState();
+updateChannelMonitor();

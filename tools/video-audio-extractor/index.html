@@ -78,23 +78,38 @@
                                 <label>サンプルレート
                                     <select id="sampleRateSelect" disabled>
                                         <option value="copy">元のまま</option>
+                                        <option value="8000">8 kHz</option>
+                                        <option value="11025">11.025 kHz</option>
+                                        <option value="16000">16 kHz</option>
+                                        <option value="22050">22.05 kHz</option>
+                                        <option value="32000">32 kHz</option>
                                         <option value="44100" selected>44.1 kHz</option>
                                         <option value="48000">48 kHz</option>
+                                        <option value="96000">96 kHz</option>
                                     </select>
                                 </label>
                                 <label>チャンネル
                                     <select id="channelSelect" disabled>
                                         <option value="copy">元のまま</option>
-                                        <option value="1">Mono</option>
+                                        <option value="mono-left">Mono L</option>
+                                        <option value="mono-right">Mono R</option>
                                         <option value="2" selected>Stereo</option>
                                     </select>
                                 </label>
                                 <label id="bitrateField">ビットレート
                                     <select id="bitrateSelect" disabled>
+                                        <option value="32k">32 kbps</option>
+                                        <option value="48k">48 kbps</option>
+                                        <option value="64k">64 kbps</option>
+                                        <option value="96k">96 kbps</option>
                                         <option value="128k">128 kbps</option>
+                                        <option value="160k">160 kbps</option>
                                         <option value="192k" selected>192 kbps</option>
+                                        <option value="224k">224 kbps</option>
                                         <option value="256k">256 kbps</option>
                                         <option value="320k">320 kbps</option>
+                                        <option value="384k">384 kbps</option>
+                                        <option value="512k">512 kbps</option>
                                     </select>
                                 </label>
                             </div>
@@ -131,7 +146,12 @@
                                     <span class="section-label">Waveform</span>
                                     <div class="muted mono" id="waveInfo">未生成</div>
                                 </div>
-                                <div class="pill" id="formatBadge">MP3</div>
+                                <div class="wave-tools">
+                                    <div class="channel-monitor" aria-label="音声チャンネルモニター">
+                                        <button class="channel-toggle is-on" type="button" id="leftChannelBtn" aria-pressed="true" disabled>L</button>
+                                        <button class="channel-toggle is-on" type="button" id="rightChannelBtn" aria-pressed="true" disabled>R</button>
+                                    </div>
+                                </div>
                             </div>
                             <div class="wave-frame" id="waveFrame">
                                 <div class="range-ruler range-ruler--top" id="topRuler" aria-label="範囲選択ルーラー"></div>

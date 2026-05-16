@@ -359,6 +359,46 @@ select {
     flex-wrap: wrap;
 }
 
+.wave-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.channel-monitor {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.channel-toggle {
+    width: 32px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: rgba(56, 189, 248, 0.18);
+    color: #e6faff;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.channel-toggle.is-off {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+    border-color: var(--border);
+}
+
+.channel-toggle:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .video-frame,
 .wave-frame {
     border: 1px solid var(--border);
