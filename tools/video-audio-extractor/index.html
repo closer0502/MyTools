@@ -62,30 +62,6 @@
                     <div class="control-grid">
                         <div class="control">
                             <div class="label-row">
-                                <span>範囲指定</span>
-                                <span class="muted">波形ドラッグ / タイムコード入力</span>
-                            </div>
-                            <div class="inputs-row">
-                                <label>開始
-                                    <input type="text" id="startInput" placeholder="00:00:00.000" disabled>
-                                </label>
-                                <label>終了
-                                    <input type="text" id="endInput" placeholder="00:00:00.000" disabled>
-                                </label>
-                            </div>
-                            <div class="range-actions">
-                                <button class="ghost-button" type="button" id="setStartBtn" disabled>現在を開始に設定</button>
-                                <button class="ghost-button" type="button" id="setEndBtn" disabled>現在を終了に設定</button>
-                                <button class="ghost-button" type="button" id="fullRangeBtn" disabled>全範囲</button>
-                            </div>
-                            <div class="range-meta">
-                                <span class="muted">選択: <span class="mono" id="selectionLabel">-</span></span>
-                                <span class="muted">現在: <span class="mono" id="currentTimeLabel">00:00:00.000</span></span>
-                            </div>
-                        </div>
-
-                        <div class="control">
-                            <div class="label-row">
                                 <span>出力設定</span>
                                 <span class="muted">形式 / レート / チャンネル</span>
                             </div>
@@ -121,6 +97,10 @@
                                         <option value="320k">320 kbps</option>
                                     </select>
                                 </label>
+                            </div>
+                            <div class="export-actions">
+                                <button class="pill-button" type="button" id="exportBtn" disabled>音声をダウンロード</button>
+                                <p class="export-status" id="exportStatus">未処理</p>
                             </div>
                         </div>
 
@@ -170,16 +150,27 @@
                             </div>
                         </div>
 
-                        <div class="export-card">
-                            <div class="export-header">
-                                <div>
-                                    <span class="section-label">Export</span>
-                                    <div class="section-title">選択範囲を書き出し</div>
-                                </div>
-                                <p class="export-status" id="exportStatus">未処理</p>
+                        <div class="range-card">
+                            <div class="label-row">
+                                <span>範囲指定</span>
+                                <span class="muted">ルーラー / タイムコード入力</span>
                             </div>
-                            <div class="export-actions">
-                                <button class="pill-button" type="button" id="exportBtn" disabled>音声をダウンロード</button>
+                            <div class="inputs-row">
+                                <label>開始
+                                    <input type="text" id="startInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                                <label>終了
+                                    <input type="text" id="endInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                            </div>
+                            <div class="range-actions">
+                                <button class="ghost-button" type="button" id="setStartBtn" disabled>現在を開始に設定</button>
+                                <button class="ghost-button" type="button" id="setEndBtn" disabled>現在を終了に設定</button>
+                                <button class="ghost-button" type="button" id="fullRangeBtn" disabled>全範囲</button>
+                            </div>
+                            <div class="range-meta">
+                                <span class="muted">選択: <span class="mono" id="selectionLabel">-</span></span>
+                                <span class="muted sr-only">現在: <span class="mono" id="currentTimeLabel">00:00:00.000</span></span>
                             </div>
                         </div>
                     </div>

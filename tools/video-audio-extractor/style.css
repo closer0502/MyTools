@@ -81,7 +81,7 @@ body {
 }
 
 .layout--split {
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 500px);
+    grid-template-columns: minmax(280px, 1fr) minmax(0, 3fr);
     align-items: start;
 }
 
@@ -261,7 +261,7 @@ body {
 .inputs-row,
 .output-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
 }
 
@@ -295,6 +295,18 @@ select {
     display: grid;
     gap: 6px;
     font-size: 13px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 .status-box {
@@ -355,10 +367,15 @@ select {
     overflow: hidden;
 }
 
+.video-frame {
+    max-height: min(25vh, 240px);
+}
+
 .video-frame video {
     display: block;
     width: 100%;
-    min-height: 190px;
+    max-height: min(25vh, 240px);
+    object-fit: contain;
     background: #000;
 }
 
@@ -501,7 +518,7 @@ select {
     pointer-events: none;
 }
 
-.export-card {
+.range-card {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--panel-strong);
@@ -519,6 +536,14 @@ select {
     margin: 0;
     color: var(--muted);
     font-weight: 700;
+}
+
+.control .export-actions {
+    align-items: center;
+}
+
+.control .export-status {
+    font-size: 14px;
 }
 
 .pill {
@@ -571,6 +596,7 @@ select {
     .meta-row,
     .canvas-header,
     .export-header,
+    .export-actions,
     .wave-transport,
     .transport-actions {
         align-items: flex-start;
