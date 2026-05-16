@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動画音声抽出</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Video Audio</span>
+            <h1>動画音声抽出</h1>
+            <p class="lede">ローカル動画から音声を抽出し、波形上で範囲を指定してMP3/WAV/M4A/OGG/FLACを書き出します。</p>
+            <div class="steps">
+                <span class="step-pill">1. 動画を読み込み</span>
+                <span class="step-pill">2. 波形で範囲選択</span>
+                <span class="step-pill">3. 音声を書き出し</span>
+            </div>
+        </header>
+
+        <section class="card">
+            <div class="layout layout--split">
+                <div class="panel">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-label">Input</span>
+                            <h2>動画入力</h2>
+                        </div>
+                        <p class="hint">処理はブラウザ内で完結します。初回のみFFmpeg WASMを読み込みます。</p>
+                    </div>
+
+                    <div class="drop-zone" id="dropZone">
+                        <div class="drop-inner">
+                            <p class="primary">ここに動画をドロップ</p>
+                            <p class="secondary">またはファイルを選択</p>
+                            <button class="ghost-button" type="button" id="fileButton">動画を選ぶ</button>
+                            <input type="file" id="fileInput" accept="video/*" hidden>
+                            <p class="hint small">mp4 / mov / webm など。対応可否はFFmpegのビルドに依存します。</p>
+                        </div>
+                    </div>
+
+                    <div class="file-meta">
+                        <div class="meta-row">
+                            <span class="label">ファイル名</span>
+                            <span class="value" id="fileName">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">サイズ</span>
+                            <span class="value" id="fileSize">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">長さ</span>
+                            <span class="value mono" id="durationLabel">-</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="label">形式</span>
+                            <span class="value" id="fileType">-</span>
+                        </div>
+                    </div>
+
+                    <div class="control-grid">
+                        <div class="control">
+                            <div class="label-row">
+                                <span>範囲指定</span>
+                                <span class="muted">波形ドラッグ / タイムコード入力</span>
+                            </div>
+                            <div class="inputs-row">
+                                <label>開始
+                                    <input type="text" id="startInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                                <label>終了
+                                    <input type="text" id="endInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                            </div>
+                            <div class="range-actions">
+                                <button class="ghost-button" type="button" id="setStartBtn" disabled>現在を開始に設定</button>
+                                <button class="ghost-button" type="button" id="setEndBtn" disabled>現在を終了に設定</button>
+                                <button class="ghost-button" type="button" id="fullRangeBtn" disabled>全範囲</button>
+                            </div>
+                            <div class="range-meta">
+                                <span class="muted">選択: <span class="mono" id="selectionLabel">-</span></span>
+                                <span class="muted">現在: <span class="mono" id="currentTimeLabel">00:00:00.000</span></span>
+                            </div>
+                        </div>
+
+                        <div class="control">
+                            <div class="label-row">
+                                <span>出力設定</span>
+                                <span class="muted">形式 / レート / チャンネル</span>
+                            </div>
+                            <div class="output-grid">
+                                <label>形式
+                                    <select id="formatSelect" disabled>
+                                        <option value="mp3">MP3</option>
+                                        <option value="wav">WAV</option>
+                                        <option value="m4a">M4A / AAC</option>
+                                        <option value="ogg">OGG / Opus</option>
+                                        <option value="flac">FLAC</option>
+                                    </select>
+                                </label>
+                                <label>サンプルレート
+                                    <select id="sampleRateSelect" disabled>
+                                        <option value="copy">元のまま</option>
+                                        <option value="44100" selected>44.1 kHz</option>
+                                        <option value="48000">48 kHz</option>
+                                    </select>
+                                </label>
+                                <label>チャンネル
+                                    <select id="channelSelect" disabled>
+                                        <option value="copy">元のまま</option>
+                                        <option value="1">Mono</option>
+                                        <option value="2" selected>Stereo</option>
+                                    </select>
+                                </label>
+                                <label id="bitrateField">ビットレート
+                                    <select id="bitrateSelect" disabled>
+                                        <option value="128k">128 kbps</option>
+                                        <option value="192k" selected>192 kbps</option>
+                                        <option value="256k">256 kbps</option>
+                                        <option value="320k">320 kbps</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="status-box">
+                            <span class="status-dot" id="statusDot"></span>
+                            <span id="statusText">動画を読み込んでください。</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="preview-stack">
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">Preview</span>
+                                    <div class="muted mono" id="videoInfo">-</div>
+                                </div>
+                                <button class="ghost-button compact" type="button" id="playSelectionBtn" disabled>選択範囲を再生</button>
+                            </div>
+                            <div class="video-frame">
+                                <video id="video" controls playsinline></video>
+                            </div>
+                        </div>
+
+                        <div class="preview-block">
+                            <div class="canvas-header">
+                                <div>
+                                    <span class="section-label">Waveform</span>
+                                    <div class="muted mono" id="waveInfo">未生成</div>
+                                </div>
+                                <div class="pill" id="formatBadge">MP3</div>
+                            </div>
+                            <div class="wave-frame" id="waveFrame">
+                                <canvas id="waveCanvas" height="170"></canvas>
+                                <div class="wave-selection" id="waveSelection"></div>
+                                <div class="playhead" id="playhead"></div>
+                            </div>
+                        </div>
+
+                        <div class="export-card">
+                            <div class="export-header">
+                                <div>
+                                    <span class="section-label">Export</span>
+                                    <div class="section-title">選択範囲を書き出し</div>
+                                </div>
+                                <p class="export-status" id="exportStatus">未処理</p>
+                            </div>
+                            <div class="export-actions">
+                                <button class="pill-button" type="button" id="exportBtn" disabled>音声をダウンロード</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
