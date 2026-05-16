@@ -364,9 +364,10 @@ select {
 
 .wave-frame {
     position: relative;
-    min-height: 170px;
+    min-height: 210px;
     touch-action: none;
-    cursor: crosshair;
+    cursor: pointer;
+    padding: 20px 0;
 }
 
 #waveCanvas {
@@ -379,16 +380,16 @@ select {
 
 .wave-selection {
     position: absolute;
-    top: 0;
-    bottom: 0;
+    top: 20px;
+    bottom: 20px;
     left: 0;
     width: 100%;
     z-index: 2;
     pointer-events: none;
-    background: rgba(56, 189, 248, 0.2);
-    border-left: 2px solid rgba(34, 211, 238, 0.95);
-    border-right: 2px solid rgba(34, 211, 238, 0.95);
-    box-shadow: inset 0 0 24px rgba(34, 211, 238, 0.12);
+    background: rgba(248, 113, 113, 0.22);
+    border-left: 2px solid rgba(248, 113, 113, 0.98);
+    border-right: 2px solid rgba(248, 113, 113, 0.98);
+    box-shadow: inset 0 0 24px rgba(248, 113, 113, 0.14);
 }
 
 .wave-selection::before,
@@ -398,7 +399,8 @@ select {
     top: 0;
     width: 10px;
     height: 100%;
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(254, 226, 226, 0.24);
+    box-shadow: 0 0 14px rgba(248, 113, 113, 0.35);
 }
 
 .wave-selection::before {
@@ -407,6 +409,84 @@ select {
 
 .wave-selection::after {
     right: -5px;
+}
+
+.range-ruler {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 20px;
+    z-index: 4;
+    cursor: default;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            rgba(248, 113, 113, 0.42) 0,
+            rgba(248, 113, 113, 0.42) 1px,
+            transparent 1px,
+            transparent 10%
+        ),
+        rgba(248, 113, 113, 0.08);
+}
+
+.range-ruler::before,
+.range-ruler::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    width: 12px;
+    height: 14px;
+    border-radius: 4px;
+    background: rgba(248, 113, 113, 0.95);
+    box-shadow: 0 0 14px rgba(248, 113, 113, 0.38);
+}
+
+.range-ruler.is-near-handle {
+    cursor: ew-resize;
+}
+
+.range-ruler::before {
+    left: var(--range-start, 0%);
+    transform: translateX(-50%);
+}
+
+.range-ruler::after {
+    left: var(--range-end, 100%);
+    transform: translateX(-50%);
+}
+
+.range-ruler--top {
+    top: 0;
+    border-bottom: 1px solid rgba(248, 113, 113, 0.38);
+}
+
+.range-ruler--bottom {
+    bottom: 0;
+    border-top: 1px solid rgba(248, 113, 113, 0.38);
+}
+
+.wave-transport {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.transport-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    min-height: 38px;
+}
+
+.wave-transport .mono {
+    font-size: 13px;
+    min-height: 22px;
+}
+
+.transport-actions .is-hidden {
+    display: none;
 }
 
 .playhead {
@@ -490,7 +570,9 @@ select {
 
     .meta-row,
     .canvas-header,
-    .export-header {
+    .export-header,
+    .wave-transport,
+    .transport-actions {
         align-items: flex-start;
         flex-direction: column;
     }

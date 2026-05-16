@@ -9,6 +9,8 @@ const fileTypeLabel = document.getElementById("fileType");
 const videoInfo = document.getElementById("videoInfo");
 const waveInfo = document.getElementById("waveInfo");
 const waveFrame = document.getElementById("waveFrame");
+const topRuler = document.getElementById("topRuler");
+const bottomRuler = document.getElementById("bottomRuler");
 const waveCanvas = document.getElementById("waveCanvas");
 const waveSelection = document.getElementById("waveSelection");
 const playhead = document.getElementById("playhead");
@@ -18,6 +20,9 @@ const setStartBtn = document.getElementById("setStartBtn");
 const setEndBtn = document.getElementById("setEndBtn");
 const fullRangeBtn = document.getElementById("fullRangeBtn");
 const playSelectionBtn = document.getElementById("playSelectionBtn");
+const wavePlayBtn = document.getElementById("wavePlayBtn");
+const waveStartBtn = document.getElementById("waveStartBtn");
+const waveTimeLabel = document.getElementById("waveTimeLabel");
 const selectionLabel = document.getElementById("selectionLabel");
 const currentTimeLabel = document.getElementById("currentTimeLabel");
 const formatSelect = document.getElementById("formatSelect");
@@ -38,6 +43,8 @@ const controls = [
     setEndBtn,
     fullRangeBtn,
     playSelectionBtn,
+    wavePlayBtn,
+    waveStartBtn,
     formatSelect,
     sampleRateSelect,
     channelSelect,
@@ -64,6 +71,7 @@ let selectionEnd = 0;
 let waveformPeaks = [];
 let isBusy = false;
 let dragMode = null;
+let isRulerDrag = false;
 let stopAtSelectionEnd = false;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -175,19 +183,35 @@ function updateSelectionOverlay() {
     if (!duration) {
         waveSelection.style.left = "0%";
         waveSelection.style.width = "0%";
+        waveFrame.style.setProperty("--range-start", "0%");
+        waveFrame.style.setProperty("--range-end", "0%");
         return;
     }
     const left = (selectionStart / duration) * 100;
+    const right = (selectionEnd / duration) * 100;
     const width = ((selectionEnd - selectionStart) / duration) * 100;
     waveSelection.style.left = `${left}%`;
     waveSelection.style.width = `${Math.max(0, width)}%`;
+    waveFrame.style.setProperty("--range-start", `${left}%`);
+    waveFrame.style.setProperty("--range-end", `${right}%`);
 }
 
 function updatePlayhead() {
     const time = Number.isFinite(video.currentTime) ? video.currentTime : 0;
     currentTimeLabel.textContent = formatTime(time);
     videoInfo.textContent = duration ? `${formatTime(time)} / ${formatTime(duration)}` : "-";
+    waveTimeLabel.textContent = duration ? `${formatTime(time)} / ${formatTime(duration)}` : "00:00:00.000 / 00:00:00.000";
     playhead.style.left = duration ? `${clamp(time / duration, 0, 1) * 100}%` : "0%";
+}
+
+function seekVideoTo(time) {
+    if (!duration || !Number.isFinite(time)) {
+        return;
+    }
+    const nextTime = clamp(time, 0, duration);
+    stopAtSelectionEnd = false;
+    video.currentTime = nextTime;
+    updatePlayhead();
 }
 
 function setSelection(start, end) {
@@ -363,27 +387,40 @@ function getDragMode(time) {
     return "range";
 }
 
-function handleWavePointerDown(event) {
+function getHandleDragMode(time) {
+    const threshold = Math.max(0.35, duration * 0.012);
+    const startDistance = Math.abs(time - selectionStart);
+    const endDistance = Math.abs(time - selectionEnd);
+    if (startDistance > threshold && endDistance > threshold) {
+        return null;
+    }
+    return startDistance <= endDistance ? "start" : "end";
+}
+
+function handleRulerPointerDown(event) {
     if (!duration || isBusy) {
         return;
     }
-    waveFrame.setPointerCapture(event.pointerId);
+    event.preventDefault();
     const time = getTimeFromPointer(event);
-    dragMode = getDragMode(time);
-    if (dragMode === "range") {
-        setSelection(time, time);
-        dragMode = "end";
-    } else if (dragMode === "start") {
+    dragMode = getHandleDragMode(time);
+    if (!dragMode) {
+        return;
+    }
+    event.currentTarget.setPointerCapture(event.pointerId);
+    isRulerDrag = true;
+    if (dragMode === "start") {
         setSelection(time, selectionEnd);
     } else {
         setSelection(selectionStart, time);
     }
 }
 
-function handleWavePointerMove(event) {
+function handleRulerPointerMove(event) {
     if (!dragMode || !duration || isBusy) {
         return;
     }
+    event.preventDefault();
     const time = getTimeFromPointer(event);
     if (dragMode === "start") {
         setSelection(time, selectionEnd);
@@ -392,11 +429,33 @@ function handleWavePointerMove(event) {
     }
 }
 
-function handleWavePointerUp(event) {
+function handleRulerPointerUp(event) {
     if (dragMode) {
-        waveFrame.releasePointerCapture(event.pointerId);
+        event.currentTarget.releasePointerCapture(event.pointerId);
     }
     dragMode = null;
+    isRulerDrag = false;
+}
+
+function handleWavePointerDown(event) {
+    if (!duration || isBusy || isRulerDrag) {
+        return;
+    }
+    seekVideoTo(getTimeFromPointer(event));
+}
+
+function handleRulerPointerMovePreview(event) {
+    if (!duration || isBusy || isRulerDrag) {
+        return;
+    }
+    const time = getTimeFromPointer(event);
+    event.currentTarget.classList.toggle("is-near-handle", Boolean(getHandleDragMode(time)));
+}
+
+function handleRulerPointerLeave(event) {
+    if (!isRulerDrag) {
+        event.currentTarget.classList.remove("is-near-handle");
+    }
 }
 
 function applyInputTimes() {
@@ -553,6 +612,30 @@ function playSelection() {
     video.play();
 }
 
+function toggleWavePlayback() {
+    if (!duration) {
+        return;
+    }
+    if (video.paused) {
+        video.play();
+    } else {
+        video.pause();
+    }
+}
+
+function seekWaveToStart() {
+    if (!duration) {
+        return;
+    }
+    seekVideoTo(0);
+}
+
+function updateTransportState() {
+    const isPlaying = !video.paused && !video.ended;
+    wavePlayBtn.textContent = isPlaying ? "停止" : "再生";
+    playSelectionBtn.classList.toggle("is-hidden", isPlaying);
+}
+
 fileButton.addEventListener("click", () => fileInput.click());
 dropZone.addEventListener("click", (event) => {
     if (event.target !== fileButton) {
@@ -596,25 +679,36 @@ video.addEventListener("timeupdate", () => {
         video.currentTime = selectionEnd;
     }
 });
+video.addEventListener("seeking", updatePlayhead);
 video.addEventListener("seeked", updatePlayhead);
 video.addEventListener("play", () => {
     if (!stopAtSelectionEnd) {
         stopAtSelectionEnd = false;
     }
+    updateTransportState();
 });
 video.addEventListener("pause", () => {
     stopAtSelectionEnd = false;
+    updateTransportState();
 });
+video.addEventListener("ended", updateTransportState);
 
 waveFrame.addEventListener("pointerdown", handleWavePointerDown);
-waveFrame.addEventListener("pointermove", handleWavePointerMove);
-waveFrame.addEventListener("pointerup", handleWavePointerUp);
-waveFrame.addEventListener("pointercancel", handleWavePointerUp);
+[topRuler, bottomRuler].forEach((ruler) => {
+    ruler.addEventListener("pointerdown", handleRulerPointerDown);
+    ruler.addEventListener("pointermove", handleRulerPointerMove);
+    ruler.addEventListener("pointermove", handleRulerPointerMovePreview);
+    ruler.addEventListener("pointerup", handleRulerPointerUp);
+    ruler.addEventListener("pointercancel", handleRulerPointerUp);
+    ruler.addEventListener("pointerleave", handleRulerPointerLeave);
+});
 
 setStartBtn.addEventListener("click", () => setSelection(video.currentTime, selectionEnd));
 setEndBtn.addEventListener("click", () => setSelection(selectionStart, video.currentTime));
 fullRangeBtn.addEventListener("click", () => setSelection(0, duration));
 playSelectionBtn.addEventListener("click", playSelection);
+wavePlayBtn.addEventListener("click", toggleWavePlayback);
+waveStartBtn.addEventListener("click", seekWaveToStart);
 startInput.addEventListener("change", applyInputTimes);
 endInput.addEventListener("change", applyInputTimes);
 formatSelect.addEventListener("change", updateFormatFields);
@@ -629,3 +723,5 @@ window.addEventListener("resize", () => {
 updateFormatFields();
 updateControls();
 drawWaveform();
+updatePlayhead();
+updateTransportState();

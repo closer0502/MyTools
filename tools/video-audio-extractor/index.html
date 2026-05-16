@@ -139,7 +139,6 @@
                                     <span class="section-label">Preview</span>
                                     <div class="muted mono" id="videoInfo">-</div>
                                 </div>
-                                <button class="ghost-button compact" type="button" id="playSelectionBtn" disabled>選択範囲を再生</button>
                             </div>
                             <div class="video-frame">
                                 <video id="video" controls playsinline></video>
@@ -155,9 +154,19 @@
                                 <div class="pill" id="formatBadge">MP3</div>
                             </div>
                             <div class="wave-frame" id="waveFrame">
+                                <div class="range-ruler range-ruler--top" id="topRuler" aria-label="範囲選択ルーラー"></div>
                                 <canvas id="waveCanvas" height="170"></canvas>
                                 <div class="wave-selection" id="waveSelection"></div>
                                 <div class="playhead" id="playhead"></div>
+                                <div class="range-ruler range-ruler--bottom" id="bottomRuler" aria-label="範囲選択ルーラー"></div>
+                            </div>
+                            <div class="wave-transport">
+                                <div class="transport-actions">
+                                    <button class="ghost-button compact" type="button" id="waveStartBtn" disabled>先頭へ</button>
+                                    <button class="ghost-button compact" type="button" id="wavePlayBtn" disabled>再生</button>
+                                    <button class="ghost-button compact" type="button" id="playSelectionBtn" disabled>選択範囲を再生</button>
+                                </div>
+                                <span class="muted mono" id="waveTimeLabel">00:00:00.000 / 00:00:00.000</span>
                             </div>
                         </div>
 
