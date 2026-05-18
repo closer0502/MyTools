@@ -1,0 +1,1592 @@
+const $ = (id) => document.getElementById(id);
+
+const refs = {
+    fileInput: $("fileInput"),
+    fileButton: $("fileButton"),
+    dropZone: $("dropZone"),
+    fileName: $("fileName"),
+    durationLabel: $("durationLabel"),
+    fileType: $("fileType"),
+    sampleRateLabel: $("sampleRateLabel"),
+    playBtn: $("playBtn"),
+    startBtn: $("startBtn"),
+    playSelectionBtn: $("playSelectionBtn"),
+    loopSelectionBtn: $("loopSelectionBtn"),
+    outputLeftBtn: $("outputLeftBtn"),
+    outputRightBtn: $("outputRightBtn"),
+    undoBtn: $("undoBtn"),
+    redoBtn: $("redoBtn"),
+    cutBtn: $("cutBtn"),
+    copyBtn: $("copyBtn"),
+    pasteBtn: $("pasteBtn"),
+    deleteBtn: $("deleteBtn"),
+    splitBtn: $("splitBtn"),
+    duplicateBtn: $("duplicateBtn"),
+    silenceBtn: $("silenceBtn"),
+    waveFrame: $("waveFrame"),
+    waveCanvas: $("waveCanvas"),
+    clipLayer: $("clipLayer"),
+    waveSelection: $("waveSelection"),
+    playhead: $("playhead"),
+    timeLabel: $("timeLabel"),
+    selectionLabel: $("selectionLabel"),
+    waveInfo: $("waveInfo"),
+    selectionStartInput: $("selectionStartInput"),
+    selectionEndInput: $("selectionEndInput"),
+    playheadInput: $("playheadInput"),
+    selectAllBtn: $("selectAllBtn"),
+    vuLeft: $("vuLeft"),
+    vuRight: $("vuRight"),
+    vuLeftPeak: $("vuLeftPeak"),
+    vuRightPeak: $("vuRightPeak"),
+    vuLeftLabel: $("vuLeftLabel"),
+    vuRightLabel: $("vuRightLabel"),
+    trackVolumeRange: $("trackVolumeRange"),
+    trackVolumeInput: $("trackVolumeInput"),
+    trackPanRange: $("trackPanRange"),
+    trackPanInput: $("trackPanInput"),
+    centerPanBtn: $("centerPanBtn"),
+    effectPicker: $("effectPicker"),
+    effectPickerBtn: $("effectPickerBtn"),
+    effectMenu: $("effectMenu"),
+    effectsList: $("effectsList"),
+    exportBtn: $("exportBtn"),
+    exportStatus: $("exportStatus"),
+    statusDot: $("statusDot"),
+    statusText: $("statusText"),
+};
+
+const effectDefinitions = {
+    gain: {
+        label: "Gain",
+        params: {
+            amount: { label: "量", min: 0, max: 2, step: 0.01, default: 1 },
+        },
+    },
+    lowpass: {
+        label: "Lowpass",
+        params: {
+            frequency: { label: "Hz", min: 40, max: 20000, step: 1, default: 8000 },
+            q: { label: "Q", min: 0.1, max: 24, step: 0.1, default: 0.7 },
+        },
+    },
+    highpass: {
+        label: "Highpass",
+        params: {
+            frequency: { label: "Hz", min: 20, max: 12000, step: 1, default: 120 },
+            q: { label: "Q", min: 0.1, max: 24, step: 0.1, default: 0.7 },
+        },
+    },
+    peaking: {
+        label: "Peaking EQ",
+        params: {
+            frequency: { label: "Hz", min: 40, max: 16000, step: 1, default: 1200 },
+            q: { label: "Q", min: 0.1, max: 18, step: 0.1, default: 1 },
+            gain: { label: "dB", min: -24, max: 24, step: 0.1, default: 0 },
+        },
+    },
+    compressor: {
+        label: "Compressor",
+        params: {
+            threshold: { label: "Th", min: -80, max: 0, step: 1, default: -24 },
+            ratio: { label: "Ratio", min: 1, max: 20, step: 0.1, default: 4 },
+            attack: { label: "Atk", min: 0, max: 1, step: 0.005, default: 0.003 },
+            release: { label: "Rel", min: 0.01, max: 1, step: 0.01, default: 0.25 },
+        },
+    },
+    delay: {
+        label: "Delay",
+        params: {
+            delayTime: { label: "Time", min: 0, max: 2, step: 0.01, default: 0.25 },
+            feedback: { label: "Fdbk", min: 0, max: 0.9, step: 0.01, default: 0.28 },
+            wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.35 },
+        },
+    },
+};
+
+const editControls = [
+    refs.playBtn,
+    refs.startBtn,
+    refs.playSelectionBtn,
+    refs.loopSelectionBtn,
+    refs.outputLeftBtn,
+    refs.outputRightBtn,
+    refs.cutBtn,
+    refs.copyBtn,
+    refs.deleteBtn,
+    refs.splitBtn,
+    refs.duplicateBtn,
+    refs.silenceBtn,
+    refs.selectionStartInput,
+    refs.selectionEndInput,
+    refs.playheadInput,
+    refs.selectAllBtn,
+    refs.trackVolumeRange,
+    refs.trackVolumeInput,
+    refs.trackPanRange,
+    refs.trackPanInput,
+    refs.centerPanBtn,
+    refs.effectPickerBtn,
+    refs.exportBtn,
+];
+
+let audioCtx = null;
+let project = null;
+let sources = new Map();
+let currentFile = null;
+let history = [];
+let redoStack = [];
+let clipboard = null;
+let isBusy = false;
+let isPlaying = false;
+let playbackOffset = 0;
+let playbackStartedAt = 0;
+let playbackEnd = null;
+let playbackLoop = false;
+let playbackLoopStart = 0;
+let animationFrame = null;
+let activeSources = [];
+let liveEffects = new Map();
+let liveMixer = null;
+let liveOutputChannels = null;
+let selection = { start: 0, end: 0 };
+let dragState = null;
+let meterDataLeft = null;
+let meterDataRight = null;
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const pad = (value, length = 2) => String(value).padStart(length, "0");
+const makeId = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+function ensureAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+}
+
+function formatTime(seconds) {
+    if (!Number.isFinite(seconds)) {
+        return "00:00:00.000";
+    }
+    const totalMs = Math.max(0, Math.round(seconds * 1000));
+    const hours = Math.floor(totalMs / 3600000);
+    const minutes = Math.floor((totalMs % 3600000) / 60000);
+    const secs = Math.floor((totalMs % 60000) / 1000);
+    const ms = totalMs % 1000;
+    return `${pad(hours)}:${pad(minutes)}:${pad(secs)}.${pad(ms, 3)}`;
+}
+
+function parseTimecode(value) {
+    const cleaned = String(value || "").trim().replace(",", ".");
+    if (!cleaned) {
+        return null;
+    }
+    const parts = cleaned.split(":");
+    if (parts.length > 3 || parts.some((part) => part.trim() === "")) {
+        return null;
+    }
+    let seconds = 0;
+    let multiplier = 1;
+    for (let i = parts.length - 1; i >= 0; i -= 1) {
+        const number = Number(parts[i]);
+        if (!Number.isFinite(number) || number < 0) {
+            return null;
+        }
+        seconds += number * multiplier;
+        multiplier *= 60;
+    }
+    return seconds;
+}
+
+function getProjectDuration() {
+    if (!project) {
+        return 0;
+    }
+    return project.tracks.reduce((trackMax, track) => {
+        const clipMax = track.clips.reduce((max, clip) => Math.max(max, clip.startTime + clip.duration), 0);
+        return Math.max(trackMax, clipMax);
+    }, 0);
+}
+
+function getTrack() {
+    return project?.tracks[0] || null;
+}
+
+function getOutputChannels(track = getTrack()) {
+    if (!track) {
+        return { left: true, right: true };
+    }
+    if (!track.outputChannels) {
+        track.outputChannels = { left: true, right: true };
+    }
+    if (!track.outputChannels.left && !track.outputChannels.right) {
+        track.outputChannels.left = true;
+    }
+    return track.outputChannels;
+}
+
+function setStatus(message, type = "idle") {
+    refs.statusText.textContent = message;
+    refs.statusDot.classList.toggle("is-active", type === "active");
+    refs.statusDot.classList.toggle("is-error", type === "error");
+}
+
+function setBusy(state) {
+    isBusy = state;
+    document.body.classList.toggle("is-busy", state);
+    refs.fileButton.disabled = state;
+    refs.dropZone.style.pointerEvents = state ? "none" : "";
+    updateControls();
+}
+
+function updateControls() {
+    const ready = Boolean(project && getProjectDuration() > 0);
+    const hasSelection = ready && selection.end > selection.start;
+    editControls.forEach((control) => {
+        control.disabled = isBusy || !ready;
+    });
+    refs.playSelectionBtn.disabled = isBusy || !hasSelection;
+    refs.loopSelectionBtn.disabled = isBusy || !hasSelection;
+    refs.undoBtn.disabled = isBusy || history.length === 0;
+    refs.redoBtn.disabled = isBusy || redoStack.length === 0;
+    refs.pasteBtn.disabled = isBusy || !ready || !clipboard;
+}
+
+function cloneProject(value = project) {
+    return JSON.parse(JSON.stringify(value));
+}
+
+function pushHistory() {
+    if (!project) {
+        return;
+    }
+    history.push(cloneProject());
+    if (history.length > 60) {
+        history.shift();
+    }
+    redoStack = [];
+    updateControls();
+}
+
+function restoreProject(snapshot) {
+    stopPlayback();
+    project = cloneProject(snapshot);
+    normalizeClips();
+    updateAfterProjectChange();
+}
+
+function normalizeClips() {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    track.clips = track.clips
+        .filter((clip) => clip.duration > 0.001)
+        .sort((a, b) => a.startTime - b.startTime);
+}
+
+function updateAfterProjectChange() {
+    const duration = getProjectDuration();
+    selection.start = clamp(selection.start, 0, duration);
+    selection.end = clamp(selection.end, 0, duration);
+    playbackOffset = clamp(playbackOffset, 0, duration);
+    renderEffects();
+    syncMixerControls();
+    syncOutputChannelButtons();
+    drawWaveform();
+    updateLabels();
+    updateControls();
+}
+
+function updateLabels() {
+    const duration = getProjectDuration();
+    const current = getCurrentPlaybackTime();
+    refs.durationLabel.textContent = duration ? formatTime(duration) : "-";
+    refs.timeLabel.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+    refs.playheadInput.value = formatTime(current);
+    if (selection.end > selection.start) {
+        refs.selectionLabel.textContent = `選択: ${formatTime(selection.start)} - ${formatTime(selection.end)} (${formatTime(selection.end - selection.start)})`;
+    } else {
+        refs.selectionLabel.textContent = "選択: -";
+    }
+    if (document.activeElement !== refs.selectionStartInput) {
+        refs.selectionStartInput.value = formatTime(selection.start);
+    }
+    if (document.activeElement !== refs.selectionEndInput) {
+        refs.selectionEndInput.value = formatTime(selection.end);
+    }
+    const selectionLeft = duration ? (selection.start / duration) * 100 : 0;
+    const selectionWidth = duration ? ((selection.end - selection.start) / duration) * 100 : 0;
+    refs.waveSelection.style.left = `${selectionLeft}%`;
+    refs.waveSelection.style.width = `${Math.max(0, selectionWidth)}%`;
+    refs.playhead.style.left = duration ? `${clamp(current / duration, 0, 1) * 100}%` : "0%";
+}
+
+function getCurrentPlaybackTime() {
+    if (!isPlaying || !audioCtx) {
+        return playbackOffset;
+    }
+    return clamp(playbackOffset + audioCtx.currentTime - playbackStartedAt, 0, playbackEnd ?? getProjectDuration());
+}
+
+function setSelection(start, end) {
+    const duration = getProjectDuration();
+    selection.start = clamp(Math.min(start, end), 0, duration);
+    selection.end = clamp(Math.max(start, end), 0, duration);
+    updateLabels();
+    updateControls();
+}
+
+function setPlayhead(time) {
+    const duration = getProjectDuration();
+    playbackOffset = clamp(time, 0, duration);
+    if (isPlaying) {
+        startPlayback(playbackOffset, playbackEnd, playbackLoop, playbackLoopStart);
+    }
+    updateLabels();
+}
+
+function commitSelectionStartInput() {
+    const value = parseTimecode(refs.selectionStartInput.value);
+    if (value === null) {
+        setStatus("選択開始の時刻形式を確認してください。", "error");
+        updateLabels();
+        return;
+    }
+    setSelection(value, selection.end);
+}
+
+function commitSelectionEndInput() {
+    const value = parseTimecode(refs.selectionEndInput.value);
+    if (value === null) {
+        setStatus("選択終了の時刻形式を確認してください。", "error");
+        updateLabels();
+        return;
+    }
+    setSelection(selection.start, value);
+}
+
+function commitPlayheadInput() {
+    const value = parseTimecode(refs.playheadInput.value);
+    if (value === null) {
+        setStatus("再生位置の時刻形式を確認してください。", "error");
+        updateLabels();
+        return;
+    }
+    setPlayhead(value);
+}
+
+function bindTimeInput(input, commit) {
+    input.addEventListener("change", commit);
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+            input.blur();
+        }
+    });
+}
+
+async function loadFile(file) {
+    if (!file || isBusy) {
+        return;
+    }
+    if (!file.type.startsWith("audio/") && !/\.(wav|mp3|ogg|webm|m4a|aac|flac)$/i.test(file.name)) {
+        setStatus("音声ファイルを選択してください。", "error");
+        return;
+    }
+    setBusy(true);
+    stopPlayback();
+    setStatus("音声を読み込み中...", "active");
+    refs.exportStatus.textContent = "未処理";
+    try {
+        const context = ensureAudioContext();
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = await context.decodeAudioData(arrayBuffer.slice(0));
+        const sourceId = makeId("source");
+        sources = new Map([[sourceId, { id: sourceId, name: file.name, buffer }]]);
+        currentFile = file;
+        project = {
+            sampleRate: buffer.sampleRate,
+            tracks: [{
+                id: makeId("track"),
+                name: "Track 1",
+                clips: [{
+                    id: makeId("clip"),
+                    sourceId,
+                    startTime: 0,
+                    sourceStartTime: 0,
+                    duration: buffer.duration,
+                    gain: 1,
+                    fadeIn: 0,
+                    fadeOut: 0,
+                }],
+                effects: [],
+                volume: 1,
+                pan: 0,
+                outputChannels: { left: true, right: true },
+                solo: false,
+            }],
+        };
+        history = [];
+        redoStack = [];
+        clipboard = null;
+        playbackOffset = 0;
+        selection = { start: 0, end: buffer.duration };
+        refs.fileName.textContent = file.name;
+        refs.fileType.textContent = file.type || "不明";
+        refs.sampleRateLabel.textContent = `${buffer.sampleRate.toLocaleString()} Hz / ${buffer.numberOfChannels} ch`;
+        refs.waveInfo.textContent = `${buffer.numberOfChannels === 1 ? "mono" : "stereo"} / ${Math.round(buffer.duration * buffer.sampleRate).toLocaleString()} samples`;
+        setStatus("読み込みが完了しました。", "active");
+        updateAfterProjectChange();
+    } catch (error) {
+        console.error(error);
+        setStatus(`読み込みに失敗しました: ${error.message}`, "error");
+    } finally {
+        refs.fileInput.value = "";
+        setBusy(false);
+    }
+}
+
+function drawWaveform() {
+    const canvas = refs.waveCanvas;
+    const frame = refs.waveFrame;
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.max(320, frame.clientWidth || 900);
+    const height = 240;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(ratio, ratio);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#0d1525";
+    ctx.fillRect(0, 0, width, height);
+    drawGrid(ctx, width, height);
+
+    const duration = getProjectDuration();
+    if (!project || !duration) {
+        refs.clipLayer.innerHTML = "";
+        return;
+    }
+
+    const channels = getMaxChannelCount();
+    const laneHeight = height / channels;
+    for (let channel = 0; channel < channels; channel += 1) {
+        drawChannelWave(ctx, width, laneHeight, channel, channels, duration);
+    }
+    renderClipBlocks(duration);
+    updateLabels();
+}
+
+function drawGrid(ctx, width, height) {
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i += 1) {
+        const x = (width / 10) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+    ctx.beginPath();
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+}
+
+function getMaxChannelCount() {
+    let max = 1;
+    sources.forEach(({ buffer }) => {
+        max = Math.max(max, buffer.numberOfChannels);
+    });
+    return Math.min(max, 2);
+}
+
+function drawChannelWave(ctx, width, laneHeight, channel, channels, duration) {
+    const top = channel * laneHeight;
+    const mid = top + laneHeight / 2;
+    const amp = laneHeight * 0.38;
+    ctx.strokeStyle = channel === 0 ? "rgba(56, 189, 248, 0.82)" : "rgba(34, 211, 238, 0.72)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < width; x += 1) {
+        const t0 = (x / width) * duration;
+        const t1 = ((x + 1) / width) * duration;
+        const peak = getTimelinePeak(t0, t1, channel);
+        ctx.moveTo(x, mid + peak.min * amp);
+        ctx.lineTo(x, mid + peak.max * amp);
+    }
+    ctx.stroke();
+    if (channels > 1) {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.beginPath();
+        ctx.moveTo(0, top + laneHeight);
+        ctx.lineTo(width, top + laneHeight);
+        ctx.stroke();
+    }
+}
+
+function getTimelinePeak(start, end, channel) {
+    const track = getTrack();
+    if (!track) {
+        return { min: 0, max: 0 };
+    }
+    let min = 0;
+    let max = 0;
+    const steps = 8;
+    for (const clip of track.clips) {
+        const clipEnd = clip.startTime + clip.duration;
+        if (clipEnd <= start || clip.startTime >= end) {
+            continue;
+        }
+        for (let i = 0; i < steps; i += 1) {
+            const t = start + ((end - start) * (i + 0.5)) / steps;
+            if (t < clip.startTime || t > clipEnd) {
+                continue;
+            }
+            const sample = getClipSample(clip, t, channel);
+            min = Math.min(min, sample);
+            max = Math.max(max, sample);
+        }
+    }
+    return { min, max };
+}
+
+function getClipSample(clip, timelineTime, channel) {
+    const source = sources.get(clip.sourceId);
+    if (!source) {
+        return 0;
+    }
+    const buffer = source.buffer;
+    const sourceTime = clip.sourceStartTime + (timelineTime - clip.startTime);
+    const index = Math.floor(sourceTime * buffer.sampleRate);
+    if (index < 0 || index >= buffer.length) {
+        return 0;
+    }
+    const sourceChannel = Math.min(channel, buffer.numberOfChannels - 1);
+    const fade = getFadeMultiplier(clip, timelineTime);
+    return buffer.getChannelData(sourceChannel)[index] * clip.gain * fade;
+}
+
+function getFadeMultiplier(clip, timelineTime) {
+    const local = timelineTime - clip.startTime;
+    const clipEnd = clip.startTime + clip.duration;
+    let gain = 1;
+    if (clip.fadeIn > 0 && local < clip.fadeIn) {
+        gain *= clamp(local / clip.fadeIn, 0, 1);
+    }
+    if (clip.fadeOut > 0 && timelineTime > clipEnd - clip.fadeOut) {
+        gain *= clamp((clipEnd - timelineTime) / clip.fadeOut, 0, 1);
+    }
+    return gain;
+}
+
+function renderClipBlocks(duration) {
+    const track = getTrack();
+    refs.clipLayer.innerHTML = "";
+    if (!track) {
+        return;
+    }
+    track.clips.forEach((clip) => {
+        const block = document.createElement("div");
+        block.className = "clip-block";
+        block.style.left = `${(clip.startTime / duration) * 100}%`;
+        block.style.width = `${(clip.duration / duration) * 100}%`;
+        block.title = `${formatTime(clip.startTime)} - ${formatTime(clip.startTime + clip.duration)}`;
+        refs.clipLayer.appendChild(block);
+    });
+}
+
+function buildEffectNode(context, effect) {
+    const params = effect.params || {};
+    if (effect.type === "gain") {
+        const node = context.createGain();
+        node.gain.value = Number(params.amount ?? 1);
+        return { input: node, output: node, params: { amount: node.gain } };
+    }
+    if (["lowpass", "highpass", "peaking"].includes(effect.type)) {
+        const node = context.createBiquadFilter();
+        node.type = effect.type === "peaking" ? "peaking" : effect.type;
+        node.frequency.value = Number(params.frequency ?? 1000);
+        node.Q.value = Number(params.q ?? 0.7);
+        if (effect.type === "peaking") {
+            node.gain.value = Number(params.gain ?? 0);
+        }
+        return { input: node, output: node, params: { frequency: node.frequency, q: node.Q, gain: node.gain } };
+    }
+    if (effect.type === "compressor") {
+        const node = context.createDynamicsCompressor();
+        node.threshold.value = Number(params.threshold ?? -24);
+        node.ratio.value = Number(params.ratio ?? 4);
+        node.attack.value = Number(params.attack ?? 0.003);
+        node.release.value = Number(params.release ?? 0.25);
+        return {
+            input: node,
+            output: node,
+            params: {
+                threshold: node.threshold,
+                ratio: node.ratio,
+                attack: node.attack,
+                release: node.release,
+            },
+        };
+    }
+    if (effect.type === "delay") {
+        const input = context.createGain();
+        const output = context.createGain();
+        const dry = context.createGain();
+        const delay = context.createDelay(5);
+        const feedback = context.createGain();
+        const wet = context.createGain();
+        dry.gain.value = 1;
+        delay.delayTime.value = Number(params.delayTime ?? 0.25);
+        feedback.gain.value = Number(params.feedback ?? 0.28);
+        wet.gain.value = Number(params.wet ?? 0.35);
+        input.connect(dry);
+        dry.connect(output);
+        input.connect(delay);
+        delay.connect(wet);
+        wet.connect(output);
+        delay.connect(feedback);
+        feedback.connect(delay);
+        return { input, output, params: { delayTime: delay.delayTime, feedback: feedback.gain, wet: wet.gain } };
+    }
+    const passthrough = context.createGain();
+    return { input: passthrough, output: passthrough, params: {} };
+}
+
+function buildTrackGraph(context, destination, track, collectLive = false) {
+    const input = context.createGain();
+    let current = input;
+    const nextLive = new Map();
+    if (collectLive) {
+        liveMixer = null;
+        liveOutputChannels = null;
+    }
+    for (const effect of track.effects) {
+        if (!effect.enabled) {
+            continue;
+        }
+        const node = buildEffectNode(context, effect);
+        current.connect(node.input);
+        current = node.output;
+        if (collectLive) {
+            nextLive.set(effect.id, node);
+        }
+    }
+    const volume = context.createGain();
+    volume.gain.value = track.volume;
+    current.connect(volume);
+    let meterSource = volume;
+    if (context.createStereoPanner) {
+        const pan = context.createStereoPanner();
+        pan.pan.value = track.pan;
+        volume.connect(pan);
+        meterSource = pan;
+        if (collectLive) {
+            liveMixer = { volume: volume.gain, pan: pan.pan, analysers: [] };
+        }
+    } else if (collectLive) {
+        liveMixer = { volume: volume.gain, pan: null, analysers: [] };
+    }
+    const outputChannels = getOutputChannels(track);
+    const outputSplitter = context.createChannelSplitter(2);
+    const outputMerger = context.createChannelMerger(2);
+    const leftOutput = context.createGain();
+    const rightOutput = context.createGain();
+    leftOutput.gain.value = outputChannels.left ? 1 : 0;
+    rightOutput.gain.value = outputChannels.right ? 1 : 0;
+    meterSource.connect(outputSplitter);
+    outputSplitter.connect(leftOutput, 0);
+    outputSplitter.connect(rightOutput, 1);
+    leftOutput.connect(outputMerger, 0, 0);
+    rightOutput.connect(outputMerger, 0, 1);
+    outputMerger.connect(destination);
+    if (collectLive) {
+        const leftAnalyser = context.createAnalyser();
+        const rightAnalyser = context.createAnalyser();
+        leftAnalyser.fftSize = 1024;
+        rightAnalyser.fftSize = 1024;
+        leftOutput.connect(leftAnalyser);
+        rightOutput.connect(rightAnalyser);
+        liveMixer.analysers = [leftAnalyser, rightAnalyser];
+        meterDataLeft = new Float32Array(leftAnalyser.fftSize);
+        meterDataRight = new Float32Array(rightAnalyser.fftSize);
+        liveOutputChannels = { left: leftOutput.gain, right: rightOutput.gain };
+    }
+    if (collectLive) {
+        liveEffects = nextLive;
+    }
+    return input;
+}
+
+function scheduleTimeline(context, destination, offset = 0, endTime = getProjectDuration(), collectLive = false) {
+    const track = getTrack();
+    if (!track) {
+        return [];
+    }
+    const chainInput = buildTrackGraph(context, destination, track, collectLive);
+    const nodes = [];
+    for (const clip of track.clips) {
+        const clipEnd = clip.startTime + clip.duration;
+        const segmentStart = Math.max(clip.startTime, offset);
+        const segmentEnd = Math.min(clipEnd, endTime);
+        if (segmentEnd <= segmentStart) {
+            continue;
+        }
+        const source = sources.get(clip.sourceId);
+        if (!source) {
+            continue;
+        }
+        const node = context.createBufferSource();
+        const gain = context.createGain();
+        node.buffer = source.buffer;
+        node.connect(gain);
+        gain.connect(chainInput);
+        const when = context.currentTime + Math.max(0, segmentStart - offset);
+        const sourceOffset = clip.sourceStartTime + (segmentStart - clip.startTime);
+        const playableDuration = Math.min(segmentEnd - segmentStart, source.buffer.duration - sourceOffset);
+        if (playableDuration <= 0) {
+            continue;
+        }
+        applyClipGainAutomation(gain.gain, clip, segmentStart, segmentEnd, when);
+        node.start(when, sourceOffset, playableDuration);
+        nodes.push(node);
+    }
+    return nodes;
+}
+
+function applyClipGainAutomation(param, clip, segmentStart, segmentEnd, when) {
+    const base = clip.gain;
+    const points = [segmentStart];
+    const fadeInEnd = clip.startTime + (clip.fadeIn || 0);
+    const fadeOutStart = clip.startTime + clip.duration - (clip.fadeOut || 0);
+    const clipEnd = clip.startTime + clip.duration;
+    [fadeInEnd, fadeOutStart, clipEnd, segmentEnd].forEach((point) => {
+        if (point > segmentStart && point <= segmentEnd) {
+            points.push(point);
+        }
+    });
+    const uniquePoints = [...new Set(points)].sort((a, b) => a - b);
+    param.cancelScheduledValues(when);
+    param.setValueAtTime(base * getFadeMultiplier(clip, uniquePoints[0]), when);
+    uniquePoints.slice(1).forEach((point) => {
+        param.linearRampToValueAtTime(base * getFadeMultiplier(clip, point), when + (point - segmentStart));
+    });
+}
+
+function startPlayback(offset = playbackOffset, endTime = getProjectDuration(), loop = false, loopStart = offset) {
+    if (!project) {
+        return;
+    }
+    stopPlayback(false);
+    const context = ensureAudioContext();
+    context.resume();
+    playbackLoop = loop;
+    playbackLoopStart = loop ? loopStart : 0;
+    playbackEnd = endTime;
+    playbackOffset = clamp(offset, 0, getProjectDuration());
+    if (playbackLoop && playbackOffset >= playbackEnd) {
+        playbackOffset = playbackLoopStart;
+    }
+    playbackStartedAt = context.currentTime;
+    activeSources = scheduleTimeline(context, context.destination, playbackOffset, playbackEnd, true);
+    activeSources.forEach((node) => {
+        node.onended = handleSourceEnded;
+    });
+    isPlaying = true;
+    refs.playBtn.textContent = "一時停止";
+    refs.loopSelectionBtn.textContent = playbackLoop ? "ループ解除" : "選択範囲をループ再生";
+    tickPlayback();
+}
+
+function handleSourceEnded() {
+    const current = getCurrentPlaybackTime();
+    if (isPlaying && current >= (playbackEnd ?? getProjectDuration()) - 0.03) {
+        finishPlaybackRange();
+    }
+}
+
+function finishPlaybackRange() {
+    const end = playbackEnd ?? getProjectDuration();
+    if (playbackLoop) {
+        startPlayback(playbackLoopStart, end, true, playbackLoopStart);
+        return;
+    }
+    const projectEnd = getProjectDuration();
+    stopPlayback();
+    setPlayhead(end >= projectEnd - 0.03 ? 0 : end);
+}
+
+function stopPlayback(resetButton = true) {
+    if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+    }
+    if (isPlaying) {
+        playbackOffset = getCurrentPlaybackTime();
+    }
+    activeSources.forEach((node) => {
+        try {
+            node.onended = null;
+            node.stop();
+        } catch (error) {
+            // Already stopped.
+        }
+    });
+    activeSources = [];
+    liveEffects = new Map();
+    liveMixer = null;
+    liveOutputChannels = null;
+    isPlaying = false;
+    playbackEnd = null;
+    playbackLoop = false;
+    playbackLoopStart = 0;
+    if (resetButton) {
+        refs.playBtn.textContent = "再生";
+        refs.loopSelectionBtn.textContent = "選択範囲をループ再生";
+    }
+    updateMeters();
+    updateLabels();
+}
+
+function tickPlayback() {
+    if (!isPlaying) {
+        return;
+    }
+    const current = getCurrentPlaybackTime();
+    if (current >= (playbackEnd ?? getProjectDuration())) {
+        finishPlaybackRange();
+        return;
+    }
+    updateMeters();
+    updateLabels();
+    animationFrame = requestAnimationFrame(tickPlayback);
+}
+
+function getSelectedRangeOrPlayhead() {
+    if (selection.end > selection.start) {
+        return { start: selection.start, end: selection.end };
+    }
+    return { start: playbackOffset, end: playbackOffset };
+}
+
+function copyRange(start = selection.start, end = selection.end) {
+    const track = getTrack();
+    if (!track || end <= start) {
+        return null;
+    }
+    const clips = [];
+    for (const clip of track.clips) {
+        const clipEnd = clip.startTime + clip.duration;
+        const segmentStart = Math.max(clip.startTime, start);
+        const segmentEnd = Math.min(clipEnd, end);
+        if (segmentEnd <= segmentStart) {
+            continue;
+        }
+        clips.push({
+            id: makeId("clip"),
+            sourceId: clip.sourceId,
+            startTime: segmentStart - start,
+            sourceStartTime: clip.sourceStartTime + (segmentStart - clip.startTime),
+            duration: segmentEnd - segmentStart,
+            gain: clip.gain,
+            fadeIn: 0,
+            fadeOut: 0,
+        });
+    }
+    return clips.length ? { duration: end - start, clips } : null;
+}
+
+function deleteRange(start = selection.start, end = selection.end) {
+    const track = getTrack();
+    if (!track || end <= start) {
+        return;
+    }
+    const length = end - start;
+    const next = [];
+    for (const clip of track.clips) {
+        const clipEnd = clip.startTime + clip.duration;
+        if (clipEnd <= start) {
+            next.push(clip);
+        } else if (clip.startTime >= end) {
+            next.push({ ...clip, startTime: clip.startTime - length });
+        } else {
+            if (clip.startTime < start) {
+                next.push({ ...clip, duration: start - clip.startTime, fadeOut: 0 });
+            }
+            if (clipEnd > end) {
+                next.push({
+                    ...clip,
+                    id: makeId("clip"),
+                    startTime: start,
+                    sourceStartTime: clip.sourceStartTime + (end - clip.startTime),
+                    duration: clipEnd - end,
+                    fadeIn: 0,
+                });
+            }
+        }
+    }
+    track.clips = next;
+    normalizeClips();
+    selection = { start, end: start };
+    playbackOffset = start;
+}
+
+function splitClipsAt(time) {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    const next = [];
+    for (const clip of track.clips) {
+        const clipEnd = clip.startTime + clip.duration;
+        if (time <= clip.startTime || time >= clipEnd) {
+            next.push(clip);
+            continue;
+        }
+        next.push({ ...clip, duration: time - clip.startTime, fadeOut: 0 });
+        next.push({
+            ...clip,
+            id: makeId("clip"),
+            startTime: time,
+            sourceStartTime: clip.sourceStartTime + (time - clip.startTime),
+            duration: clipEnd - time,
+            fadeIn: 0,
+        });
+    }
+    track.clips = next;
+    normalizeClips();
+}
+
+function insertGap(time, length) {
+    const track = getTrack();
+    if (!track || length <= 0) {
+        return;
+    }
+    splitClipsAt(time);
+    track.clips = track.clips.map((clip) => (
+        clip.startTime >= time ? { ...clip, startTime: clip.startTime + length } : clip
+    ));
+    normalizeClips();
+}
+
+function insertClipboard(time) {
+    const track = getTrack();
+    if (!track || !clipboard) {
+        return;
+    }
+    insertGap(time, clipboard.duration);
+    clipboard.clips.forEach((clip) => {
+        track.clips.push({
+            ...clip,
+            id: makeId("clip"),
+            startTime: time + clip.startTime,
+        });
+    });
+    normalizeClips();
+    selection = { start: time, end: time + clipboard.duration };
+    playbackOffset = selection.start;
+}
+
+function applyToSelectedClips(updater) {
+    const track = getTrack();
+    if (!track) {
+        return 0;
+    }
+    const range = getSelectedRangeOrPlayhead();
+    let count = 0;
+    track.clips = track.clips.map((clip) => {
+        const clipEnd = clip.startTime + clip.duration;
+        const intersects = range.end > range.start
+            ? clipEnd > range.start && clip.startTime < range.end
+            : range.start >= clip.startTime && range.start <= clipEnd;
+        if (!intersects) {
+            return clip;
+        }
+        count += 1;
+        return updater(clip);
+    });
+    return count;
+}
+
+function renderEffects() {
+    const track = getTrack();
+    refs.effectsList.innerHTML = "";
+    if (!track || track.effects.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty-note";
+        empty.textContent = "エフェクトはまだありません。";
+        refs.effectsList.appendChild(empty);
+        return;
+    }
+    track.effects.forEach((effect, index) => {
+        const def = effectDefinitions[effect.type];
+        const card = document.createElement("article");
+        card.className = `effect-card${effect.enabled ? "" : " is-off"}`;
+        card.dataset.effectId = effect.id;
+
+        const head = document.createElement("div");
+        head.className = "effect-head";
+        const title = document.createElement("span");
+        title.className = "effect-title";
+        title.textContent = `${index + 1}. ${def?.label || effect.type}`;
+        const actions = document.createElement("div");
+        actions.className = "effect-actions";
+        actions.append(
+            makeEffectButton(effect.enabled ? "On" : "Off", () => toggleEffect(effect.id)),
+            makeEffectButton("↑", () => moveEffect(effect.id, -1), index === 0),
+            makeEffectButton("↓", () => moveEffect(effect.id, 1), index === track.effects.length - 1),
+            makeEffectButton("×", () => removeEffect(effect.id))
+        );
+        head.append(title, actions);
+        card.appendChild(head);
+
+        Object.entries(def.params).forEach(([key, meta]) => {
+            const row = document.createElement("label");
+            row.className = "effect-param";
+            const label = document.createElement("span");
+            label.textContent = meta.label;
+            const range = document.createElement("input");
+            range.type = "range";
+            range.min = meta.min;
+            range.max = meta.max;
+            range.step = meta.step;
+            range.value = effect.params[key];
+            const number = document.createElement("input");
+            number.type = "number";
+            number.min = meta.min;
+            number.max = meta.max;
+            number.step = meta.step;
+            number.value = effect.params[key];
+            range.addEventListener("input", () => {
+                number.value = range.value;
+                setEffectParam(effect.id, key, Number(range.value), false);
+            });
+            number.addEventListener("change", () => {
+                const value = clamp(Number(number.value), Number(meta.min), Number(meta.max));
+                number.value = value;
+                range.value = value;
+                setEffectParam(effect.id, key, value, true);
+            });
+            row.append(label, range, number);
+            card.appendChild(row);
+        });
+        refs.effectsList.appendChild(card);
+    });
+}
+
+function makeEffectButton(label, handler, disabled = false) {
+    const button = document.createElement("button");
+    button.className = "mini-button";
+    button.type = "button";
+    button.textContent = label;
+    button.disabled = disabled;
+    button.addEventListener("click", handler);
+    return button;
+}
+
+function addEffect(type) {
+    const track = getTrack();
+    const def = effectDefinitions[type];
+    if (!track || !def) {
+        return;
+    }
+    pushHistory();
+    const params = {};
+    Object.entries(def.params).forEach(([key, meta]) => {
+        params[key] = meta.default;
+    });
+    track.effects.push({ id: makeId("effect"), type, enabled: true, params });
+    renderEffects();
+    if (isPlaying) {
+        startPlayback(getCurrentPlaybackTime(), playbackEnd ?? getProjectDuration(), playbackLoop, playbackLoopStart);
+    }
+    updateControls();
+}
+
+function setEffectMenuOpen(open) {
+    refs.effectPicker.classList.toggle("is-open", open);
+    refs.effectPickerBtn.setAttribute("aria-expanded", String(open));
+}
+
+function removeEffect(id) {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    pushHistory();
+    track.effects = track.effects.filter((effect) => effect.id !== id);
+    renderEffects();
+    if (isPlaying) {
+        startPlayback(getCurrentPlaybackTime(), playbackEnd ?? getProjectDuration(), playbackLoop, playbackLoopStart);
+    }
+}
+
+function toggleEffect(id) {
+    const track = getTrack();
+    const effect = track?.effects.find((item) => item.id === id);
+    if (!effect) {
+        return;
+    }
+    pushHistory();
+    effect.enabled = !effect.enabled;
+    renderEffects();
+    if (isPlaying) {
+        startPlayback(getCurrentPlaybackTime(), playbackEnd ?? getProjectDuration(), playbackLoop, playbackLoopStart);
+    }
+}
+
+function moveEffect(id, delta) {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    const index = track.effects.findIndex((effect) => effect.id === id);
+    const nextIndex = index + delta;
+    if (index < 0 || nextIndex < 0 || nextIndex >= track.effects.length) {
+        return;
+    }
+    pushHistory();
+    const [effect] = track.effects.splice(index, 1);
+    track.effects.splice(nextIndex, 0, effect);
+    renderEffects();
+    if (isPlaying) {
+        startPlayback(getCurrentPlaybackTime(), playbackEnd ?? getProjectDuration(), playbackLoop, playbackLoopStart);
+    }
+}
+
+function setEffectParam(id, key, value, commitHistory) {
+    const track = getTrack();
+    const effect = track?.effects.find((item) => item.id === id);
+    if (!effect) {
+        return;
+    }
+    if (commitHistory) {
+        pushHistory();
+    }
+    effect.params[key] = value;
+    const live = liveEffects.get(id);
+    const param = live?.params?.[key];
+    if (param?.setTargetAtTime && audioCtx) {
+        param.setTargetAtTime(value, audioCtx.currentTime, 0.01);
+    } else if (param) {
+        param.value = value;
+    }
+}
+
+function syncMixerControls() {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    refs.trackVolumeRange.value = track.volume;
+    refs.trackVolumeInput.value = Number(track.volume).toFixed(2);
+    refs.trackPanRange.value = track.pan;
+    refs.trackPanInput.value = Number(track.pan).toFixed(2);
+}
+
+function setTrackVolume(value, commitHistory = false) {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    const next = clamp(Number(value), 0, 2);
+    if (commitHistory) {
+        pushHistory();
+    }
+    track.volume = next;
+    refs.trackVolumeRange.value = next;
+    refs.trackVolumeInput.value = next.toFixed(2);
+    if (liveMixer?.volume && audioCtx) {
+        liveMixer.volume.setTargetAtTime(next, audioCtx.currentTime, 0.01);
+    }
+}
+
+function setTrackPan(value, commitHistory = false) {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    const next = clamp(Number(value), -1, 1);
+    if (commitHistory) {
+        pushHistory();
+    }
+    track.pan = next;
+    refs.trackPanRange.value = next;
+    refs.trackPanInput.value = next.toFixed(2);
+    if (liveMixer?.pan && audioCtx) {
+        liveMixer.pan.setTargetAtTime(next, audioCtx.currentTime, 0.01);
+    }
+}
+
+function syncOutputChannelButtons() {
+    const channels = getOutputChannels();
+    refs.outputLeftBtn.classList.toggle("is-on", channels.left);
+    refs.outputRightBtn.classList.toggle("is-on", channels.right);
+    refs.outputLeftBtn.setAttribute("aria-pressed", String(channels.left));
+    refs.outputRightBtn.setAttribute("aria-pressed", String(channels.right));
+}
+
+function toggleOutputChannel(channel) {
+    const track = getTrack();
+    if (!track) {
+        return;
+    }
+    const channels = getOutputChannels(track);
+    const next = { ...channels, [channel]: !channels[channel] };
+    if (!next.left && !next.right) {
+        return;
+    }
+    pushHistory();
+    track.outputChannels = next;
+    syncOutputChannelButtons();
+    if (liveOutputChannels && audioCtx) {
+        liveOutputChannels.left.setTargetAtTime(next.left ? 1 : 0, audioCtx.currentTime, 0.01);
+        liveOutputChannels.right.setTargetAtTime(next.right ? 1 : 0, audioCtx.currentTime, 0.01);
+    }
+}
+
+function updateMeters() {
+    if (!liveMixer?.analysers?.length || !meterDataLeft || !meterDataRight) {
+        setMeterLevel("Left", 0);
+        setMeterLevel("Right", 0);
+        return;
+    }
+    liveMixer.analysers[0].getFloatTimeDomainData(meterDataLeft);
+    liveMixer.analysers[1].getFloatTimeDomainData(meterDataRight);
+    setMeterLevel("Left", getRms(meterDataLeft));
+    setMeterLevel("Right", getRms(meterDataRight));
+}
+
+function getRms(data) {
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 1) {
+        sum += data[i] * data[i];
+    }
+    return Math.sqrt(sum / data.length);
+}
+
+function setMeterLevel(side, rms) {
+    const db = rms > 0 ? 20 * Math.log10(rms) : -Infinity;
+    const normalized = clamp((db + 60) / 60, 0, 1);
+    const fill = refs[`vu${side}`];
+    const peak = refs[`vu${side}Peak`];
+    const label = refs[`vu${side}Label`];
+    fill.style.height = `${normalized * 100}%`;
+    peak.style.bottom = `${normalized * 100}%`;
+    label.textContent = Number.isFinite(db) && db > -60 ? `${db.toFixed(1)} dB` : "-∞ dB";
+}
+
+async function exportWav() {
+    if (!project || isBusy) {
+        return;
+    }
+    const duration = getProjectDuration();
+    if (!duration) {
+        setStatus("書き出す音声がありません。", "error");
+        return;
+    }
+    setBusy(true);
+    stopPlayback();
+    refs.exportStatus.textContent = "レンダリング中...";
+    setStatus("WAVを書き出し中...", "active");
+    try {
+        const channels = getMaxChannelCount();
+        const sampleRate = project.sampleRate || 44100;
+        const length = Math.max(1, Math.ceil(duration * sampleRate));
+        const offline = new OfflineAudioContext(channels, length, sampleRate);
+        scheduleTimeline(offline, offline.destination, 0, duration, false);
+        const rendered = await offline.startRendering();
+        const blob = encodeWav(rendered);
+        const baseName = getSafeBaseName(currentFile?.name || "audio");
+        downloadBlob(blob, `${baseName}_edited.wav`);
+        refs.exportStatus.textContent = "WAVダウンロード完了";
+        setStatus("WAVを書き出しました。", "active");
+    } catch (error) {
+        console.error(error);
+        refs.exportStatus.textContent = "エラー";
+        setStatus(`書き出しに失敗しました: ${error.message}`, "error");
+    } finally {
+        setBusy(false);
+    }
+}
+
+function encodeWav(buffer) {
+    const channels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const samples = buffer.length;
+    const bytesPerSample = 2;
+    const blockAlign = channels * bytesPerSample;
+    const dataSize = samples * blockAlign;
+    const arrayBuffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(arrayBuffer);
+    writeString(view, 0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, "WAVE");
+    writeString(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, "data");
+    view.setUint32(40, dataSize, true);
+    let offset = 44;
+    const channelData = [];
+    for (let channel = 0; channel < channels; channel += 1) {
+        channelData.push(buffer.getChannelData(channel));
+    }
+    for (let i = 0; i < samples; i += 1) {
+        for (let channel = 0; channel < channels; channel += 1) {
+            const sample = clamp(channelData[channel][i], -1, 1);
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+            offset += 2;
+        }
+    }
+    return new Blob([view], { type: "audio/wav" });
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i += 1) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
+function getSafeBaseName(name) {
+    const withoutExt = name.replace(/\.[^.]+$/, "");
+    return withoutExt.replace(/[^\w.-]+/g, "_").replace(/^_+|_+$/g, "") || "audio";
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+}
+
+function getTimeFromPointer(event) {
+    const duration = getProjectDuration();
+    const rect = refs.waveFrame.getBoundingClientRect();
+    return clamp(((event.clientX - rect.left) / rect.width) * duration, 0, duration);
+}
+
+function handleWavePointerDown(event) {
+    if (!project || isBusy) {
+        return;
+    }
+    if (playbackLoop) {
+        stopPlayback();
+    }
+    refs.waveFrame.setPointerCapture(event.pointerId);
+    const time = getTimeFromPointer(event);
+    dragState = { start: time, moved: false };
+    setPlayhead(time);
+    setSelection(time, time);
+}
+
+function handleWavePointerMove(event) {
+    if (!dragState || !project || isBusy) {
+        return;
+    }
+    const time = getTimeFromPointer(event);
+    dragState.moved = true;
+    setSelection(dragState.start, time);
+    setPlayhead(time);
+}
+
+function handleWavePointerUp(event) {
+    if (!dragState) {
+        return;
+    }
+    refs.waveFrame.releasePointerCapture(event.pointerId);
+    dragState = null;
+}
+
+function bindEvents() {
+    refs.fileButton.addEventListener("click", () => refs.fileInput.click());
+    refs.dropZone.addEventListener("click", (event) => {
+        if (event.target !== refs.fileButton) {
+            refs.fileInput.click();
+        }
+    });
+    refs.fileInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            loadFile(file);
+        }
+    });
+    ["dragenter", "dragover"].forEach((eventName) => {
+        refs.dropZone.addEventListener(eventName, (event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+            refs.dropZone.classList.add("is-dragover");
+        });
+    });
+    ["dragleave", "drop"].forEach((eventName) => {
+        refs.dropZone.addEventListener(eventName, () => refs.dropZone.classList.remove("is-dragover"));
+    });
+    refs.dropZone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const file = event.dataTransfer.files[0];
+        if (file) {
+            loadFile(file);
+        }
+    });
+
+    refs.playBtn.addEventListener("click", () => {
+        if (isPlaying) {
+            stopPlayback();
+        } else {
+            startPlayback(playbackOffset, getProjectDuration());
+        }
+    });
+    refs.startBtn.addEventListener("click", () => setPlayhead(0));
+    refs.playSelectionBtn.addEventListener("click", () => {
+        if (selection.end > selection.start) {
+            startPlayback(selection.start, selection.end);
+        }
+    });
+    refs.outputLeftBtn.addEventListener("click", () => toggleOutputChannel("left"));
+    refs.outputRightBtn.addEventListener("click", () => toggleOutputChannel("right"));
+    refs.loopSelectionBtn.addEventListener("click", () => {
+        if (playbackLoop) {
+            stopPlayback();
+            setPlayhead(selection.start);
+            return;
+        }
+        if (selection.end > selection.start) {
+            startPlayback(selection.start, selection.end, true, selection.start);
+        }
+    });
+    refs.undoBtn.addEventListener("click", () => {
+        if (!history.length) {
+            return;
+        }
+        redoStack.push(cloneProject());
+        restoreProject(history.pop());
+    });
+    refs.redoBtn.addEventListener("click", () => {
+        if (!redoStack.length) {
+            return;
+        }
+        history.push(cloneProject());
+        restoreProject(redoStack.pop());
+    });
+    refs.copyBtn.addEventListener("click", () => {
+        clipboard = copyRange();
+        setStatus(clipboard ? "選択範囲をコピーしました。" : "コピーできる範囲がありません。", clipboard ? "active" : "error");
+        updateControls();
+    });
+    refs.cutBtn.addEventListener("click", () => {
+        if (selection.end <= selection.start) {
+            return;
+        }
+        clipboard = copyRange();
+        pushHistory();
+        deleteRange();
+        updateAfterProjectChange();
+        setStatus("選択範囲をカットしました。", "active");
+    });
+    refs.deleteBtn.addEventListener("click", () => {
+        if (selection.end <= selection.start) {
+            return;
+        }
+        pushHistory();
+        deleteRange();
+        updateAfterProjectChange();
+        setStatus("選択範囲を削除しました。", "active");
+    });
+    refs.pasteBtn.addEventListener("click", () => {
+        if (!clipboard) {
+            return;
+        }
+        pushHistory();
+        insertClipboard(playbackOffset);
+        updateAfterProjectChange();
+        setStatus("ペーストしました。", "active");
+    });
+    refs.duplicateBtn.addEventListener("click", () => {
+        const copied = copyRange();
+        if (!copied) {
+            return;
+        }
+        pushHistory();
+        clipboard = copied;
+        insertClipboard(selection.end);
+        updateAfterProjectChange();
+        setStatus("選択範囲を複製しました。", "active");
+    });
+    refs.silenceBtn.addEventListener("click", () => {
+        const length = selection.end > selection.start ? selection.end - selection.start : 1;
+        pushHistory();
+        insertGap(playbackOffset, length);
+        selection = { start: playbackOffset, end: playbackOffset + length };
+        updateAfterProjectChange();
+        setStatus("無音を挿入しました。", "active");
+    });
+    refs.splitBtn.addEventListener("click", () => {
+        pushHistory();
+        splitClipsAt(playbackOffset);
+        updateAfterProjectChange();
+        setStatus("クリップを分割しました。", "active");
+    });
+    bindTimeInput(refs.selectionStartInput, commitSelectionStartInput);
+    bindTimeInput(refs.selectionEndInput, commitSelectionEndInput);
+    bindTimeInput(refs.playheadInput, commitPlayheadInput);
+    refs.selectAllBtn.addEventListener("click", () => setSelection(0, getProjectDuration()));
+    refs.trackVolumeRange.addEventListener("input", () => setTrackVolume(refs.trackVolumeRange.value));
+    refs.trackVolumeInput.addEventListener("change", () => setTrackVolume(refs.trackVolumeInput.value, true));
+    refs.trackPanRange.addEventListener("input", () => setTrackPan(refs.trackPanRange.value));
+    refs.trackPanInput.addEventListener("change", () => setTrackPan(refs.trackPanInput.value, true));
+    refs.centerPanBtn.addEventListener("click", () => setTrackPan(0, true));
+    refs.effectPickerBtn.addEventListener("click", () => {
+        setEffectMenuOpen(!refs.effectPicker.classList.contains("is-open"));
+    });
+    refs.effectMenu.addEventListener("click", (event) => {
+        const option = event.target.closest(".effect-option");
+        if (!option) {
+            return;
+        }
+        addEffect(option.dataset.effectType);
+        setEffectMenuOpen(false);
+    });
+    document.addEventListener("click", (event) => {
+        if (!refs.effectPicker.contains(event.target)) {
+            setEffectMenuOpen(false);
+        }
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            setEffectMenuOpen(false);
+        }
+    });
+    refs.exportBtn.addEventListener("click", exportWav);
+
+    refs.waveFrame.addEventListener("pointerdown", handleWavePointerDown);
+    refs.waveFrame.addEventListener("pointermove", handleWavePointerMove);
+    refs.waveFrame.addEventListener("pointerup", handleWavePointerUp);
+    refs.waveFrame.addEventListener("pointercancel", handleWavePointerUp);
+    window.addEventListener("resize", drawWaveform);
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+            stopPlayback();
+        }
+    });
+}
+
+bindEvents();
+updateControls();
+drawWaveform();
+renderEffects();
+updateLabels();

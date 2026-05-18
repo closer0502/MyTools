@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web音声エディター</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Audio Editor</span>
+            <h1>Web音声エディター</h1>
+            <p class="lede">音声素材のカット、フェード、ゲイン調整、リアルタイムエフェクト確認、WAV書き出しをブラウザ内で行います。</p>
+            <div class="steps">
+                <span class="step-pill">1. 音声を読み込み</span>
+                <span class="step-pill">2. 波形で編集</span>
+                <span class="step-pill">3. エフェクトを調整</span>
+                <span class="step-pill">4. WAV書き出し</span>
+            </div>
+        </header>
+
+        <section class="card workspace-card">
+            <div class="workspace">
+                <main class="main-column">
+                    <section class="panel import-panel">
+                        <div class="section-heading">
+                            <div>
+                                <span class="section-label">Input</span>
+                                <h2>音声ファイル</h2>
+                            </div>
+                            <p class="hint">WAV / MP3 / OGG / WebM など、ブラウザがデコードできる音声を読み込めます。</p>
+                        </div>
+                        <div class="drop-zone" id="dropZone">
+                            <div class="drop-inner">
+                                <p class="primary">ここに音声ファイルをドロップ</p>
+                                <p class="secondary">またはファイルを選択</p>
+                                <button class="pill-button" type="button" id="fileButton">音声を選ぶ</button>
+                                <input id="fileInput" type="file" accept="audio/*,.wav,.mp3,.ogg,.webm,.m4a,.aac,.flac" hidden>
+                            </div>
+                        </div>
+                        <div class="file-meta">
+                            <div class="meta-row">
+                                <span class="label">ファイル</span>
+                                <span class="value" id="fileName">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="label">長さ</span>
+                                <span class="value mono" id="durationLabel">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="label">形式</span>
+                                <span class="value" id="fileType">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="label">サンプルレート</span>
+                                <span class="value mono" id="sampleRateLabel">-</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="panel waveform-panel">
+                        <div class="canvas-header">
+                            <div>
+                                <span class="section-label">Timeline</span>
+                                <h2>波形編集</h2>
+                            </div>
+                            <div class="wave-info">
+                                <span class="mono" id="selectionLabel">選択: -</span>
+                                <span class="mono" id="waveInfo">未生成</span>
+                            </div>
+                        </div>
+                        <div class="transport-row">
+                            <button class="pill-button" id="playBtn" type="button" disabled>再生</button>
+                            <button class="ghost-button" id="startBtn" type="button" disabled>先頭へ</button>
+                            <button class="ghost-button" id="playSelectionBtn" type="button" disabled>選択範囲を再生</button>
+                            <button class="ghost-button" id="loopSelectionBtn" type="button" disabled>選択範囲をループ再生</button>
+                            <span class="time-readout mono" id="timeLabel">00:00:00.000 / 00:00:00.000</span>
+                            <div class="output-channel-toggle" aria-label="出力チャンネル">
+                                <button class="channel-button is-on" id="outputLeftBtn" type="button" aria-pressed="true" disabled>L</button>
+                                <button class="channel-button is-on" id="outputRightBtn" type="button" aria-pressed="true" disabled>R</button>
+                            </div>
+                        </div>
+                        <div class="wave-frame" id="waveFrame">
+                            <canvas id="waveCanvas" height="240"></canvas>
+                            <div class="clip-layer" id="clipLayer"></div>
+                            <div class="wave-selection" id="waveSelection"></div>
+                            <div class="playhead" id="playhead"></div>
+                        </div>
+                        <div class="transport-row secondary-row">
+                            <button class="ghost-button compact" id="undoBtn" type="button" disabled>Undo</button>
+                            <button class="ghost-button compact" id="redoBtn" type="button" disabled>Redo</button>
+                            <button class="ghost-button compact" id="cutBtn" type="button" disabled>カット</button>
+                            <button class="ghost-button compact" id="copyBtn" type="button" disabled>コピー</button>
+                            <button class="ghost-button compact" id="pasteBtn" type="button" disabled>ペースト</button>
+                            <button class="ghost-button compact" id="deleteBtn" type="button" disabled>削除</button>
+                            <button class="ghost-button compact" id="splitBtn" type="button" disabled>分割</button>
+                            <button class="ghost-button compact" id="duplicateBtn" type="button" disabled>複製</button>
+                            <button class="ghost-button compact" id="silenceBtn" type="button" disabled>無音挿入</button>
+                        </div>
+                        <div class="range-card">
+                            <div class="inputs-row">
+                                <label>選択開始
+                                    <input type="text" id="selectionStartInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                                <label>選択終了
+                                    <input type="text" id="selectionEndInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                                <label>再生位置
+                                    <input type="text" id="playheadInput" placeholder="00:00:00.000" disabled>
+                                </label>
+                            </div>
+                            <div class="range-actions">
+                                <button class="ghost-button" id="selectAllBtn" type="button" disabled>全範囲選択</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="panel effect-panel">
+                        <div class="section-heading">
+                            <div>
+                                <span class="section-label">Effects</span>
+                                <h2>エフェクトチェーン</h2>
+                            </div>
+                            <p class="hint">再生中のパラメータ変更を即時反映します。</p>
+                        </div>
+                        <div class="effect-add-row">
+                            <div class="effect-picker" id="effectPicker">
+                                <button class="ghost-button effect-picker-button" id="effectPickerBtn" type="button" aria-expanded="false" disabled>エフェクトを選択</button>
+                                <div class="effect-menu" id="effectMenu" role="listbox" aria-label="追加するエフェクト">
+                                    <button type="button" class="effect-option" data-effect-type="gain">Gain</button>
+                                    <button type="button" class="effect-option" data-effect-type="lowpass">Lowpass</button>
+                                    <button type="button" class="effect-option" data-effect-type="highpass">Highpass</button>
+                                    <button type="button" class="effect-option" data-effect-type="peaking">Peaking EQ</button>
+                                    <button type="button" class="effect-option" data-effect-type="compressor">Compressor</button>
+                                    <button type="button" class="effect-option" data-effect-type="delay">Delay</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="effects-list" id="effectsList">
+                            <p class="empty-note">エフェクトはまだありません。</p>
+                        </div>
+                    </section>
+                </main>
+
+                <aside class="side-column">
+                    <section class="panel mixer-panel">
+                        <div class="section-heading">
+                            <div>
+                                <span class="section-label">Mixer</span>
+                                <h2>トラックミキサー</h2>
+                            </div>
+                            <p class="hint">ステレオVUメーターを見ながら、トラックの音量と定位を調整します。</p>
+                        </div>
+                        <div class="mixer-strip">
+                            <div class="vu-section">
+                                <div class="meter-pair" aria-label="ステレオVUメーター">
+                                    <div class="meter-channel">
+                                        <span class="meter-label">L</span>
+                                        <div class="meter-shell">
+                                            <div class="meter-fill" id="vuLeft"></div>
+                                            <div class="meter-peak" id="vuLeftPeak"></div>
+                                        </div>
+                                        <span class="meter-value mono" id="vuLeftLabel">-∞ dB</span>
+                                    </div>
+                                    <div class="meter-channel">
+                                        <span class="meter-label">R</span>
+                                        <div class="meter-shell">
+                                            <div class="meter-fill" id="vuRight"></div>
+                                            <div class="meter-peak" id="vuRightPeak"></div>
+                                        </div>
+                                        <span class="meter-value mono" id="vuRightLabel">-∞ dB</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mixer-controls">
+                                <label>ボリューム
+                                    <div class="range-line">
+                                        <input type="range" id="trackVolumeRange" min="0" max="2" step="0.01" value="1" disabled>
+                                        <input type="number" id="trackVolumeInput" min="0" max="2" step="0.01" value="1.00" disabled>
+                                    </div>
+                                </label>
+                                <label class="pan-control">パン
+                                    <div class="range-line pan-line">
+                                        <input type="range" id="trackPanRange" min="-1" max="1" step="0.01" value="0" disabled>
+                                        <input type="number" id="trackPanInput" min="-1" max="1" step="0.01" value="0.00" disabled>
+                                        <button class="mini-button center-button" id="centerPanBtn" type="button" disabled>C</button>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="panel export-panel">
+                        <div class="section-heading">
+                            <div>
+                                <span class="section-label">Export</span>
+                                <h2>WAV書き出し</h2>
+                            </div>
+                            <p class="hint">現在の編集内容とエフェクトチェーンを OfflineAudioContext で反映します。</p>
+                        </div>
+                        <button class="pill-button wide" id="exportBtn" type="button" disabled>WAVをダウンロード</button>
+                        <p class="export-status" id="exportStatus">未処理</p>
+                    </section>
+
+                    <section class="status-box">
+                        <span class="status-dot" id="statusDot"></span>
+                        <span id="statusText">音声ファイルを読み込んでください。</span>
+                    </section>
+                </aside>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
