@@ -842,6 +842,47 @@ input[type="range"] {
     font-weight: 700;
 }
 
+.export-panel .section-heading {
+    order: 1;
+}
+
+.export-options {
+    order: 2;
+    display: grid;
+    gap: 10px;
+}
+
+.export-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.checkbox-row {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 40px;
+}
+
+.checkbox-row input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.export-panel .wide {
+    order: 3;
+}
+
+.export-status {
+    order: 4;
+}
+
 .mono {
     font-family: var(--font-mono);
 }

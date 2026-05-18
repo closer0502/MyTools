@@ -62,10 +62,24 @@ const refs = {
     effectPickerBtn: $("effectPickerBtn"),
     effectMenu: $("effectMenu"),
     effectsList: $("effectsList"),
+    exportFormatSelect: $("exportFormatSelect"),
+    exportSampleRateSelect: $("exportSampleRateSelect"),
+    exportChannelSelect: $("exportChannelSelect"),
+    exportBitrateField: $("exportBitrateField"),
+    exportBitrateSelect: $("exportBitrateSelect"),
+    exportIncludeTailCheckbox: $("exportIncludeTailCheckbox"),
     exportBtn: $("exportBtn"),
     exportStatus: $("exportStatus"),
     statusDot: $("statusDot"),
     statusText: $("statusText"),
+};
+
+const outputProfiles = {
+    wav: { ext: "wav", mime: "audio/wav", codec: null, bitrate: false },
+    mp3: { ext: "mp3", mime: "audio/mpeg", codec: ["-c:a", "libmp3lame"], bitrate: true },
+    m4a: { ext: "m4a", mime: "audio/mp4", codec: ["-c:a", "aac"], bitrate: true },
+    ogg: { ext: "ogg", mime: "audio/ogg", codec: ["-c:a", "libopus"], bitrate: true },
+    flac: { ext: "flac", mime: "audio/flac", codec: ["-c:a", "flac"], bitrate: false },
 };
 
 const effectDefinitions = {
@@ -191,9 +205,16 @@ const editControls = [
     refs.trackPanInput,
     refs.centerPanBtn,
     refs.effectPickerBtn,
+    refs.exportFormatSelect,
+    refs.exportSampleRateSelect,
+    refs.exportChannelSelect,
+    refs.exportBitrateSelect,
+    refs.exportIncludeTailCheckbox,
     refs.exportBtn,
 ];
 
+let ffmpeg = null;
+let ffmpegReady = false;
 let audioCtx = null;
 let project = null;
 let sources = new Map();
@@ -223,6 +244,10 @@ let quickMode = null;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const pad = (value, length = 2) => String(value).padStart(length, "0");
 const makeId = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const EXPORT_TAIL_MAX_SECONDS = 60;
+const EXPORT_TAIL_SILENCE_SECONDS = 1.5;
+const EXPORT_TAIL_THRESHOLD_DB = -80;
+const EXPORT_TAIL_ANALYSIS_WINDOW_SECONDS = 0.05;
 
 function ensureAudioContext() {
     if (!audioCtx) {
@@ -320,6 +345,14 @@ function updateControls() {
     refs.undoBtn.disabled = isBusy || history.length === 0;
     refs.redoBtn.disabled = isBusy || redoStack.length === 0;
     refs.pasteBtn.disabled = isBusy || !ready || !clipboard;
+    updateExportFields();
+}
+
+function updateExportFields() {
+    const profile = outputProfiles[refs.exportFormatSelect.value] || outputProfiles.wav;
+    refs.exportBitrateField.style.opacity = profile.bitrate ? "1" : "0.48";
+    refs.exportBitrateSelect.disabled = isBusy || !project || !profile.bitrate;
+    refs.exportBtn.textContent = `${profile.ext.toUpperCase()}をダウンロード`;
 }
 
 function cloneProject(value = project) {
@@ -1791,6 +1824,244 @@ function setMeterLevel(side, rms) {
     label.textContent = Number.isFinite(db) && db > -60 ? `${db.toFixed(1)} dB` : "-∞ dB";
 }
 
+function getFFmpegGlobals() {
+    const ffmpegGlobal = window.FFmpegWASM || window.FFmpeg;
+    const utilGlobal = window.FFmpegUtil || window.FFmpegWASM;
+    if (!ffmpegGlobal?.FFmpeg || !utilGlobal?.toBlobURL) {
+        throw new Error("FFmpeg WASMライブラリを読み込めませんでした。ネットワーク接続を確認してください。");
+    }
+    return {
+        FFmpeg: ffmpegGlobal.FFmpeg,
+        toBlobURL: utilGlobal.toBlobURL,
+    };
+}
+
+async function ensureFFmpeg() {
+    if (ffmpegReady) {
+        return ffmpeg;
+    }
+    const { FFmpeg, toBlobURL } = getFFmpegGlobals();
+    ffmpeg = new FFmpeg();
+    ffmpeg.on("progress", ({ progress }) => {
+        if (Number.isFinite(progress)) {
+            refs.exportStatus.textContent = `変換中... ${(clamp(progress, 0, 1) * 100).toFixed(0)}%`;
+        }
+    });
+    setStatus("FFmpeg WASMを読み込み中...", "active");
+    const ffmpegBaseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd";
+    const coreBaseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+    await ffmpeg.load({
+        classWorkerURL: await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, "text/javascript"),
+        coreURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, "application/wasm"),
+    });
+    ffmpegReady = true;
+    return ffmpeg;
+}
+
+async function ensureFFmpegWithFallbacks() {
+    if (ffmpegReady) {
+        return ffmpeg;
+    }
+    const { FFmpeg, toBlobURL } = getFFmpegGlobals();
+    setStatus("FFmpeg WASMを読み込み中...", "active");
+    const ffmpegBaseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd";
+    const classWorkerURL = await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, "text/javascript");
+    const coreCandidates = [
+        { baseURL: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm", blob: true },
+        { baseURL: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm", blob: false },
+        { baseURL: "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm", blob: true },
+        { baseURL: "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd", blob: true },
+    ];
+    let lastError = null;
+    for (const candidate of coreCandidates) {
+        const instance = new FFmpeg();
+        instance.on("progress", ({ progress }) => {
+            if (Number.isFinite(progress)) {
+                refs.exportStatus.textContent = `変換中... ${(clamp(progress, 0, 1) * 100).toFixed(0)}%`;
+            }
+        });
+        try {
+            const coreURL = `${candidate.baseURL}/ffmpeg-core.js`;
+            const wasmURL = `${candidate.baseURL}/ffmpeg-core.wasm`;
+            await instance.load({
+                classWorkerURL,
+                coreURL: candidate.blob ? await toBlobURL(coreURL, "text/javascript") : coreURL,
+                wasmURL: candidate.blob ? await toBlobURL(wasmURL, "application/wasm") : wasmURL,
+            });
+            ffmpeg = instance;
+            ffmpegReady = true;
+            return ffmpeg;
+        } catch (error) {
+            lastError = error;
+            try {
+                instance.terminate();
+            } catch (terminateError) {
+                // Ignore cleanup errors from a partially initialized worker.
+            }
+        }
+    }
+    throw lastError || new Error("FFmpeg WASMを読み込めませんでした。");
+}
+
+async function deleteVirtualFile(name) {
+    try {
+        await ffmpeg.deleteFile(name);
+    } catch (error) {
+        // The file may not exist after a failed conversion.
+    }
+}
+
+function getExportSampleRate() {
+    const selected = refs.exportSampleRateSelect.value;
+    return selected === "copy" ? project.sampleRate || 44100 : Number(selected);
+}
+
+function getRenderChannelCount() {
+    const selected = refs.exportChannelSelect.value;
+    if (selected === "2") {
+        return 2;
+    }
+    return Math.max(getMaxChannelCount(), selected.startsWith("mono-") ? 2 : 1);
+}
+
+function createExportAudioBuffer(channels, length, sampleRate) {
+    const context = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    return context.createBuffer(channels, length, sampleRate);
+}
+
+function convertRenderedBuffer(buffer) {
+    const mode = refs.exportChannelSelect.value;
+    if (mode === "copy") {
+        return buffer;
+    }
+    if (mode === "2") {
+        if (buffer.numberOfChannels === 2) {
+            return buffer;
+        }
+        const stereo = createExportAudioBuffer(2, buffer.length, buffer.sampleRate);
+        const source = buffer.getChannelData(0);
+        stereo.copyToChannel(source, 0);
+        stereo.copyToChannel(source, 1);
+        return stereo;
+    }
+    const channelIndex = mode === "mono-right" ? 1 : 0;
+    const mono = createExportAudioBuffer(1, buffer.length, buffer.sampleRate);
+    mono.copyToChannel(buffer.getChannelData(Math.min(channelIndex, buffer.numberOfChannels - 1)), 0);
+    return mono;
+}
+
+function getWindowRms(buffer, start, end) {
+    let sum = 0;
+    let count = 0;
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+        const data = buffer.getChannelData(channel);
+        for (let i = start; i < end; i += 1) {
+            sum += data[i] * data[i];
+            count += 1;
+        }
+    }
+    return count ? Math.sqrt(sum / count) : 0;
+}
+
+function copyAudioBufferRange(buffer, length) {
+    const trimmed = createExportAudioBuffer(buffer.numberOfChannels, length, buffer.sampleRate);
+    for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+        trimmed.copyToChannel(buffer.getChannelData(channel).subarray(0, length), channel);
+    }
+    return trimmed;
+}
+
+function trimRenderedTail(buffer, originalDuration) {
+    const sampleRate = buffer.sampleRate;
+    const originalLength = Math.min(buffer.length, Math.ceil(originalDuration * sampleRate));
+    const threshold = 10 ** (EXPORT_TAIL_THRESHOLD_DB / 20);
+    const windowSize = Math.max(1, Math.round(EXPORT_TAIL_ANALYSIS_WINDOW_SECONDS * sampleRate));
+    const requiredSilentSamples = Math.max(1, Math.round(EXPORT_TAIL_SILENCE_SECONDS * sampleRate));
+    let silentStart = null;
+    for (let start = originalLength; start < buffer.length; start += windowSize) {
+        const end = Math.min(buffer.length, start + windowSize);
+        const rms = getWindowRms(buffer, start, end);
+        if (rms <= threshold) {
+            if (silentStart === null) {
+                silentStart = start;
+            }
+            if (end - silentStart >= requiredSilentSamples) {
+                return copyAudioBufferRange(buffer, Math.max(originalLength, silentStart));
+            }
+        } else {
+            silentStart = null;
+        }
+    }
+    return buffer;
+}
+
+async function renderExportBuffer() {
+    const duration = getProjectDuration();
+    const sampleRate = getExportSampleRate();
+    const channels = getRenderChannelCount();
+    const includeTail = refs.exportIncludeTailCheckbox.checked;
+    const renderDuration = includeTail ? duration + EXPORT_TAIL_MAX_SECONDS : duration;
+    const length = Math.max(1, Math.ceil(renderDuration * sampleRate));
+    const offline = new OfflineAudioContext(channels, length, sampleRate);
+    scheduleTimeline(offline, offline.destination, 0, renderDuration, false);
+    const rendered = convertRenderedBuffer(await offline.startRendering());
+    return includeTail ? trimRenderedTail(rendered, duration) : rendered;
+}
+
+async function transcodeRenderedWav(wavBlob, profile) {
+    const instance = await ensureFFmpegWithFallbacks();
+    const inputName = "input.wav";
+    const outputName = `output.${profile.ext}`;
+    await deleteVirtualFile(inputName);
+    await deleteVirtualFile(outputName);
+    await instance.writeFile(inputName, new Uint8Array(await wavBlob.arrayBuffer()));
+    const args = ["-i", inputName, ...profile.codec];
+    if (profile.bitrate) {
+        args.push("-b:a", refs.exportBitrateSelect.value);
+    }
+    args.push(outputName);
+    await instance.exec(args);
+    const data = await instance.readFile(outputName);
+    await deleteVirtualFile(inputName);
+    await deleteVirtualFile(outputName);
+    return new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)], {
+        type: profile.mime,
+    });
+}
+
+async function handleExport() {
+    if (!project || isBusy) {
+        return;
+    }
+    const duration = getProjectDuration();
+    if (!duration) {
+        setStatus("書き出す音声がありません。", "error");
+        return;
+    }
+    const profile = outputProfiles[refs.exportFormatSelect.value] || outputProfiles.wav;
+    setBusy(true);
+    stopPlayback();
+    refs.exportStatus.textContent = "レンダリング中...";
+    setStatus(`${profile.ext.toUpperCase()}を書き出し中...`, "active");
+    try {
+        const rendered = await renderExportBuffer();
+        const wavBlob = encodeWav(rendered);
+        refs.exportStatus.textContent = profile.ext === "wav" ? "書き出し中..." : "変換中...";
+        const blob = profile.ext === "wav" ? wavBlob : await transcodeRenderedWav(wavBlob, profile);
+        const baseName = getSafeBaseName(currentFile?.name || "audio");
+        downloadBlob(blob, `${baseName}_edited.${profile.ext}`);
+        refs.exportStatus.textContent = `${profile.ext.toUpperCase()}ダウンロード完了`;
+        setStatus(`${profile.ext.toUpperCase()}を書き出しました。`, "active");
+    } catch (error) {
+        console.error(error);
+        refs.exportStatus.textContent = "エラー";
+        setStatus(`書き出しに失敗しました: ${error.message}`, "error");
+    } finally {
+        setBusy(false);
+    }
+}
+
 async function exportWav() {
     if (!project || isBusy) {
         return;
@@ -2067,7 +2338,8 @@ function bindEvents() {
             setEffectMenuOpen(false);
         }
     });
-    refs.exportBtn.addEventListener("click", exportWav);
+    refs.exportFormatSelect.addEventListener("change", updateExportFields);
+    refs.exportBtn.addEventListener("click", handleExport);
 
     refs.waveFrame.addEventListener("pointerdown", handleWavePointerDown);
     refs.waveFrame.addEventListener("pointermove", handleWavePointerMove);

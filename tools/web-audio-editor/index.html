@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web音声エディター</title>
     <link rel="stylesheet" href="style.css">
-    <script defer src="script.js"></script>
 </head>
 <body>
     <div class="app">
@@ -228,6 +227,51 @@
                     </section>
 
                     <section class="panel export-panel">
+                        <div class="export-options">
+                            <div class="export-grid">
+                                <label>形式
+                                    <select id="exportFormatSelect" disabled>
+                                        <option value="wav" selected>WAV</option>
+                                        <option value="mp3">MP3</option>
+                                        <option value="m4a">M4A / AAC</option>
+                                        <option value="ogg">OGG / Opus</option>
+                                        <option value="flac">FLAC</option>
+                                    </select>
+                                </label>
+                                <label>サンプルレート
+                                    <select id="exportSampleRateSelect" disabled>
+                                        <option value="copy" selected>元のまま</option>
+                                        <option value="22050">22.05 kHz</option>
+                                        <option value="32000">32 kHz</option>
+                                        <option value="44100">44.1 kHz</option>
+                                        <option value="48000">48 kHz</option>
+                                        <option value="96000">96 kHz</option>
+                                    </select>
+                                </label>
+                                <label>チャンネル
+                                    <select id="exportChannelSelect" disabled>
+                                        <option value="copy" selected>元のまま</option>
+                                        <option value="mono-left">Mono L</option>
+                                        <option value="mono-right">Mono R</option>
+                                        <option value="2">Stereo</option>
+                                    </select>
+                                </label>
+                                <label id="exportBitrateField">ビットレート
+                                    <select id="exportBitrateSelect" disabled>
+                                        <option value="96k">96 kbps</option>
+                                        <option value="128k">128 kbps</option>
+                                        <option value="160k">160 kbps</option>
+                                        <option value="192k" selected>192 kbps</option>
+                                        <option value="256k">256 kbps</option>
+                                        <option value="320k">320 kbps</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="exportIncludeTailCheckbox" checked disabled>
+                                <span>残響などの余韻時間を含める</span>
+                            </label>
+                        </div>
                         <div class="section-heading">
                             <div>
                                 <span class="section-label">Export</span>
@@ -247,5 +291,8 @@
             </div>
         </section>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
