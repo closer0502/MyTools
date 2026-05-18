@@ -11,6 +11,7 @@ body {
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-sans);
+    overflow: hidden;
 }
 
 button,
@@ -21,11 +22,13 @@ select {
 
 .app {
     max-width: 1360px;
-    margin: 42px auto 64px;
+    height: calc(100vh - 84px);
+    margin: 42px auto;
     padding: 0 var(--space-3);
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    min-height: 0;
 }
 
 .header {
@@ -86,15 +89,31 @@ select {
 
 .workspace {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
+    grid-template-columns: minmax(0, 1fr) 396px;
     gap: var(--space-4);
     align-items: start;
+    height: 100%;
+    min-height: 0;
+}
+
+.workspace-card {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .main-column,
 .side-column {
     display: grid;
     gap: var(--space-3);
+    min-height: 0;
+}
+
+.main-column {
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-gutter: stable;
 }
 
 .panel {
@@ -548,9 +567,16 @@ input[type="range"] {
 
 .mixer-strip {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 116px minmax(0, 1fr);
     gap: var(--space-3);
     align-items: stretch;
+    flex: 1;
+    min-height: 0;
+}
+
+.mixer-panel {
+    height: 388px;
+    overflow: hidden;
 }
 
 .vu-section,
@@ -559,13 +585,18 @@ input[type="range"] {
     border-radius: var(--radius);
     background: var(--panel-strong);
     padding: var(--space-3);
+    min-width: 0;
+}
+
+.vu-section {
+    padding: 10px;
 }
 
 .meter-pair {
     display: grid;
-    grid-template-columns: repeat(2, minmax(86px, 1fr));
-    gap: 14px;
-    min-height: 190px;
+    grid-template-columns: repeat(2, minmax(44px, 1fr));
+    gap: 8px;
+    min-height: 172px;
 }
 
 .meter-channel {
@@ -584,7 +615,7 @@ input[type="range"] {
 
 .meter-shell {
     position: relative;
-    width: 42px;
+    width: 28px;
     height: 132px;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -633,12 +664,47 @@ input[type="range"] {
 
 .meter-value {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
+    line-height: 1.2;
+    min-width: 44px;
+    text-align: center;
+    white-space: nowrap;
 }
 
 .mixer-controls {
     grid-template-columns: 1fr;
     align-content: start;
+}
+
+.mixer-controls .range-line {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 8px;
+}
+
+.mixer-controls .pan-line {
+    grid-template-columns: minmax(0, 1fr) max-content;
+}
+
+.mixer-controls input[type="number"] {
+    width: 6.5ch;
+    min-width: 0;
+    padding-right: 5px;
+    padding-left: 5px;
+    text-align: right;
+    appearance: textfield;
+}
+
+.mixer-controls input[type="number"]::-webkit-outer-spin-button,
+.mixer-controls input[type="number"]::-webkit-inner-spin-button {
+    margin: 0;
+    appearance: none;
+}
+
+.control-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
 }
 
 .pan-control {
@@ -787,12 +853,37 @@ input[type="range"] {
 }
 
 @media (max-width: 1120px) {
+    body {
+        overflow: auto;
+    }
+
+    .app {
+        height: auto;
+        margin: 42px auto 64px;
+        min-height: 0;
+    }
+
+    .workspace-card {
+        overflow: visible;
+    }
+
     .workspace {
         grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .main-column {
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
     }
 
     .side-column {
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+
+    .mixer-strip {
+        grid-template-columns: 116px minmax(0, 1fr);
     }
 }
 
@@ -823,6 +914,11 @@ input[type="range"] {
 
     .mixer-strip {
         grid-template-columns: 1fr;
+    }
+
+    .mixer-panel {
+        height: auto;
+        overflow: visible;
     }
 
     .time-readout {
