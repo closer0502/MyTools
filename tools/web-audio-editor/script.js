@@ -129,6 +129,18 @@ const effectDefinitions = {
     reverb: {
         label: "Reverb",
         params: {
+            reverbType: {
+                label: "タイプ",
+                kind: "select",
+                options: [
+                    { value: "room", label: "Room（部屋）" },
+                    { value: "hall", label: "Hall（ホール）" },
+                    { value: "plate", label: "Plate（プレート）" },
+                    { value: "cathedral", label: "Cathedral（大聖堂）" },
+                    { value: "spring", label: "Spring（スプリング）" },
+                ],
+                default: "room",
+            },
             decay: { label: "Decay", min: 0.2, max: 8, step: 0.1, default: 2.2 },
             preDelay: { label: "Pre", min: 0, max: 0.2, step: 0.005, default: 0.02 },
             wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.28 },
@@ -762,6 +774,8 @@ function buildEffectNode(context, effect) {
         return { input, output, params: { delayTime: delay.delayTime, feedback: feedback.gain, wet: wet.gain } };
     }
     if (effect.type === "reverb") {
+        let currentDecay = Number(params.decay ?? 2.2);
+        let currentType = params.reverbType ?? "room";
         const input = context.createGain();
         const output = context.createGain();
         const dry = context.createGain();
@@ -771,7 +785,7 @@ function buildEffectNode(context, effect) {
         dry.gain.value = 1;
         wet.gain.value = Number(params.wet ?? 0.28);
         preDelay.delayTime.value = Number(params.preDelay ?? 0.02);
-        convolver.buffer = createReverbImpulse(context, Number(params.decay ?? 2.2));
+        convolver.buffer = createReverbImpulse(context, currentDecay, currentType);
         input.connect(dry);
         dry.connect(output);
         input.connect(preDelay);
@@ -787,7 +801,11 @@ function buildEffectNode(context, effect) {
             },
             setParam: (key, value) => {
                 if (key === "decay") {
-                    convolver.buffer = createReverbImpulse(context, Number(value));
+                    currentDecay = Number(value);
+                    convolver.buffer = createReverbImpulse(context, currentDecay, currentType);
+                } else if (key === "reverbType") {
+                    currentType = value;
+                    convolver.buffer = createReverbImpulse(context, currentDecay, currentType);
                 }
             },
         };
@@ -796,7 +814,7 @@ function buildEffectNode(context, effect) {
     return { input: passthrough, output: passthrough, params: {} };
 }
 
-function createReverbImpulse(context, decay) {
+function createReverbImpulse(context, decay, type = "room") {
     const sampleRate = context.sampleRate;
     const length = Math.max(1, Math.floor(sampleRate * clamp(decay, 0.2, 8)));
     const impulse = context.createBuffer(2, length, sampleRate);
@@ -804,7 +822,27 @@ function createReverbImpulse(context, decay) {
         const data = impulse.getChannelData(channel);
         for (let i = 0; i < length; i += 1) {
             const t = i / length;
-            const envelope = (1 - t) ** 2.2;
+            let envelope;
+            switch (type) {
+                case "hall":
+                    // Smooth, gradual decay — concert hall character
+                    envelope = (1 - t) ** 1.5;
+                    break;
+                case "plate":
+                    // Dense initial burst then faster rolloff — metallic plate character
+                    envelope = Math.exp(-4 * t) * (1 + 2 * Math.exp(-60 * t));
+                    break;
+                case "cathedral":
+                    // Very slow linear-ish decay — enormous space
+                    envelope = (1 - t) ** 0.8;
+                    break;
+                case "spring":
+                    // Oscillating decay — spring reverb "boing" character
+                    envelope = (1 - t) ** 2.2 * (0.5 + 0.5 * Math.abs(Math.cos(Math.PI * 18 * t ** 0.6)));
+                    break;
+                default: // room
+                    envelope = (1 - t) ** 2.2;
+            }
             data[i] = (Math.random() * 2 - 1) * envelope;
         }
     }
@@ -1381,29 +1419,47 @@ function renderEffects() {
             row.className = "effect-param";
             const label = document.createElement("span");
             label.textContent = meta.label;
-            const range = document.createElement("input");
-            range.type = "range";
-            range.min = meta.min;
-            range.max = meta.max;
-            range.step = meta.step;
-            range.value = effect.params[key];
-            const number = document.createElement("input");
-            number.type = "number";
-            number.min = meta.min;
-            number.max = meta.max;
-            number.step = meta.step;
-            number.value = effect.params[key];
-            range.addEventListener("input", () => {
-                number.value = range.value;
-                setEffectParam(effect.id, key, Number(range.value), false);
-            });
-            number.addEventListener("change", () => {
-                const value = clamp(Number(number.value), Number(meta.min), Number(meta.max));
-                number.value = value;
-                range.value = value;
-                setEffectParam(effect.id, key, value, true);
-            });
-            row.append(label, range, number);
+            if (meta.kind === "select") {
+                const select = document.createElement("select");
+                select.className = "effect-select";
+                meta.options.forEach((opt) => {
+                    const option = document.createElement("option");
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    if (opt.value === effect.params[key]) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+                select.addEventListener("change", () => {
+                    setEffectParam(effect.id, key, select.value, true);
+                });
+                row.append(label, select);
+            } else {
+                const range = document.createElement("input");
+                range.type = "range";
+                range.min = meta.min;
+                range.max = meta.max;
+                range.step = meta.step;
+                range.value = effect.params[key];
+                const number = document.createElement("input");
+                number.type = "number";
+                number.min = meta.min;
+                number.max = meta.max;
+                number.step = meta.step;
+                number.value = effect.params[key];
+                range.addEventListener("input", () => {
+                    number.value = range.value;
+                    setEffectParam(effect.id, key, Number(range.value), false);
+                });
+                number.addEventListener("change", () => {
+                    const value = clamp(Number(number.value), Number(meta.min), Number(meta.max));
+                    number.value = value;
+                    range.value = value;
+                    setEffectParam(effect.id, key, value, true);
+                });
+                row.append(label, range, number);
+            }
             card.appendChild(row);
         });
         refs.effectsList.appendChild(card);

@@ -713,6 +713,33 @@ input[type="range"] {
     padding: 7px 9px;
 }
 
+.effect-select {
+    grid-column: 2 / 4;
+    min-height: 34px;
+    padding: 6px 28px 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0f172a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    appearance: none;
+}
+
+.effect-select:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+}
+
+.effect-select:focus {
+    outline: 2px solid var(--accent-strong);
+    outline-offset: 1px;
+}
+
+.effect-select option {
+    background: #0f172a;
+    color: var(--text);
+}
+
 .status-box {
     display: inline-flex;
     align-items: center;
