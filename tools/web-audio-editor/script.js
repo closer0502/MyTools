@@ -123,6 +123,25 @@ const effectDefinitions = {
         params: {
             delayTime: { label: "Time", min: 0, max: 2, step: 0.01, default: 0.25 },
             feedback: { label: "Fdbk", min: 0, max: 0.9, step: 0.01, default: 0.28 },
+            damping: { label: "Damp", min: 500, max: 20000, step: 100, default: 8000 },
+            wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.35 },
+        },
+    },
+    "stereo-delay": {
+        label: "Stereo Delay",
+        params: {
+            delayType: {
+                label: "タイプ",
+                kind: "select",
+                options: [
+                    { value: "ping-pong", label: "Ping-Pong" },
+                    { value: "wide", label: "Wide" },
+                ],
+                default: "ping-pong",
+            },
+            delayTime: { label: "Time", min: 0, max: 2, step: 0.01, default: 0.25 },
+            feedback: { label: "Fdbk", min: 0, max: 0.9, step: 0.01, default: 0.28 },
+            damping: { label: "Damp", min: 500, max: 20000, step: 100, default: 8000 },
             wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.35 },
         },
     },
@@ -758,20 +777,121 @@ function buildEffectNode(context, effect) {
         const output = context.createGain();
         const dry = context.createGain();
         const delay = context.createDelay(5);
+        const lpf = context.createBiquadFilter();
         const feedback = context.createGain();
         const wet = context.createGain();
         dry.gain.value = 1;
         delay.delayTime.value = Number(params.delayTime ?? 0.25);
+        lpf.type = "lowpass";
+        lpf.frequency.value = Number(params.damping ?? 8000);
         feedback.gain.value = Number(params.feedback ?? 0.28);
         wet.gain.value = Number(params.wet ?? 0.35);
         input.connect(dry);
         dry.connect(output);
         input.connect(delay);
+        delay.connect(lpf);
+        lpf.connect(feedback);
+        feedback.connect(delay);
         delay.connect(wet);
         wet.connect(output);
-        delay.connect(feedback);
-        feedback.connect(delay);
-        return { input, output, params: { delayTime: delay.delayTime, feedback: feedback.gain, wet: wet.gain } };
+        return {
+            input,
+            output,
+            params: { delayTime: delay.delayTime, feedback: feedback.gain, damping: lpf.frequency, wet: wet.gain },
+        };
+    }
+    if (effect.type === "stereo-delay") {
+        // Both Ping-Pong and Wide share the same node graph.
+        // Routing is controlled by four gain nodes:
+        //   crossLR / crossRL : cross-channel feedback (Ping-Pong)
+        //   selfLL  / selfRR  : same-channel feedback  (Wide)
+        let currentType = params.delayType ?? "ping-pong";
+        let currentFeedback = Number(params.feedback ?? 0.28);
+        const input = context.createGain();
+        const output = context.createGain();
+        const dry = context.createGain();
+        const delayL = context.createDelay(5);
+        const delayR = context.createDelay(5);
+        const lpfL = context.createBiquadFilter();
+        const lpfR = context.createBiquadFilter();
+        const crossLR = context.createGain();   // L→R feedback (ping-pong)
+        const crossRL = context.createGain();   // R→L feedback (ping-pong)
+        const selfLL = context.createGain();    // L→L feedback (wide)
+        const selfRR = context.createGain();    // R→R feedback (wide)
+        const panL = context.createStereoPanner();
+        const panR = context.createStereoPanner();
+        const wet = context.createGain();
+        const dampFreq = Number(params.damping ?? 8000);
+        const delayTime = Number(params.delayTime ?? 0.25);
+        dry.gain.value = 1;
+        delayL.delayTime.value = delayTime;
+        delayR.delayTime.value = delayTime;
+        lpfL.type = "lowpass";
+        lpfL.frequency.value = dampFreq;
+        lpfR.type = "lowpass";
+        lpfR.frequency.value = dampFreq;
+        wet.gain.value = Number(params.wet ?? 0.35);
+        function applyType(type, fb) {
+            if (type === "ping-pong") {
+                panL.pan.value = -1;
+                panR.pan.value = 1;
+                crossLR.gain.value = fb;
+                crossRL.gain.value = fb;
+                selfLL.gain.value = 0;
+                selfRR.gain.value = 0;
+            } else {
+                panL.pan.value = -0.8;
+                panR.pan.value = 0.8;
+                crossLR.gain.value = 0;
+                crossRL.gain.value = 0;
+                selfLL.gain.value = fb;
+                selfRR.gain.value = fb;
+            }
+        }
+        applyType(currentType, currentFeedback);
+        // Signal flow
+        input.connect(dry);
+        dry.connect(output);
+        input.connect(delayL);
+        input.connect(delayR);
+        delayL.connect(lpfL);
+        delayR.connect(lpfR);
+        lpfL.connect(crossLR);   // L → R (ping-pong)
+        lpfL.connect(selfLL);    // L → L (wide)
+        lpfR.connect(crossRL);   // R → L (ping-pong)
+        lpfR.connect(selfRR);    // R → R (wide)
+        crossLR.connect(delayR);
+        selfLL.connect(delayL);
+        crossRL.connect(delayL);
+        selfRR.connect(delayR);
+        delayL.connect(panL);
+        delayR.connect(panR);
+        panL.connect(wet);
+        panR.connect(wet);
+        wet.connect(output);
+        return {
+            input,
+            output,
+            params: {
+                delayTime: delayL.delayTime,
+                wet: wet.gain,
+            },
+            setParam: (key, value) => {
+                if (key === "delayTime") {
+                    delayL.delayTime.value = Number(value);
+                    delayR.delayTime.value = Number(value);
+                } else if (key === "feedback") {
+                    currentFeedback = Number(value);
+                    applyType(currentType, currentFeedback);
+                } else if (key === "damping") {
+                    lpfL.frequency.value = Number(value);
+                    lpfR.frequency.value = Number(value);
+                } else if (key === "delayType") {
+                    currentType = value;
+                    applyType(currentType, currentFeedback);
+                }
+            },
+        };
     }
     if (effect.type === "reverb") {
         let currentDecay = Number(params.decay ?? 2.2);
