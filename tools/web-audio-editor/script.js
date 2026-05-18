@@ -180,6 +180,22 @@ const effectDefinitions = {
             wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.28 },
         },
     },
+    "pitch-shifter": {
+        label: "Pitch Shifter",
+        params: {
+            semitones: { label: "Semi", min: -12, max: 12, step: 0.1, default: 0 },
+            window: { label: "Win", min: 0.02, max: 0.16, step: 0.005, default: 0.08 },
+            wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 1 },
+        },
+    },
+    bitcrusher: {
+        label: "Bitcrusher",
+        params: {
+            bits: { label: "Bits", min: 2, max: 16, step: 1, default: 8 },
+            reduction: { label: "Rate", min: 1, max: 32, step: 1, default: 6 },
+            wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 1 },
+        },
+    },
 };
 
 const editControls = [
@@ -743,6 +759,198 @@ function renderClipBlocks(duration) {
     });
 }
 
+function createLoopBuffer(context, duration, valueAtPhase) {
+    const sampleRate = context.sampleRate;
+    const length = Math.max(2, Math.ceil(duration * sampleRate));
+    const buffer = context.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i += 1) {
+        data[i] = valueAtPhase(i / length);
+    }
+    return buffer;
+}
+
+function createLoopSource(context, buffer, destination) {
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(destination);
+    source.start(0);
+    return source;
+}
+
+function createPitchShifterNode(context, params) {
+    const input = context.createGain();
+    const output = context.createGain();
+    const dry = context.createGain();
+    const wet = context.createGain();
+    const delayA = context.createDelay(0.2);
+    const delayB = context.createDelay(0.2);
+    const gainA = context.createGain();
+    const gainB = context.createGain();
+    let modulators = [];
+    let currentSemitones = Number(params.semitones ?? 0);
+    let currentWindow = Number(params.window ?? 0.08);
+
+    dry.gain.value = 0;
+    wet.gain.value = Number(params.wet ?? 1);
+    input.connect(dry);
+    dry.connect(output);
+    input.connect(delayA);
+    input.connect(delayB);
+    delayA.connect(gainA);
+    delayB.connect(gainB);
+    gainA.connect(wet);
+    gainB.connect(wet);
+    wet.connect(output);
+
+    function stopModulators() {
+        modulators.forEach((source) => {
+            try {
+                source.stop();
+                source.disconnect();
+            } catch (error) {
+                // Ignore already-stopped modulation sources.
+            }
+        });
+        modulators = [];
+    }
+
+    function phaseShift(phase, amount) {
+        return (phase + amount) % 1;
+    }
+
+    function crossfade(phase) {
+        return 0.5 - 0.5 * Math.cos(phase * Math.PI * 2);
+    }
+
+    function applyPitch(semitones, windowSeconds) {
+        stopModulators();
+        const wetAmount = Number(params.wet ?? wet.gain.value);
+        const depth = clamp(Number(windowSeconds) || 0.08, 0.02, 0.16);
+        const ratio = 2 ** (Number(semitones) / 12);
+        const distance = Math.abs(ratio - 1);
+        dry.gain.value = wetAmount >= 1 ? 0 : 1 - wetAmount;
+        delayA.delayTime.value = 0;
+        delayB.delayTime.value = 0;
+        gainA.gain.value = distance < 0.001 ? 1 : 0;
+        gainB.gain.value = 0;
+        if (distance < 0.001) {
+            return;
+        }
+        const period = clamp(depth / distance, 0.035, 1.2);
+        const pitchUp = ratio > 1;
+        const delayCurve = (phase) => pitchUp ? depth * (1 - phase) : depth * phase;
+        const gainCurveA = (phase) => crossfade(phase);
+        const gainCurveB = (phase) => crossfade(phaseShift(phase, 0.5));
+        modulators = [
+            createLoopSource(context, createLoopBuffer(context, period, delayCurve), delayA.delayTime),
+            createLoopSource(context, createLoopBuffer(context, period, (phase) => delayCurve(phaseShift(phase, 0.5))), delayB.delayTime),
+            createLoopSource(context, createLoopBuffer(context, period, gainCurveA), gainA.gain),
+            createLoopSource(context, createLoopBuffer(context, period, gainCurveB), gainB.gain),
+        ];
+    }
+
+    applyPitch(currentSemitones, currentWindow);
+    return {
+        input,
+        output,
+        params: { wet: wet.gain },
+        setParam: (key, value) => {
+            if (key === "wet") {
+                wet.gain.value = Number(value);
+                dry.gain.value = Number(value) >= 1 ? 0 : 1 - Number(value);
+            } else if (key === "semitones") {
+                currentSemitones = Number(value);
+                applyPitch(currentSemitones, currentWindow);
+            } else if (key === "window") {
+                currentWindow = Number(value);
+                applyPitch(currentSemitones, currentWindow);
+            }
+        },
+    };
+}
+
+function createBitcrusherFallbackCurve(bits) {
+    const steps = 2 ** clamp(Math.round(Number(bits) || 8), 2, 16);
+    const curve = new Float32Array(65536);
+    for (let i = 0; i < curve.length; i += 1) {
+        const x = (i / (curve.length - 1)) * 2 - 1;
+        curve[i] = Math.round(x * steps) / steps;
+    }
+    return curve;
+}
+
+function createBitcrusherNode(context, params) {
+    const input = context.createGain();
+    const output = context.createGain();
+    const dry = context.createGain();
+    const wet = context.createGain();
+    let bits = clamp(Math.round(Number(params.bits ?? 8)), 2, 16);
+    let reduction = clamp(Math.round(Number(params.reduction ?? 6)), 1, 32);
+    wet.gain.value = Number(params.wet ?? 1);
+    dry.gain.value = 1 - wet.gain.value;
+    input.connect(dry);
+    dry.connect(output);
+
+    let shaper = null;
+    if (context.createScriptProcessor) {
+        const processor = context.createScriptProcessor(1024, 2, 2);
+        const held = [0, 0];
+        let phase = 0;
+        processor.onaudioprocess = (event) => {
+            const inputChannels = Math.max(1, event.inputBuffer.numberOfChannels);
+            const outputChannels = event.outputBuffer.numberOfChannels;
+            const frameCount = event.outputBuffer.length;
+            const steps = 2 ** bits;
+            const sources = [];
+            const targets = [];
+            for (let channel = 0; channel < outputChannels; channel += 1) {
+                sources.push(event.inputBuffer.getChannelData(Math.min(channel, inputChannels - 1)));
+                targets.push(event.outputBuffer.getChannelData(channel));
+            }
+            for (let i = 0; i < frameCount; i += 1) {
+                if (phase % reduction === 0) {
+                    for (let channel = 0; channel < outputChannels; channel += 1) {
+                        held[channel] = Math.round(sources[channel][i] * steps) / steps;
+                    }
+                }
+                for (let channel = 0; channel < outputChannels; channel += 1) {
+                    targets[channel][i] = held[channel];
+                }
+                phase += 1;
+            }
+        };
+        input.connect(processor);
+        processor.connect(wet);
+    } else {
+        shaper = context.createWaveShaper();
+        shaper.curve = createBitcrusherFallbackCurve(bits);
+        shaper.oversample = "none";
+        input.connect(shaper);
+        shaper.connect(wet);
+    }
+    wet.connect(output);
+    return {
+        input,
+        output,
+        params: { wet: wet.gain },
+        setParam: (key, value) => {
+            if (key === "bits") {
+                bits = clamp(Math.round(Number(value)), 2, 16);
+                if (shaper) {
+                    shaper.curve = createBitcrusherFallbackCurve(bits);
+                }
+            } else if (key === "reduction") {
+                reduction = clamp(Math.round(Number(value)), 1, 32);
+            } else if (key === "wet") {
+                wet.gain.value = Number(value);
+                dry.gain.value = 1 - Number(value);
+            }
+        },
+    };
+}
+
 function buildEffectNode(context, effect) {
     const params = effect.params || {};
     if (effect.type === "gain") {
@@ -964,6 +1172,12 @@ function buildEffectNode(context, effect) {
                 }
             },
         };
+    }
+    if (effect.type === "pitch-shifter") {
+        return createPitchShifterNode(context, params);
+    }
+    if (effect.type === "bitcrusher") {
+        return createBitcrusherNode(context, params);
     }
     const passthrough = context.createGain();
     return { input: passthrough, output: passthrough, params: {} };
