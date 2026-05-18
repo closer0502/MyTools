@@ -18,7 +18,6 @@ const refs = {
     cutBtn: $("cutBtn"),
     copyBtn: $("copyBtn"),
     pasteBtn: $("pasteBtn"),
-    deleteBtn: $("deleteBtn"),
     silenceRangeBtn: $("silenceRangeBtn"),
     duplicateBtn: $("duplicateBtn"),
     silenceBtn: $("silenceBtn"),
@@ -98,6 +97,18 @@ const effectDefinitions = {
             gain: { label: "dB", min: -24, max: 24, step: 0.1, default: 0 },
         },
     },
+    "parametric-eq": {
+        label: "Parametric EQ",
+        params: {
+            lowFreq: { label: "Low Hz", min: 40, max: 1000, step: 1, default: 160 },
+            lowGain: { label: "Low dB", min: -18, max: 18, step: 0.1, default: 0 },
+            midFreq: { label: "Mid Hz", min: 120, max: 8000, step: 1, default: 1200 },
+            midQ: { label: "Mid Q", min: 0.1, max: 18, step: 0.1, default: 1 },
+            midGain: { label: "Mid dB", min: -18, max: 18, step: 0.1, default: 0 },
+            highFreq: { label: "High Hz", min: 1000, max: 16000, step: 1, default: 6000 },
+            highGain: { label: "High dB", min: -18, max: 18, step: 0.1, default: 0 },
+        },
+    },
     compressor: {
         label: "Compressor",
         params: {
@@ -115,6 +126,14 @@ const effectDefinitions = {
             wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.35 },
         },
     },
+    reverb: {
+        label: "Reverb",
+        params: {
+            decay: { label: "Decay", min: 0.2, max: 8, step: 0.1, default: 2.2 },
+            preDelay: { label: "Pre", min: 0, max: 0.2, step: 0.005, default: 0.02 },
+            wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.28 },
+        },
+    },
 };
 
 const editControls = [
@@ -125,7 +144,6 @@ const editControls = [
     refs.outputRightBtn,
     refs.cutBtn,
     refs.copyBtn,
-    refs.deleteBtn,
     refs.silenceRangeBtn,
     refs.duplicateBtn,
     refs.silenceBtn,
@@ -676,6 +694,36 @@ function buildEffectNode(context, effect) {
         }
         return { input: node, output: node, params: { frequency: node.frequency, q: node.Q, gain: node.gain } };
     }
+    if (effect.type === "parametric-eq") {
+        const low = context.createBiquadFilter();
+        const mid = context.createBiquadFilter();
+        const high = context.createBiquadFilter();
+        low.type = "lowshelf";
+        mid.type = "peaking";
+        high.type = "highshelf";
+        low.frequency.value = Number(params.lowFreq ?? 160);
+        low.gain.value = Number(params.lowGain ?? 0);
+        mid.frequency.value = Number(params.midFreq ?? 1200);
+        mid.Q.value = Number(params.midQ ?? 1);
+        mid.gain.value = Number(params.midGain ?? 0);
+        high.frequency.value = Number(params.highFreq ?? 6000);
+        high.gain.value = Number(params.highGain ?? 0);
+        low.connect(mid);
+        mid.connect(high);
+        return {
+            input: low,
+            output: high,
+            params: {
+                lowFreq: low.frequency,
+                lowGain: low.gain,
+                midFreq: mid.frequency,
+                midQ: mid.Q,
+                midGain: mid.gain,
+                highFreq: high.frequency,
+                highGain: high.gain,
+            },
+        };
+    }
     if (effect.type === "compressor") {
         const node = context.createDynamicsCompressor();
         node.threshold.value = Number(params.threshold ?? -24);
@@ -713,8 +761,54 @@ function buildEffectNode(context, effect) {
         feedback.connect(delay);
         return { input, output, params: { delayTime: delay.delayTime, feedback: feedback.gain, wet: wet.gain } };
     }
+    if (effect.type === "reverb") {
+        const input = context.createGain();
+        const output = context.createGain();
+        const dry = context.createGain();
+        const preDelay = context.createDelay(1);
+        const convolver = context.createConvolver();
+        const wet = context.createGain();
+        dry.gain.value = 1;
+        wet.gain.value = Number(params.wet ?? 0.28);
+        preDelay.delayTime.value = Number(params.preDelay ?? 0.02);
+        convolver.buffer = createReverbImpulse(context, Number(params.decay ?? 2.2));
+        input.connect(dry);
+        dry.connect(output);
+        input.connect(preDelay);
+        preDelay.connect(convolver);
+        convolver.connect(wet);
+        wet.connect(output);
+        return {
+            input,
+            output,
+            params: {
+                preDelay: preDelay.delayTime,
+                wet: wet.gain,
+            },
+            setParam: (key, value) => {
+                if (key === "decay") {
+                    convolver.buffer = createReverbImpulse(context, Number(value));
+                }
+            },
+        };
+    }
     const passthrough = context.createGain();
     return { input: passthrough, output: passthrough, params: {} };
+}
+
+function createReverbImpulse(context, decay) {
+    const sampleRate = context.sampleRate;
+    const length = Math.max(1, Math.floor(sampleRate * clamp(decay, 0.2, 8)));
+    const impulse = context.createBuffer(2, length, sampleRate);
+    for (let channel = 0; channel < impulse.numberOfChannels; channel += 1) {
+        const data = impulse.getChannelData(channel);
+        for (let i = 0; i < length; i += 1) {
+            const t = i / length;
+            const envelope = (1 - t) ** 2.2;
+            data[i] = (Math.random() * 2 - 1) * envelope;
+        }
+    }
+    return impulse;
 }
 
 function buildTrackGraph(context, destination, track, collectLive = false) {
@@ -1407,6 +1501,9 @@ function setEffectParam(id, key, value, commitHistory) {
     }
     effect.params[key] = value;
     const live = liveEffects.get(id);
+    if (live?.setParam) {
+        live.setParam(key, value);
+    }
     const param = live?.params?.[key];
     if (param?.setTargetAtTime && audioCtx) {
         param.setTargetAtTime(value, audioCtx.currentTime, 0.01);
@@ -1728,15 +1825,6 @@ function bindEvents() {
         deleteRange();
         updateAfterProjectChange();
         setStatus("選択範囲をカットしました。", "active");
-    });
-    refs.deleteBtn.addEventListener("click", () => {
-        if (selection.end <= selection.start) {
-            return;
-        }
-        pushHistory();
-        deleteRange();
-        updateAfterProjectChange();
-        setStatus("選択範囲を削除しました。", "active");
     });
     refs.silenceRangeBtn.addEventListener("click", () => {
         if (selection.end <= selection.start) {
