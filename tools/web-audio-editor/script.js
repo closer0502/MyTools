@@ -370,7 +370,7 @@ function updateExportFields() {
     const profile = outputProfiles[refs.exportFormatSelect.value] || outputProfiles.wav;
     refs.exportBitrateField.style.opacity = profile.bitrate ? "1" : "0.48";
     refs.exportBitrateSelect.disabled = isBusy || !project || !profile.bitrate;
-    refs.exportBtn.textContent = `${profile.ext.toUpperCase()}をダウンロード`;
+    refs.exportBtn.textContent = "書き出し";
 }
 
 function cloneProject(value = project) {
