@@ -11,12 +11,12 @@
         <header class="header">
             <span class="eyebrow">Audio Editor</span>
             <h1>Web音声エディター</h1>
-            <p class="lede">音声素材のカット、フェード、ゲイン調整、リアルタイムエフェクト確認、WAV書き出しをブラウザ内で行います。</p>
+            <p class="lede">音声素材のカット、フェード、ゲイン調整、リアルタイムエフェクト確認、各種形式の書き出しをブラウザ内で行います。</p>
             <div class="steps">
                 <span class="step-pill">1. 音声を読み込み</span>
                 <span class="step-pill">2. 波形で編集</span>
                 <span class="step-pill">3. エフェクトを調整</span>
-                <span class="step-pill">4. WAV書き出し</span>
+                <span class="step-pill">4. 音声を書き出し</span>
             </div>
         </header>
 
@@ -90,6 +90,7 @@
                             <button class="ghost-button compact" id="undoBtn" type="button" disabled>Undo</button>
                             <button class="ghost-button compact" id="redoBtn" type="button" disabled>Redo</button>
                             <button class="ghost-button compact" id="cutBtn" type="button" disabled>カット</button>
+                            <button class="ghost-button compact" id="trimRangeBtn" type="button" disabled>トリム</button>
                             <button class="ghost-button compact" id="copyBtn" type="button" disabled>コピー</button>
                             <button class="ghost-button compact" id="pasteBtn" type="button" disabled>ペースト</button>
                             <button class="ghost-button compact" id="silenceRangeBtn" type="button" disabled>無音化</button>
@@ -227,6 +228,13 @@
                     </section>
 
                     <section class="panel export-panel">
+                        <div class="section-heading">
+                            <div>
+                                <span class="section-label">Export</span>
+                                <h2>書き出し</h2>
+                            </div>
+                            <p class="hint">現在の編集内容とエフェクトチェーンを反映して書き出します。</p>
+                        </div>
                         <div class="export-options">
                             <div class="export-grid">
                                 <label>形式
@@ -272,13 +280,6 @@
                                 <span>残響などの余韻時間を含める</span>
                             </label>
                         </div>
-                        <div class="section-heading">
-                            <div>
-                                <span class="section-label">Export</span>
-                                <h2>WAV書き出し</h2>
-                            </div>
-                            <p class="hint">現在の編集内容とエフェクトチェーンを OfflineAudioContext で反映します。</p>
-                        </div>
                         <button class="pill-button wide" id="exportBtn" type="button" disabled>WAVをダウンロード</button>
                         <p class="export-status" id="exportStatus">未処理</p>
                     </section>
@@ -291,6 +292,7 @@
             </div>
         </section>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
     <script src="script.js"></script>

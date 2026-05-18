@@ -18,6 +18,7 @@ const refs = {
     cutBtn: $("cutBtn"),
     copyBtn: $("copyBtn"),
     pasteBtn: $("pasteBtn"),
+    trimRangeBtn: $("trimRangeBtn"),
     silenceRangeBtn: $("silenceRangeBtn"),
     duplicateBtn: $("duplicateBtn"),
     silenceBtn: $("silenceBtn"),
@@ -190,6 +191,7 @@ const editControls = [
     refs.cutBtn,
     refs.copyBtn,
     refs.silenceRangeBtn,
+    refs.trimRangeBtn,
     refs.duplicateBtn,
     refs.silenceBtn,
     refs.quickNormalizeBtn,
@@ -1284,6 +1286,35 @@ function deleteRange(start = selection.start, end = selection.end) {
     playbackOffset = start;
 }
 
+function trimToRange(start = selection.start, end = selection.end) {
+    const track = getTrack();
+    if (!track || end <= start) {
+        return;
+    }
+    const next = [];
+    for (const clip of track.clips) {
+        const clipEnd = clip.startTime + clip.duration;
+        const segmentStart = Math.max(clip.startTime, start);
+        const segmentEnd = Math.min(clipEnd, end);
+        if (segmentEnd <= segmentStart) {
+            continue;
+        }
+        next.push({
+            ...clip,
+            id: makeId("clip"),
+            startTime: segmentStart - start,
+            sourceStartTime: clip.sourceStartTime + (segmentStart - clip.startTime),
+            duration: segmentEnd - segmentStart,
+            fadeIn: segmentStart > clip.startTime ? 0 : clip.fadeIn,
+            fadeOut: segmentEnd < clipEnd ? 0 : clip.fadeOut,
+        });
+    }
+    track.clips = next;
+    normalizeClips();
+    selection = { start: 0, end: end - start };
+    playbackOffset = 0;
+}
+
 function silenceRange(start = selection.start, end = selection.end) {
     const track = getTrack();
     if (!track || end <= start) {
@@ -2271,7 +2302,18 @@ function bindEvents() {
         pushHistory();
         deleteRange();
         updateAfterProjectChange();
+        setSelection(0, getProjectDuration());
         setStatus("選択範囲をカットしました。", "active");
+    });
+    refs.trimRangeBtn.addEventListener("click", () => {
+        if (selection.end <= selection.start) {
+            return;
+        }
+        pushHistory();
+        trimToRange();
+        updateAfterProjectChange();
+        setSelection(0, getProjectDuration());
+        setStatus("選択部分だけを残しました。", "active");
     });
     refs.silenceRangeBtn.addEventListener("click", () => {
         if (selection.end <= selection.start) {
