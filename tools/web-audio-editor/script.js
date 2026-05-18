@@ -10,8 +10,7 @@ const refs = {
     sampleRateLabel: $("sampleRateLabel"),
     playBtn: $("playBtn"),
     startBtn: $("startBtn"),
-    playSelectionBtn: $("playSelectionBtn"),
-    loopSelectionBtn: $("loopSelectionBtn"),
+    loopToggleBtn: $("loopToggleBtn"),
     outputLeftBtn: $("outputLeftBtn"),
     outputRightBtn: $("outputRightBtn"),
     undoBtn: $("undoBtn"),
@@ -20,9 +19,23 @@ const refs = {
     copyBtn: $("copyBtn"),
     pasteBtn: $("pasteBtn"),
     deleteBtn: $("deleteBtn"),
-    splitBtn: $("splitBtn"),
+    silenceRangeBtn: $("silenceRangeBtn"),
     duplicateBtn: $("duplicateBtn"),
     silenceBtn: $("silenceBtn"),
+    quickNormalizeBtn: $("quickNormalizeBtn"),
+    quickFadeInBtn: $("quickFadeInBtn"),
+    quickFadeOutBtn: $("quickFadeOutBtn"),
+    quickPanel: $("quickPanel"),
+    quickPanelLabel: $("quickPanelLabel"),
+    quickCloseBtn: $("quickCloseBtn"),
+    normalizeGainField: $("normalizeGainField"),
+    normalizeGainInput: $("normalizeGainInput"),
+    fadeCurveField: $("fadeCurveField"),
+    quickFadeCurveSelect: $("quickFadeCurveSelect"),
+    silenceLengthField: $("silenceLengthField"),
+    silenceLengthInput: $("silenceLengthInput"),
+    quickPanelHint: $("quickPanelHint"),
+    quickApplyBtn: $("quickApplyBtn"),
     waveFrame: $("waveFrame"),
     waveCanvas: $("waveCanvas"),
     clipLayer: $("clipLayer"),
@@ -107,16 +120,18 @@ const effectDefinitions = {
 const editControls = [
     refs.playBtn,
     refs.startBtn,
-    refs.playSelectionBtn,
-    refs.loopSelectionBtn,
+    refs.loopToggleBtn,
     refs.outputLeftBtn,
     refs.outputRightBtn,
     refs.cutBtn,
     refs.copyBtn,
     refs.deleteBtn,
-    refs.splitBtn,
+    refs.silenceRangeBtn,
     refs.duplicateBtn,
     refs.silenceBtn,
+    refs.quickNormalizeBtn,
+    refs.quickFadeInBtn,
+    refs.quickFadeOutBtn,
     refs.selectionStartInput,
     refs.selectionEndInput,
     refs.playheadInput,
@@ -142,6 +157,7 @@ let isPlaying = false;
 let playbackOffset = 0;
 let playbackStartedAt = 0;
 let playbackEnd = null;
+let loopEnabled = false;
 let playbackLoop = false;
 let playbackLoopStart = 0;
 let animationFrame = null;
@@ -153,6 +169,7 @@ let selection = { start: 0, end: 0 };
 let dragState = null;
 let meterDataLeft = null;
 let meterDataRight = null;
+let quickMode = null;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const pad = (value, length = 2) => String(value).padStart(length, "0");
@@ -243,11 +260,14 @@ function setBusy(state) {
 function updateControls() {
     const ready = Boolean(project && getProjectDuration() > 0);
     const hasSelection = ready && selection.end > selection.start;
+    if (!hasSelection && loopEnabled) {
+        loopEnabled = false;
+    }
     editControls.forEach((control) => {
         control.disabled = isBusy || !ready;
     });
-    refs.playSelectionBtn.disabled = isBusy || !hasSelection;
-    refs.loopSelectionBtn.disabled = isBusy || !hasSelection;
+    refs.loopToggleBtn.disabled = isBusy || !hasSelection;
+    syncLoopToggle();
     refs.undoBtn.disabled = isBusy || history.length === 0;
     refs.redoBtn.disabled = isBusy || redoStack.length === 0;
     refs.pasteBtn.disabled = isBusy || !ready || !clipboard;
@@ -336,6 +356,30 @@ function setSelection(start, end) {
     selection.end = clamp(Math.max(start, end), 0, duration);
     updateLabels();
     updateControls();
+}
+
+function syncLoopToggle() {
+    refs.loopToggleBtn.classList.toggle("is-on", loopEnabled);
+    refs.loopToggleBtn.setAttribute("aria-pressed", String(loopEnabled));
+}
+
+function toggleLoopEnabled() {
+    if (selection.end <= selection.start) {
+        loopEnabled = false;
+        syncLoopToggle();
+        return;
+    }
+    loopEnabled = !loopEnabled;
+    syncLoopToggle();
+    if (isPlaying) {
+        const current = getCurrentPlaybackTime();
+        if (loopEnabled) {
+            const nextStart = current >= selection.start && current < selection.end ? current : selection.start;
+            startPlayback(nextStart, selection.end, true, selection.start);
+        } else if (playbackLoop) {
+            startPlayback(current, getProjectDuration(), false);
+        }
+    }
 }
 
 function setPlayhead(time) {
@@ -577,12 +621,26 @@ function getFadeMultiplier(clip, timelineTime) {
     const clipEnd = clip.startTime + clip.duration;
     let gain = 1;
     if (clip.fadeIn > 0 && local < clip.fadeIn) {
-        gain *= clamp(local / clip.fadeIn, 0, 1);
+        gain *= applyFadeCurve(clamp(local / clip.fadeIn, 0, 1), clip.fadeInCurve || "linear");
     }
     if (clip.fadeOut > 0 && timelineTime > clipEnd - clip.fadeOut) {
-        gain *= clamp((clipEnd - timelineTime) / clip.fadeOut, 0, 1);
+        gain *= applyFadeCurve(clamp((clipEnd - timelineTime) / clip.fadeOut, 0, 1), clip.fadeOutCurve || "linear");
     }
     return gain;
+}
+
+function applyFadeCurve(value, curve) {
+    const t = clamp(value, 0, 1);
+    if (curve === "ease-in") {
+        return t * t;
+    }
+    if (curve === "ease-out") {
+        return 1 - ((1 - t) * (1 - t));
+    }
+    if (curve === "smooth") {
+        return t * t * (3 - 2 * t);
+    }
+    return t;
 }
 
 function renderClipBlocks(duration) {
@@ -762,16 +820,22 @@ function scheduleTimeline(context, destination, offset = 0, endTime = getProject
 
 function applyClipGainAutomation(param, clip, segmentStart, segmentEnd, when) {
     const base = clip.gain;
-    const points = [segmentStart];
-    const fadeInEnd = clip.startTime + (clip.fadeIn || 0);
-    const fadeOutStart = clip.startTime + clip.duration - (clip.fadeOut || 0);
-    const clipEnd = clip.startTime + clip.duration;
-    [fadeInEnd, fadeOutStart, clipEnd, segmentEnd].forEach((point) => {
-        if (point > segmentStart && point <= segmentEnd) {
-            points.push(point);
+    const points = new Set([segmentStart, segmentEnd]);
+    const addFadePoints = (start, end) => {
+        if (end <= start) {
+            return;
         }
-    });
-    const uniquePoints = [...new Set(points)].sort((a, b) => a - b);
+        const steps = 12;
+        for (let i = 0; i <= steps; i += 1) {
+            const point = start + ((end - start) * i) / steps;
+            if (point >= segmentStart && point <= segmentEnd) {
+                points.add(point);
+            }
+        }
+    };
+    addFadePoints(clip.startTime, clip.startTime + (clip.fadeIn || 0));
+    addFadePoints(clip.startTime + clip.duration - (clip.fadeOut || 0), clip.startTime + clip.duration);
+    const uniquePoints = [...points].sort((a, b) => a - b);
     param.cancelScheduledValues(when);
     param.setValueAtTime(base * getFadeMultiplier(clip, uniquePoints[0]), when);
     uniquePoints.slice(1).forEach((point) => {
@@ -800,7 +864,6 @@ function startPlayback(offset = playbackOffset, endTime = getProjectDuration(), 
     });
     isPlaying = true;
     refs.playBtn.textContent = "一時停止";
-    refs.loopSelectionBtn.textContent = playbackLoop ? "ループ解除" : "選択範囲をループ再生";
     tickPlayback();
 }
 
@@ -848,7 +911,6 @@ function stopPlayback(resetButton = true) {
     playbackLoopStart = 0;
     if (resetButton) {
         refs.playBtn.textContent = "再生";
-        refs.loopSelectionBtn.textContent = "選択範囲をループ再生";
     }
     updateMeters();
     updateLabels();
@@ -937,6 +999,38 @@ function deleteRange(start = selection.start, end = selection.end) {
     playbackOffset = start;
 }
 
+function silenceRange(start = selection.start, end = selection.end) {
+    const track = getTrack();
+    if (!track || end <= start) {
+        return;
+    }
+    const next = [];
+    for (const clip of track.clips) {
+        const clipEnd = clip.startTime + clip.duration;
+        if (clipEnd <= start || clip.startTime >= end) {
+            next.push(clip);
+            continue;
+        }
+        if (clip.startTime < start) {
+            next.push({ ...clip, duration: start - clip.startTime, fadeOut: 0 });
+        }
+        if (clipEnd > end) {
+            next.push({
+                ...clip,
+                id: makeId("clip"),
+                startTime: end,
+                sourceStartTime: clip.sourceStartTime + (end - clip.startTime),
+                duration: clipEnd - end,
+                fadeIn: 0,
+            });
+        }
+    }
+    track.clips = next;
+    normalizeClips();
+    selection = { start, end };
+    playbackOffset = start;
+}
+
 function splitClipsAt(time) {
     const track = getTrack();
     if (!track) {
@@ -1012,6 +1106,148 @@ function applyToSelectedClips(updater) {
         return updater(clip);
     });
     return count;
+}
+
+function getQuickEditRange() {
+    const duration = getProjectDuration();
+    if (selection.end > selection.start) {
+        return { start: selection.start, end: selection.end };
+    }
+    return { start: 0, end: duration };
+}
+
+function prepareRangeClips(range) {
+    splitClipsAt(range.end);
+    splitClipsAt(range.start);
+    normalizeClips();
+}
+
+function getClipsFullyInsideRange(range) {
+    const track = getTrack();
+    if (!track) {
+        return [];
+    }
+    const epsilon = 0.001;
+    return track.clips.filter((clip) => (
+        clip.startTime >= range.start - epsilon && clip.startTime + clip.duration <= range.end + epsilon
+    ));
+}
+
+function getRangePeak(range) {
+    const clips = getClipsFullyInsideRange(range);
+    let peak = 0;
+    for (const clip of clips) {
+        const source = sources.get(clip.sourceId);
+        if (!source) {
+            continue;
+        }
+        const buffer = source.buffer;
+        const channelCount = Math.min(buffer.numberOfChannels, 2);
+        const startIndex = Math.max(0, Math.floor(clip.sourceStartTime * buffer.sampleRate));
+        const endIndex = Math.min(buffer.length, Math.ceil((clip.sourceStartTime + clip.duration) * buffer.sampleRate));
+        for (let channel = 0; channel < channelCount; channel += 1) {
+            const data = buffer.getChannelData(channel);
+            for (let i = startIndex; i < endIndex; i += 1) {
+                const value = Math.abs(data[i] * clip.gain);
+                if (value > peak) {
+                    peak = value;
+                }
+            }
+        }
+    }
+    return peak;
+}
+
+function dbToGain(db) {
+    return 10 ** (db / 20);
+}
+
+function openQuickPanel(mode) {
+    quickMode = mode;
+    refs.quickPanel.hidden = false;
+    const isNormalize = mode === "normalize";
+    const isSilence = mode === "silence";
+    const isFade = mode === "fade-in" || mode === "fade-out";
+    refs.normalizeGainField.hidden = !isNormalize;
+    refs.normalizeGainField.style.display = isNormalize ? "" : "none";
+    refs.fadeCurveField.hidden = !isFade;
+    refs.fadeCurveField.style.display = isFade ? "" : "none";
+    refs.silenceLengthField.hidden = !isSilence;
+    refs.silenceLengthField.style.display = isSilence ? "" : "none";
+    refs.quickPanelLabel.textContent = mode === "normalize"
+        ? "ノーマライズ"
+        : mode === "fade-in"
+            ? "フェードイン"
+            : mode === "fade-out"
+                ? "フェードアウト"
+                : "無音挿入";
+    refs.quickPanelHint.textContent = isSilence
+        ? "現在の再生位置に指定した長さの無音を挿入します。"
+        : selection.end > selection.start
+        ? "現在の選択範囲に適用します。"
+        : "選択範囲がないため全体に適用します。";
+}
+
+function closeQuickPanel() {
+    quickMode = null;
+    refs.quickPanel.hidden = true;
+}
+
+function applyQuickPanel() {
+    if (!quickMode || !project) {
+        return;
+    }
+    if (quickMode === "silence") {
+        const length = Math.max(0.01, Number(refs.silenceLengthInput.value || 0));
+        pushHistory();
+        insertGap(playbackOffset, length);
+        selection = { start: playbackOffset, end: playbackOffset + length };
+        updateAfterProjectChange();
+        closeQuickPanel();
+        setStatus("無音を挿入しました。", "active");
+        return;
+    }
+    const range = getQuickEditRange();
+    if (range.end <= range.start) {
+        setStatus("処理できる範囲がありません。", "error");
+        return;
+    }
+    pushHistory();
+    prepareRangeClips(range);
+    const clips = getClipsFullyInsideRange(range);
+    if (!clips.length) {
+        updateAfterProjectChange();
+        setStatus("処理対象のクリップがありません。", "error");
+        return;
+    }
+    if (quickMode === "normalize") {
+        const peak = getRangePeak(range);
+        if (peak <= 0) {
+            updateAfterProjectChange();
+            setStatus("ノーマライズできる音声ピークがありません。", "error");
+            return;
+        }
+        const target = dbToGain(Number(refs.normalizeGainInput.value || 0));
+        const multiplier = target / peak;
+        clips.forEach((clip) => {
+            clip.gain *= multiplier;
+        });
+        setStatus("ノーマライズを適用しました。", "active");
+    } else {
+        const curve = refs.quickFadeCurveSelect.value;
+        clips.forEach((clip) => {
+            if (quickMode === "fade-in") {
+                clip.fadeIn = clip.duration;
+                clip.fadeInCurve = curve;
+            } else {
+                clip.fadeOut = clip.duration;
+                clip.fadeOutCurve = curve;
+            }
+        });
+        setStatus(quickMode === "fade-in" ? "フェードインを適用しました。" : "フェードアウトを適用しました。", "active");
+    }
+    updateAfterProjectChange();
+    closeQuickPanel();
 }
 
 function renderEffects() {
@@ -1387,12 +1623,13 @@ function handleWavePointerDown(event) {
     }
     if (playbackLoop) {
         stopPlayback();
+        loopEnabled = false;
+        syncLoopToggle();
     }
     refs.waveFrame.setPointerCapture(event.pointerId);
     const time = getTimeFromPointer(event);
     dragState = { start: time, moved: false };
     setPlayhead(time);
-    setSelection(time, time);
 }
 
 function handleWavePointerMove(event) {
@@ -1410,6 +1647,9 @@ function handleWavePointerUp(event) {
         return;
     }
     refs.waveFrame.releasePointerCapture(event.pointerId);
+    if (!dragState.moved) {
+        setSelection(0, getProjectDuration());
+    }
     dragState = null;
 }
 
@@ -1448,27 +1688,18 @@ function bindEvents() {
         if (isPlaying) {
             stopPlayback();
         } else {
-            startPlayback(playbackOffset, getProjectDuration());
+            if (loopEnabled && selection.end > selection.start) {
+                const offset = playbackOffset >= selection.start && playbackOffset < selection.end ? playbackOffset : selection.start;
+                startPlayback(offset, selection.end, true, selection.start);
+            } else {
+                startPlayback(playbackOffset, getProjectDuration());
+            }
         }
     });
     refs.startBtn.addEventListener("click", () => setPlayhead(0));
-    refs.playSelectionBtn.addEventListener("click", () => {
-        if (selection.end > selection.start) {
-            startPlayback(selection.start, selection.end);
-        }
-    });
+    refs.loopToggleBtn.addEventListener("click", toggleLoopEnabled);
     refs.outputLeftBtn.addEventListener("click", () => toggleOutputChannel("left"));
     refs.outputRightBtn.addEventListener("click", () => toggleOutputChannel("right"));
-    refs.loopSelectionBtn.addEventListener("click", () => {
-        if (playbackLoop) {
-            stopPlayback();
-            setPlayhead(selection.start);
-            return;
-        }
-        if (selection.end > selection.start) {
-            startPlayback(selection.start, selection.end, true, selection.start);
-        }
-    });
     refs.undoBtn.addEventListener("click", () => {
         if (!history.length) {
             return;
@@ -1507,6 +1738,15 @@ function bindEvents() {
         updateAfterProjectChange();
         setStatus("選択範囲を削除しました。", "active");
     });
+    refs.silenceRangeBtn.addEventListener("click", () => {
+        if (selection.end <= selection.start) {
+            return;
+        }
+        pushHistory();
+        silenceRange();
+        updateAfterProjectChange();
+        setStatus("選択範囲を無音化しました。", "active");
+    });
     refs.pasteBtn.addEventListener("click", () => {
         if (!clipboard) {
             return;
@@ -1527,24 +1767,16 @@ function bindEvents() {
         updateAfterProjectChange();
         setStatus("選択範囲を複製しました。", "active");
     });
-    refs.silenceBtn.addEventListener("click", () => {
-        const length = selection.end > selection.start ? selection.end - selection.start : 1;
-        pushHistory();
-        insertGap(playbackOffset, length);
-        selection = { start: playbackOffset, end: playbackOffset + length };
-        updateAfterProjectChange();
-        setStatus("無音を挿入しました。", "active");
-    });
-    refs.splitBtn.addEventListener("click", () => {
-        pushHistory();
-        splitClipsAt(playbackOffset);
-        updateAfterProjectChange();
-        setStatus("クリップを分割しました。", "active");
-    });
+    refs.silenceBtn.addEventListener("click", () => openQuickPanel("silence"));
     bindTimeInput(refs.selectionStartInput, commitSelectionStartInput);
     bindTimeInput(refs.selectionEndInput, commitSelectionEndInput);
     bindTimeInput(refs.playheadInput, commitPlayheadInput);
     refs.selectAllBtn.addEventListener("click", () => setSelection(0, getProjectDuration()));
+    refs.quickNormalizeBtn.addEventListener("click", () => openQuickPanel("normalize"));
+    refs.quickFadeInBtn.addEventListener("click", () => openQuickPanel("fade-in"));
+    refs.quickFadeOutBtn.addEventListener("click", () => openQuickPanel("fade-out"));
+    refs.quickCloseBtn.addEventListener("click", closeQuickPanel);
+    refs.quickApplyBtn.addEventListener("click", applyQuickPanel);
     refs.trackVolumeRange.addEventListener("input", () => setTrackVolume(refs.trackVolumeRange.value));
     refs.trackVolumeInput.addEventListener("change", () => setTrackVolume(refs.trackVolumeInput.value, true));
     refs.trackPanRange.addEventListener("input", () => setTrackPan(refs.trackPanRange.value));
