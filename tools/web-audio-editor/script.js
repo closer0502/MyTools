@@ -66,6 +66,8 @@ const refs = {
     exportFormatSelect: $("exportFormatSelect"),
     exportSampleRateSelect: $("exportSampleRateSelect"),
     exportChannelSelect: $("exportChannelSelect"),
+    exportBitDepthField: $("exportBitDepthField"),
+    exportBitDepthSelect: $("exportBitDepthSelect"),
     exportBitrateField: $("exportBitrateField"),
     exportBitrateSelect: $("exportBitrateSelect"),
     exportIncludeTailCheckbox: $("exportIncludeTailCheckbox"),
@@ -229,6 +231,7 @@ const editControls = [
     refs.exportFormatSelect,
     refs.exportSampleRateSelect,
     refs.exportChannelSelect,
+    refs.exportBitDepthSelect,
     refs.exportBitrateSelect,
     refs.exportIncludeTailCheckbox,
     refs.exportBtn,
@@ -371,6 +374,9 @@ function updateControls() {
 
 function updateExportFields() {
     const profile = outputProfiles[refs.exportFormatSelect.value] || outputProfiles.wav;
+    const isWav = profile.ext === "wav";
+    refs.exportBitDepthField.style.opacity = isWav ? "1" : "0.48";
+    refs.exportBitDepthSelect.disabled = isBusy || !project || !isWav;
     refs.exportBitrateField.style.opacity = profile.bitrate ? "1" : "0.48";
     refs.exportBitrateSelect.disabled = isBusy || !project || !profile.bitrate;
     refs.exportBtn.textContent = "書き出し";
@@ -2168,6 +2174,13 @@ function getExportSampleRate() {
     return selected === "copy" ? project.sampleRate || 44100 : Number(selected);
 }
 
+function getExportWavBitDepth() {
+    if (refs.exportBitDepthSelect.value === "32f") {
+        return "32f";
+    }
+    return refs.exportBitDepthSelect.value === "24" ? 24 : 16;
+}
+
 function getRenderChannelCount() {
     const selected = refs.exportChannelSelect.value;
     if (selected === "2") {
@@ -2297,7 +2310,8 @@ async function handleExport() {
     setStatus(`${profile.ext.toUpperCase()}を書き出し中...`, "active");
     try {
         const rendered = await renderExportBuffer();
-        const wavBlob = encodeWav(rendered);
+        const wavBitDepth = profile.ext === "wav" ? getExportWavBitDepth() : 16;
+        const wavBlob = encodeWav(rendered, wavBitDepth);
         refs.exportStatus.textContent = profile.ext === "wav" ? "書き出し中..." : "変換中...";
         const blob = profile.ext === "wav" ? wavBlob : await transcodeRenderedWav(wavBlob, profile);
         const baseName = getSafeBaseName(currentFile?.name || "audio");
@@ -2333,7 +2347,7 @@ async function exportWav() {
         const offline = new OfflineAudioContext(channels, length, sampleRate);
         scheduleTimeline(offline, offline.destination, 0, duration, false);
         const rendered = await offline.startRendering();
-        const blob = encodeWav(rendered);
+        const blob = encodeWav(rendered, getExportWavBitDepth());
         const baseName = getSafeBaseName(currentFile?.name || "audio");
         downloadBlob(blob, `${baseName}_edited.wav`);
         refs.exportStatus.textContent = "WAVダウンロード完了";
@@ -2347,11 +2361,13 @@ async function exportWav() {
     }
 }
 
-function encodeWav(buffer) {
+function encodeWav(buffer, bitDepth = 16) {
     const channels = buffer.numberOfChannels;
     const sampleRate = buffer.sampleRate;
     const samples = buffer.length;
-    const bytesPerSample = 2;
+    const isFloat = bitDepth === "32f";
+    const normalizedBitDepth = isFloat ? 32 : bitDepth === 24 ? 24 : 16;
+    const bytesPerSample = isFloat ? 4 : normalizedBitDepth / 8;
     const blockAlign = channels * bytesPerSample;
     const dataSize = samples * blockAlign;
     const arrayBuffer = new ArrayBuffer(44 + dataSize);
@@ -2361,12 +2377,12 @@ function encodeWav(buffer) {
     writeString(view, 8, "WAVE");
     writeString(view, 12, "fmt ");
     view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
+    view.setUint16(20, isFloat ? 3 : 1, true);
     view.setUint16(22, channels, true);
     view.setUint32(24, sampleRate, true);
     view.setUint32(28, sampleRate * blockAlign, true);
     view.setUint16(32, blockAlign, true);
-    view.setUint16(34, 16, true);
+    view.setUint16(34, normalizedBitDepth, true);
     writeString(view, 36, "data");
     view.setUint32(40, dataSize, true);
     let offset = 44;
@@ -2377,8 +2393,19 @@ function encodeWav(buffer) {
     for (let i = 0; i < samples; i += 1) {
         for (let channel = 0; channel < channels; channel += 1) {
             const sample = clamp(channelData[channel][i], -1, 1);
-            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-            offset += 2;
+            if (isFloat) {
+                view.setFloat32(offset, sample, true);
+                offset += 4;
+            } else if (normalizedBitDepth === 24) {
+                const intSample = Math.round(sample < 0 ? sample * 0x800000 : sample * 0x7fffff);
+                view.setUint8(offset, intSample & 0xff);
+                view.setUint8(offset + 1, (intSample >> 8) & 0xff);
+                view.setUint8(offset + 2, (intSample >> 16) & 0xff);
+                offset += 3;
+            } else {
+                view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+                offset += 2;
+            }
         }
     }
     return new Blob([view], { type: "audio/wav" });

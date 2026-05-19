@@ -116,6 +116,13 @@ select {
     scrollbar-gutter: stable;
 }
 
+.side-column {
+    max-height: 100%;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-gutter: stable;
+}
+
 .panel {
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -921,6 +928,9 @@ input[type="range"] {
 
     .side-column {
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
     }
 
     .mixer-strip {
