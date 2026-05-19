@@ -47,7 +47,6 @@ const refs = {
     selectionStartInput: $("selectionStartInput"),
     selectionEndInput: $("selectionEndInput"),
     playheadInput: $("playheadInput"),
-    selectAllBtn: $("selectAllBtn"),
     vuLeft: $("vuLeft"),
     vuRight: $("vuRight"),
     vuLeftPeak: $("vuLeftPeak"),
@@ -221,7 +220,6 @@ const editControls = [
     refs.selectionStartInput,
     refs.selectionEndInput,
     refs.playheadInput,
-    refs.selectAllBtn,
     refs.trackVolumeRange,
     refs.trackVolumeInput,
     refs.trackPanRange,
@@ -2595,7 +2593,6 @@ function bindEvents() {
     bindTimeInput(refs.selectionStartInput, commitSelectionStartInput);
     bindTimeInput(refs.selectionEndInput, commitSelectionEndInput);
     bindTimeInput(refs.playheadInput, commitPlayheadInput);
-    refs.selectAllBtn.addEventListener("click", () => setSelection(0, getProjectDuration()));
     refs.quickNormalizeBtn.addEventListener("click", () => openQuickPanel("normalize"));
     refs.quickFadeInBtn.addEventListener("click", () => openQuickPanel("fade-in"));
     refs.quickFadeOutBtn.addEventListener("click", () => openQuickPanel("fade-out"));
