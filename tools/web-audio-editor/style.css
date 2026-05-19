@@ -823,6 +823,36 @@ input[type="range"] {
     padding: 7px 9px;
 }
 
+.reduction-meter {
+    display: grid;
+    grid-template-columns: 82px minmax(90px, 1fr) 72px;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.reduction-track {
+    height: 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+
+.reduction-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--accent), var(--warm));
+    transition: width 0.06s linear;
+}
+
+.reduction-value {
+    text-align: right;
+}
+
 .effect-select {
     grid-column: 2 / 4;
     min-height: 34px;

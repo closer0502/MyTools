@@ -134,6 +134,13 @@ const effectDefinitions = {
             release: { label: "Rel", min: 0.01, max: 1, step: 0.01, default: 0.25 },
         },
     },
+    limiter: {
+        label: "Limiter",
+        params: {
+            threshold: { label: "Ceil", min: -24, max: 0, step: 0.1, default: -1 },
+            release: { label: "Rel", min: 0.01, max: 1, step: 0.01, default: 0.08 },
+        },
+    },
     delay: {
         label: "Delay",
         params: {
@@ -1016,10 +1023,28 @@ function buildEffectNode(context, effect) {
         return {
             input: node,
             output: node,
+            reduction: node,
             params: {
                 threshold: node.threshold,
                 ratio: node.ratio,
                 attack: node.attack,
+                release: node.release,
+            },
+        };
+    }
+    if (effect.type === "limiter") {
+        const node = context.createDynamicsCompressor();
+        node.threshold.value = Number(params.threshold ?? -1);
+        node.knee.value = 0;
+        node.ratio.value = 20;
+        node.attack.value = 0.001;
+        node.release.value = Number(params.release ?? 0.08);
+        return {
+            input: node,
+            output: node,
+            reduction: node,
+            params: {
+                threshold: node.threshold,
                 release: node.release,
             },
         };
@@ -1823,6 +1848,18 @@ function renderEffects() {
         head.append(title, actions);
         card.appendChild(head);
 
+        if (effect.type === "compressor" || effect.type === "limiter") {
+            const reduction = document.createElement("div");
+            reduction.className = "reduction-meter";
+            reduction.dataset.effectId = effect.id;
+            reduction.innerHTML = `
+                <span>Reduction</span>
+                <span class="reduction-track"><span class="reduction-fill"></span></span>
+                <span class="reduction-value mono">0.0 dB</span>
+            `;
+            card.appendChild(reduction);
+        }
+
         Object.entries(def.params).forEach(([key, meta]) => {
             const value = effect.params[key] ?? meta.default;
             const row = document.createElement("label");
@@ -2054,12 +2091,35 @@ function updateMeters() {
     if (!liveMixer?.analysers?.length || !meterDataLeft || !meterDataRight) {
         setMeterLevel("Left", 0);
         setMeterLevel("Right", 0);
+        updateReductionMeters();
         return;
     }
     liveMixer.analysers[0].getFloatTimeDomainData(meterDataLeft);
     liveMixer.analysers[1].getFloatTimeDomainData(meterDataRight);
     setMeterLevel("Left", getRms(meterDataLeft));
     setMeterLevel("Right", getRms(meterDataRight));
+    updateReductionMeters();
+}
+
+function getReductionAmount(node) {
+    const raw = node?.reduction?.reduction;
+    const value = typeof raw === "number" ? raw : raw?.value;
+    return Number.isFinite(value) ? Math.abs(value) : 0;
+}
+
+function updateReductionMeters() {
+    document.querySelectorAll(".reduction-meter").forEach((meter) => {
+        const live = liveEffects.get(meter.dataset.effectId);
+        const amount = getReductionAmount(live);
+        const fill = meter.querySelector(".reduction-fill");
+        const value = meter.querySelector(".reduction-value");
+        if (fill) {
+            fill.style.width = `${clamp(amount / 24, 0, 1) * 100}%`;
+        }
+        if (value) {
+            value.textContent = `${amount.toFixed(1)} dB`;
+        }
+    });
 }
 
 function getRms(data) {
