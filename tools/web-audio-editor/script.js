@@ -139,6 +139,7 @@ const effectDefinitions = {
             delayTime: { label: "Time", min: 0, max: 2, step: 0.01, default: 0.25 },
             feedback: { label: "Fdbk", min: 0, max: 0.9, step: 0.01, default: 0.28 },
             damping: { label: "Damp", min: 500, max: 20000, step: 100, default: 8000 },
+            dry: { label: "Dry", min: 0, max: 1, step: 0.01, default: 1 },
             wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.35 },
         },
     },
@@ -157,6 +158,7 @@ const effectDefinitions = {
             delayTime: { label: "Time", min: 0, max: 2, step: 0.01, default: 0.25 },
             feedback: { label: "Fdbk", min: 0, max: 0.9, step: 0.01, default: 0.28 },
             damping: { label: "Damp", min: 500, max: 20000, step: 100, default: 8000 },
+            dry: { label: "Dry", min: 0, max: 1, step: 0.01, default: 1 },
             wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.35 },
         },
     },
@@ -177,6 +179,7 @@ const effectDefinitions = {
             },
             decay: { label: "Decay", min: 0.2, max: 8, step: 0.1, default: 2.2 },
             preDelay: { label: "Pre", min: 0, max: 0.2, step: 0.005, default: 0.02 },
+            dry: { label: "Dry", min: 0, max: 1, step: 0.01, default: 1 },
             wet: { label: "Wet", min: 0, max: 1, step: 0.01, default: 0.28 },
         },
     },
@@ -1023,7 +1026,7 @@ function buildEffectNode(context, effect) {
         const lpf = context.createBiquadFilter();
         const feedback = context.createGain();
         const wet = context.createGain();
-        dry.gain.value = 1;
+        dry.gain.value = Number(params.dry ?? 1);
         delay.delayTime.value = Number(params.delayTime ?? 0.25);
         lpf.type = "lowpass";
         lpf.frequency.value = Number(params.damping ?? 8000);
@@ -1040,7 +1043,7 @@ function buildEffectNode(context, effect) {
         return {
             input,
             output,
-            params: { delayTime: delay.delayTime, feedback: feedback.gain, damping: lpf.frequency, wet: wet.gain },
+            params: { delayTime: delay.delayTime, feedback: feedback.gain, damping: lpf.frequency, dry: dry.gain, wet: wet.gain },
         };
     }
     if (effect.type === "stereo-delay") {
@@ -1066,7 +1069,7 @@ function buildEffectNode(context, effect) {
         const wet = context.createGain();
         const dampFreq = Number(params.damping ?? 8000);
         const delayTime = Number(params.delayTime ?? 0.25);
-        dry.gain.value = 1;
+        dry.gain.value = Number(params.dry ?? 1);
         delayL.delayTime.value = delayTime;
         delayR.delayTime.value = delayTime;
         lpfL.type = "lowpass";
@@ -1117,6 +1120,7 @@ function buildEffectNode(context, effect) {
             output,
             params: {
                 delayTime: delayL.delayTime,
+                dry: dry.gain,
                 wet: wet.gain,
             },
             setParam: (key, value) => {
@@ -1145,7 +1149,7 @@ function buildEffectNode(context, effect) {
         const preDelay = context.createDelay(1);
         const convolver = context.createConvolver();
         const wet = context.createGain();
-        dry.gain.value = 1;
+        dry.gain.value = Number(params.dry ?? 1);
         wet.gain.value = Number(params.wet ?? 0.28);
         preDelay.delayTime.value = Number(params.preDelay ?? 0.02);
         convolver.buffer = createReverbImpulse(context, currentDecay, currentType);
@@ -1160,6 +1164,7 @@ function buildEffectNode(context, effect) {
             output,
             params: {
                 preDelay: preDelay.delayTime,
+                dry: dry.gain,
                 wet: wet.gain,
             },
             setParam: (key, value) => {
@@ -1813,6 +1818,7 @@ function renderEffects() {
         card.appendChild(head);
 
         Object.entries(def.params).forEach(([key, meta]) => {
+            const value = effect.params[key] ?? meta.default;
             const row = document.createElement("label");
             row.className = "effect-param";
             const label = document.createElement("span");
@@ -1824,7 +1830,7 @@ function renderEffects() {
                     const option = document.createElement("option");
                     option.value = opt.value;
                     option.textContent = opt.label;
-                    if (opt.value === effect.params[key]) {
+                    if (opt.value === value) {
                         option.selected = true;
                     }
                     select.appendChild(option);
@@ -1839,13 +1845,13 @@ function renderEffects() {
                 range.min = meta.min;
                 range.max = meta.max;
                 range.step = meta.step;
-                range.value = effect.params[key];
+                range.value = value;
                 const number = document.createElement("input");
                 number.type = "number";
                 number.min = meta.min;
                 number.max = meta.max;
                 number.step = meta.step;
-                number.value = effect.params[key];
+                number.value = value;
                 range.addEventListener("input", () => {
                     number.value = range.value;
                     setEffectParam(effect.id, key, Number(range.value), false);
