@@ -270,6 +270,7 @@ const EXPORT_TAIL_MAX_SECONDS = 60;
 const EXPORT_TAIL_SILENCE_SECONDS = 1.5;
 const EXPORT_TAIL_THRESHOLD_DB = -80;
 const EXPORT_TAIL_ANALYSIS_WINDOW_SECONDS = 0.05;
+const SELECTION_HANDLE_HIT_PX = 10;
 
 function ensureAudioContext() {
     if (!audioCtx) {
@@ -447,6 +448,7 @@ function updateLabels() {
     const selectionWidth = duration ? ((selection.end - selection.start) / duration) * 100 : 0;
     refs.waveSelection.style.left = `${selectionLeft}%`;
     refs.waveSelection.style.width = `${Math.max(0, selectionWidth)}%`;
+    refs.waveSelection.classList.toggle("has-selection", selection.end > selection.start);
     refs.playhead.style.left = duration ? `${clamp(current / duration, 0, 1) * 100}%` : "0%";
 }
 
@@ -2437,6 +2439,43 @@ function getTimeFromPointer(event) {
     return clamp(((event.clientX - rect.left) / rect.width) * duration, 0, duration);
 }
 
+function getSelectionPointerMode(event) {
+    if (selection.end <= selection.start) {
+        return "new";
+    }
+    const duration = getProjectDuration();
+    if (!duration) {
+        return "new";
+    }
+    const rect = refs.waveFrame.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const startX = (selection.start / duration) * rect.width;
+    const endX = (selection.end / duration) * rect.width;
+    if (Math.abs(x - startX) <= SELECTION_HANDLE_HIT_PX) {
+        return "start";
+    }
+    if (Math.abs(x - endX) <= SELECTION_HANDLE_HIT_PX) {
+        return "end";
+    }
+    if (x > startX && x < endX) {
+        return "move";
+    }
+    return "new";
+}
+
+function updateWaveCursor(event) {
+    if (!project || isBusy || dragState) {
+        return;
+    }
+    const mode = getSelectionPointerMode(event);
+    refs.waveFrame.classList.toggle("is-resizing-selection", mode === "start" || mode === "end");
+    refs.waveFrame.classList.toggle("is-moving-selection", mode === "move");
+}
+
+function resetWaveCursor() {
+    refs.waveFrame.classList.remove("is-resizing-selection", "is-moving-selection");
+}
+
 function handleWavePointerDown(event) {
     if (!project || isBusy) {
         return;
@@ -2448,18 +2487,45 @@ function handleWavePointerDown(event) {
     }
     refs.waveFrame.setPointerCapture(event.pointerId);
     const time = getTimeFromPointer(event);
-    dragState = { start: time, moved: false };
-    setPlayhead(time);
+    dragState = {
+        mode: getSelectionPointerMode(event),
+        anchor: time,
+        originalStart: selection.start,
+        originalEnd: selection.end,
+        moved: false,
+    };
+    refs.waveFrame.classList.toggle("is-resizing-selection", dragState.mode === "start" || dragState.mode === "end");
+    refs.waveFrame.classList.toggle("is-moving-selection", dragState.mode === "move");
+    setPlayhead(dragState.mode === "move" ? selection.start : time);
 }
 
 function handleWavePointerMove(event) {
-    if (!dragState || !project || isBusy) {
+    if (!project || isBusy) {
+        return;
+    }
+    if (!dragState) {
+        updateWaveCursor(event);
         return;
     }
     const time = getTimeFromPointer(event);
     dragState.moved = true;
-    setSelection(dragState.start, time);
-    setPlayhead(time);
+    if (dragState.mode === "start") {
+        setSelection(Math.min(time, dragState.originalEnd), dragState.originalEnd);
+        setPlayhead(selection.start);
+    } else if (dragState.mode === "end") {
+        setSelection(dragState.originalStart, Math.max(time, dragState.originalStart));
+        setPlayhead(selection.end);
+    } else if (dragState.mode === "move") {
+        const duration = getProjectDuration();
+        const selectionLength = dragState.originalEnd - dragState.originalStart;
+        const delta = time - dragState.anchor;
+        const nextStart = clamp(dragState.originalStart + delta, 0, Math.max(0, duration - selectionLength));
+        setSelection(nextStart, nextStart + selectionLength);
+        setPlayhead(nextStart);
+    } else {
+        setSelection(dragState.anchor, time);
+        setPlayhead(time);
+    }
 }
 
 function handleWavePointerUp(event) {
@@ -2467,10 +2533,11 @@ function handleWavePointerUp(event) {
         return;
     }
     refs.waveFrame.releasePointerCapture(event.pointerId);
-    if (!dragState.moved) {
+    if (!dragState.moved && dragState.mode === "new") {
         setSelection(0, getProjectDuration());
     }
     dragState = null;
+    updateWaveCursor(event);
 }
 
 function bindEvents() {
@@ -2631,6 +2698,7 @@ function bindEvents() {
     refs.waveFrame.addEventListener("pointermove", handleWavePointerMove);
     refs.waveFrame.addEventListener("pointerup", handleWavePointerUp);
     refs.waveFrame.addEventListener("pointercancel", handleWavePointerUp);
+    refs.waveFrame.addEventListener("pointerleave", resetWaveCursor);
     window.addEventListener("resize", drawWaveform);
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
