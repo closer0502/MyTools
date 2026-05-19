@@ -2458,7 +2458,7 @@ function getSelectionPointerMode(event) {
         return "end";
     }
     if (x > startX && x < endX) {
-        return "move";
+        return event.altKey ? "move" : "playhead";
     }
     return "new";
 }
@@ -2522,6 +2522,8 @@ function handleWavePointerMove(event) {
         const nextStart = clamp(dragState.originalStart + delta, 0, Math.max(0, duration - selectionLength));
         setSelection(nextStart, nextStart + selectionLength);
         setPlayhead(nextStart);
+    } else if (dragState.mode === "playhead") {
+        setPlayhead(time);
     } else {
         setSelection(dragState.anchor, time);
         setPlayhead(time);
