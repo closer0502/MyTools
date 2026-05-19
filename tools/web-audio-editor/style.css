@@ -620,7 +620,6 @@ input[type="range"] {
 }
 
 .mixer-panel {
-    height: 388px;
     overflow: hidden;
 }
 
