@@ -265,6 +265,10 @@ body {
     gap: 12px;
 }
 
+.output-grid[hidden] {
+    display: none;
+}
+
 label {
     display: flex;
     flex-direction: column;

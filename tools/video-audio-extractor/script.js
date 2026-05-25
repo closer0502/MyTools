@@ -27,6 +27,8 @@ const waveStartBtn = document.getElementById("waveStartBtn");
 const waveTimeLabel = document.getElementById("waveTimeLabel");
 const selectionLabel = document.getElementById("selectionLabel");
 const currentTimeLabel = document.getElementById("currentTimeLabel");
+const outputModeSelect = document.getElementById("outputModeSelect");
+const customOutputFields = document.getElementById("customOutputFields");
 const formatSelect = document.getElementById("formatSelect");
 const sampleRateSelect = document.getElementById("sampleRateSelect");
 const channelSelect = document.getElementById("channelSelect");
@@ -48,6 +50,7 @@ const controls = [
     waveStartBtn,
     leftChannelBtn,
     rightChannelBtn,
+    outputModeSelect,
     formatSelect,
     sampleRateSelect,
     channelSelect,
@@ -63,6 +66,8 @@ const outputProfiles = {
     flac: { ext: "flac", mime: "audio/flac", codec: ["-c:a", "flac"], bitrate: false },
 };
 
+const fallbackOriginalOutputProfile = { ext: "mka", mime: "audio/x-matroska" };
+
 let ffmpeg = null;
 let ffmpegReady = false;
 let audioCtx = null;
@@ -73,6 +78,11 @@ let selectionStart = 0;
 let selectionEnd = 0;
 let waveformPeaks = [];
 let isBusy = false;
+let isExportProgressActive = false;
+let isProbeActive = false;
+let probeLogLines = [];
+let originalAudioProfile = fallbackOriginalOutputProfile;
+let originalAudioInfo = null;
 let dragMode = null;
 let isRulerDrag = false;
 let stopAtSelectionEnd = false;
@@ -158,15 +168,21 @@ function setBusy(state) {
 
 function updateControls() {
     const ready = Boolean(currentFile && duration > 0 && waveformPeaks.length);
+    const isCustom = outputModeSelect.value === "custom";
     controls.forEach((control) => {
         control.disabled = isBusy || !ready;
     });
-    bitrateSelect.disabled = isBusy || !ready || !outputProfiles[formatSelect.value].bitrate;
+    formatSelect.disabled = isBusy || !ready || !isCustom;
+    sampleRateSelect.disabled = isBusy || !ready || !isCustom;
+    channelSelect.disabled = isBusy || !ready || !isCustom;
+    bitrateSelect.disabled = isBusy || !ready || !isCustom || !outputProfiles[formatSelect.value].bitrate;
 }
 
 function updateFormatFields() {
+    const isCustom = outputModeSelect.value === "custom";
     const profile = outputProfiles[formatSelect.value];
-    bitrateField.style.opacity = profile.bitrate ? "1" : "0.48";
+    customOutputFields.hidden = !isCustom;
+    bitrateField.style.opacity = isCustom && profile.bitrate ? "1" : "0.48";
     updateControls();
 }
 
@@ -232,7 +248,7 @@ function setSelection(start, end) {
 function setFileMeta(file) {
     fileNameLabel.textContent = file ? file.name : "-";
     fileSizeLabel.textContent = file ? formatBytes(file.size) : "-";
-    fileTypeLabel.textContent = file ? file.type || "不明" : "-";
+    fileTypeLabel.textContent = originalAudioInfo?.display || (file ? "解析待ち" : "-");
     durationLabel.textContent = duration ? formatTime(duration) : "-";
 }
 
@@ -308,14 +324,14 @@ async function ensureFFmpeg() {
     const { FFmpeg, toBlobURL } = getFFmpegGlobals();
     ffmpeg = new FFmpeg();
     ffmpeg.on("log", ({ message }) => {
-        if (/time=|size=|speed=/.test(message)) {
-            setExportStatus(message);
+        if (isProbeActive) {
+            probeLogLines.push(message);
         }
     });
     ffmpeg.on("progress", ({ progress }) => {
-        if (Number.isFinite(progress)) {
+        if (isExportProgressActive && Number.isFinite(progress)) {
             const percent = clamp(progress, 0, 1) * 100;
-            setExportStatus(`処理中... ${percent.toFixed(0)}%`);
+            setExportStatus(`${percent.toFixed(0)}%`);
         }
     });
 
@@ -345,11 +361,70 @@ async function deleteVirtualFile(name) {
     }
 }
 
+function getOriginalProfileFromCodec(codecText) {
+    const codec = String(codecText || "").toLowerCase();
+    if (/\baac\b/.test(codec) || /\balac\b/.test(codec)) {
+        return { ext: "m4a", mime: "audio/mp4" };
+    }
+    if (/\bmp3\b/.test(codec)) {
+        return { ext: "mp3", mime: "audio/mpeg" };
+    }
+    if (/\bopus\b/.test(codec) || /\bvorbis\b/.test(codec)) {
+        return { ext: "ogg", mime: "audio/ogg" };
+    }
+    if (/\bflac\b/.test(codec)) {
+        return { ext: "flac", mime: "audio/flac" };
+    }
+    if (/\bpcm_/.test(codec)) {
+        return { ext: "wav", mime: "audio/wav" };
+    }
+    if (/\bac-?3\b/.test(codec)) {
+        return { ext: "ac3", mime: "audio/ac3" };
+    }
+    return fallbackOriginalOutputProfile;
+}
+
+function parseOriginalAudioInfo(audioLine) {
+    const codecText = (audioLine.split(/Audio:/i)[1] || "").trim();
+    const parts = codecText.split(",").map((part) => part.trim()).filter(Boolean);
+    const codec = parts[0] || "不明";
+    const sampleRate = parts.find((part) => /\bHz\b/i.test(part)) || "";
+    const channels = parts.find((part) => /mono|stereo|5\.1|7\.1|channels?/i.test(part)) || "";
+    const bitrate = parts.find((part) => /\bkb\/s\b/i.test(part)) || "";
+    const profile = getOriginalProfileFromCodec(codecText);
+    const details = [codec, sampleRate, channels, bitrate].filter(Boolean).join(" / ");
+    return {
+        ...profile,
+        codec,
+        display: details ? `${details} -> .${profile.ext}` : `不明 -> .${profile.ext}`,
+    };
+}
+
+async function detectOriginalAudioProfile() {
+    probeLogLines = [];
+    isProbeActive = true;
+    try {
+        await ffmpeg.exec(["-hide_banner", "-i", "input.bin"]);
+    } catch (error) {
+        // FFmpeg exits with an error because no output was requested; the input info is still logged.
+    } finally {
+        isProbeActive = false;
+    }
+    const audioLine = probeLogLines.find((line) => /Audio:/i.test(line)) || "";
+    originalAudioInfo = parseOriginalAudioInfo(audioLine);
+    originalAudioProfile = {
+        ext: originalAudioInfo.ext,
+        mime: originalAudioInfo.mime,
+    };
+    return originalAudioProfile;
+}
+
 async function buildWaveform(file) {
     await ensureFFmpeg();
     await deleteVirtualFile("input.bin");
     await deleteVirtualFile("waveform.wav");
     await writeInputFile(file);
+    await detectOriginalAudioProfile();
     setStatus("解析用の音声波形を生成中...", "active");
     setExportStatus("波形生成中");
     await ffmpeg.exec([
@@ -366,6 +441,7 @@ async function buildWaveform(file) {
     waveformPeaks = createPeaks(decoded, 1200);
     drawWaveform();
     waveInfo.textContent = `${waveformPeaks.length} peaks / mono 8 kHz`;
+    setFileMeta(currentFile);
     setExportStatus("未処理");
     setStatus("波形を生成しました。", "active");
 }
@@ -540,6 +616,8 @@ async function loadFile(file) {
         URL.revokeObjectURL(objectUrl);
     }
     currentFile = file;
+    originalAudioProfile = fallbackOriginalOutputProfile;
+    originalAudioInfo = null;
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     fileInput.value = "";
@@ -587,23 +665,24 @@ function waitForVideoMetadata() {
 }
 
 function buildExportArgs(outputName) {
-    const profile = outputProfiles[formatSelect.value];
     const length = Math.max(0, selectionEnd - selectionStart);
     const args = [
         "-ss", selectionStart.toFixed(3),
         "-t", length.toFixed(3),
         "-i", "input.bin",
         "-vn",
-        ...profile.codec,
     ];
-    if (sampleRateSelect.value !== "copy") {
-        args.push("-ar", sampleRateSelect.value);
+    if (outputModeSelect.value !== "custom") {
+        args.push("-map", "0:a:0", "-c:a", "copy", outputName);
+        return args;
     }
+    const profile = outputProfiles[formatSelect.value];
+    args.push(...profile.codec, "-ar", sampleRateSelect.value);
     if (channelSelect.value === "mono-left") {
         args.push("-af", "pan=mono|c0=FL");
     } else if (channelSelect.value === "mono-right") {
         args.push("-af", "pan=mono|c0=FR");
-    } else if (channelSelect.value !== "copy") {
+    } else {
         args.push("-ac", channelSelect.value);
     }
     if (profile.bitrate) {
@@ -621,16 +700,19 @@ async function handleExport() {
         setStatus("書き出し範囲を選択してください。", "error");
         return;
     }
-    const profile = outputProfiles[formatSelect.value];
+    const profile = outputModeSelect.value === "custom"
+        ? outputProfiles[formatSelect.value]
+        : originalAudioProfile;
     const outputName = `output.${profile.ext}`;
     setBusy(true);
     setStatus("音声を書き出し中...", "active");
-    setExportStatus("処理中...");
+    setExportStatus("0%");
     video.pause();
     try {
         await ensureFFmpeg();
         await deleteVirtualFile(outputName);
         const args = buildExportArgs(outputName);
+        isExportProgressActive = true;
         await ffmpeg.exec(args);
         const data = await ffmpeg.readFile(outputName);
         const blob = new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)], {
@@ -638,7 +720,7 @@ async function handleExport() {
         });
         const name = `${getSafeBaseName(currentFile.name)}_${formatTime(selectionStart).replace(/[:.]/g, "-")}_${formatTime(selectionEnd).replace(/[:.]/g, "-")}.${profile.ext}`;
         downloadBlob(blob, name);
-        setExportStatus("ダウンロード完了");
+        setExportStatus("100%");
         setStatus("音声を書き出しました。", "active");
         await deleteVirtualFile(outputName);
     } catch (error) {
@@ -646,6 +728,7 @@ async function handleExport() {
         setExportStatus("エラー");
         setStatus(`書き出しに失敗しました: ${error.message}`, "error");
     } finally {
+        isExportProgressActive = false;
         setBusy(false);
     }
 }
@@ -774,6 +857,7 @@ leftChannelBtn.addEventListener("click", () => toggleMonitorChannel("left"));
 rightChannelBtn.addEventListener("click", () => toggleMonitorChannel("right"));
 startInput.addEventListener("change", applyInputTimes);
 endInput.addEventListener("change", applyInputTimes);
+outputModeSelect.addEventListener("change", updateFormatFields);
 formatSelect.addEventListener("change", updateFormatFields);
 exportBtn.addEventListener("click", handleExport);
 

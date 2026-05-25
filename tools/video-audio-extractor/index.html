@@ -54,7 +54,7 @@
                             <span class="value mono" id="durationLabel">-</span>
                         </div>
                         <div class="meta-row">
-                            <span class="label">形式</span>
+                            <span class="label">音声</span>
                             <span class="value" id="fileType">-</span>
                         </div>
                     </div>
@@ -66,6 +66,14 @@
                                 <span class="muted">形式 / レート / チャンネル</span>
                             </div>
                             <div class="output-grid">
+                                <label>出力
+                                    <select id="outputModeSelect" disabled>
+                                        <option value="original" selected>元のまま</option>
+                                        <option value="custom">カスタム</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="output-grid" id="customOutputFields" hidden>
                                 <label>形式
                                     <select id="formatSelect" disabled>
                                         <option value="mp3">MP3</option>
@@ -77,7 +85,6 @@
                                 </label>
                                 <label>サンプルレート
                                     <select id="sampleRateSelect" disabled>
-                                        <option value="copy">元のまま</option>
                                         <option value="8000">8 kHz</option>
                                         <option value="11025">11.025 kHz</option>
                                         <option value="16000">16 kHz</option>
@@ -90,7 +97,6 @@
                                 </label>
                                 <label>チャンネル
                                     <select id="channelSelect" disabled>
-                                        <option value="copy">元のまま</option>
                                         <option value="mono-left">Mono L</option>
                                         <option value="mono-right">Mono R</option>
                                         <option value="2" selected>Stereo</option>
