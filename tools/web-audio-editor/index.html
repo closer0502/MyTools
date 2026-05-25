@@ -99,6 +99,7 @@
                             <button class="ghost-button compact" id="quickNormalizeBtn" type="button" disabled>ノーマライズ</button>
                             <button class="ghost-button compact" id="quickFadeInBtn" type="button" disabled>フェードイン</button>
                             <button class="ghost-button compact" id="quickFadeOutBtn" type="button" disabled>フェードアウト</button>
+                            <button class="ghost-button compact" id="quickStretchBtn" type="button" disabled>タイムストレッチ</button>
                             <button class="ghost-button compact" id="silenceBtn" type="button" disabled>無音挿入</button>
                         </div>
                         <div class="quick-panel" id="quickPanel" hidden>
@@ -120,6 +121,35 @@
                                 </label>
                                 <label id="silenceLengthField">長さ
                                     <input type="number" id="silenceLengthInput" min="0.01" max="3600" step="0.05" value="1.00">
+                                </label>
+                                <label id="stretchModeField">方式
+                                    <select id="stretchModeSelect">
+                                        <option value="classic">Classic (ピッチ変化)</option>
+                                        <option value="preserve">Keep Pitch (ピッチ固定)</option>
+                                    </select>
+                                </label>
+                                <label id="stretchMethodField">指定方法
+                                    <select id="stretchMethodSelect">
+                                        <option value="length-ratio">長さ倍率</option>
+                                        <option value="speed-ratio">速度倍率</option>
+                                        <option value="target-duration">変更後の秒数</option>
+                                        <option value="bpm">BPM変更</option>
+                                    </select>
+                                </label>
+                                <label id="stretchRatioField">長さ倍率
+                                    <input type="number" id="stretchRatioInput" min="0.25" max="4" step="0.01" value="1.00">
+                                </label>
+                                <label id="stretchSpeedField">速度倍率
+                                    <input type="number" id="stretchSpeedInput" min="0.25" max="4" step="0.01" value="1.00">
+                                </label>
+                                <label id="stretchTargetDurationField">変更後の秒数
+                                    <input type="number" id="stretchTargetDurationInput" min="0.01" max="3600" step="0.01" value="1.00">
+                                </label>
+                                <label id="stretchFromBpmField">元BPM
+                                    <input type="number" id="stretchFromBpmInput" min="1" max="400" step="0.01" value="120">
+                                </label>
+                                <label id="stretchToBpmField">変更後BPM
+                                    <input type="number" id="stretchToBpmInput" min="1" max="400" step="0.01" value="120">
                                 </label>
                             </div>
                             <div class="quick-actions">

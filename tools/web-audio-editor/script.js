@@ -25,6 +25,7 @@ const refs = {
     quickNormalizeBtn: $("quickNormalizeBtn"),
     quickFadeInBtn: $("quickFadeInBtn"),
     quickFadeOutBtn: $("quickFadeOutBtn"),
+    quickStretchBtn: $("quickStretchBtn"),
     quickPanel: $("quickPanel"),
     quickPanelLabel: $("quickPanelLabel"),
     quickCloseBtn: $("quickCloseBtn"),
@@ -34,6 +35,20 @@ const refs = {
     quickFadeCurveSelect: $("quickFadeCurveSelect"),
     silenceLengthField: $("silenceLengthField"),
     silenceLengthInput: $("silenceLengthInput"),
+    stretchModeField: $("stretchModeField"),
+    stretchModeSelect: $("stretchModeSelect"),
+    stretchMethodField: $("stretchMethodField"),
+    stretchMethodSelect: $("stretchMethodSelect"),
+    stretchRatioField: $("stretchRatioField"),
+    stretchRatioInput: $("stretchRatioInput"),
+    stretchSpeedField: $("stretchSpeedField"),
+    stretchSpeedInput: $("stretchSpeedInput"),
+    stretchTargetDurationField: $("stretchTargetDurationField"),
+    stretchTargetDurationInput: $("stretchTargetDurationInput"),
+    stretchFromBpmField: $("stretchFromBpmField"),
+    stretchFromBpmInput: $("stretchFromBpmInput"),
+    stretchToBpmField: $("stretchToBpmField"),
+    stretchToBpmInput: $("stretchToBpmInput"),
     quickPanelHint: $("quickPanelHint"),
     quickApplyBtn: $("quickApplyBtn"),
     waveFrame: $("waveFrame"),
@@ -224,6 +239,7 @@ const editControls = [
     refs.quickNormalizeBtn,
     refs.quickFadeInBtn,
     refs.quickFadeOutBtn,
+    refs.quickStretchBtn,
     refs.selectionStartInput,
     refs.selectionEndInput,
     refs.playheadInput,
@@ -264,6 +280,7 @@ let activeSources = [];
 let liveEffects = new Map();
 let liveMixer = null;
 let liveOutputChannels = null;
+let stretchBufferCache = new Map();
 let selection = { start: 0, end: 0 };
 let dragState = null;
 let meterDataLeft = null;
@@ -407,6 +424,7 @@ function pushHistory() {
 function restoreProject(snapshot) {
     stopPlayback();
     project = cloneProject(snapshot);
+    stretchBufferCache = new Map();
     normalizeClips();
     updateAfterProjectChange();
 }
@@ -419,6 +437,37 @@ function normalizeClips() {
     track.clips = track.clips
         .filter((clip) => clip.duration > 0.001)
         .sort((a, b) => a.startTime - b.startTime);
+}
+
+function getClipStretchRatio(clip) {
+    return Math.max(0.001, Number(clip.stretch?.ratio || 1));
+}
+
+function getClipSourceDuration(clip) {
+    return Math.max(0, Number(clip.sourceDuration ?? (clip.duration / getClipStretchRatio(clip))));
+}
+
+function getClipSourceRate(clip) {
+    return clip.duration > 0 ? getClipSourceDuration(clip) / clip.duration : 1;
+}
+
+function getClipSourceTimeAtTimeline(clip, timelineTime) {
+    const local = clamp(timelineTime - clip.startTime, 0, clip.duration);
+    return clip.sourceStartTime + local * getClipSourceRate(clip);
+}
+
+function makeClipSegment(clip, segmentStart, segmentEnd) {
+    const duration = Math.max(0, segmentEnd - segmentStart);
+    const sourceStartTime = getClipSourceTimeAtTimeline(clip, segmentStart);
+    const sourceDuration = Math.max(0, getClipSourceTimeAtTimeline(clip, segmentEnd) - sourceStartTime);
+    return {
+        ...clip,
+        id: makeId("clip"),
+        startTime: segmentStart,
+        sourceStartTime,
+        sourceDuration,
+        duration,
+    };
 }
 
 function updateAfterProjectChange() {
@@ -566,6 +615,7 @@ async function loadFile(file) {
         const buffer = await context.decodeAudioData(arrayBuffer.slice(0));
         const sourceId = makeId("source");
         sources = new Map([[sourceId, { id: sourceId, name: file.name, buffer }]]);
+        stretchBufferCache = new Map();
         currentFile = file;
         project = {
             sampleRate: buffer.sampleRate,
@@ -577,7 +627,9 @@ async function loadFile(file) {
                     sourceId,
                     startTime: 0,
                     sourceStartTime: 0,
+                    sourceDuration: buffer.duration,
                     duration: buffer.duration,
+                    stretch: { mode: "classic", ratio: 1 },
                     gain: 1,
                     fadeIn: 0,
                     fadeOut: 0,
@@ -722,7 +774,7 @@ function getClipSample(clip, timelineTime, channel) {
         return 0;
     }
     const buffer = source.buffer;
-    const sourceTime = clip.sourceStartTime + (timelineTime - clip.startTime);
+    const sourceTime = getClipSourceTimeAtTimeline(clip, timelineTime);
     const index = Math.floor(sourceTime * buffer.sampleRate);
     if (index < 0 || index >= buffer.length) {
         return 0;
@@ -770,7 +822,9 @@ function renderClipBlocks(duration) {
         block.className = "clip-block";
         block.style.left = `${(clip.startTime / duration) * 100}%`;
         block.style.width = `${(clip.duration / duration) * 100}%`;
-        block.title = `${formatTime(clip.startTime)} - ${formatTime(clip.startTime + clip.duration)}`;
+        const ratio = getClipStretchRatio(clip);
+        const mode = clip.stretch?.mode === "preserve" ? "Keep Pitch" : "Classic";
+        block.title = `${formatTime(clip.startTime)} - ${formatTime(clip.startTime + clip.duration)} / ${mode} x${ratio.toFixed(2)}`;
         refs.clipLayer.appendChild(block);
     });
 }
@@ -1254,6 +1308,73 @@ function createReverbImpulse(context, decay, type = "room") {
     return impulse;
 }
 
+function getStretchCacheKey(source, clip) {
+    return [
+        source.id,
+        clip.sourceStartTime.toFixed(6),
+        getClipSourceDuration(clip).toFixed(6),
+        getClipStretchRatio(clip).toFixed(6),
+        source.buffer.sampleRate,
+        source.buffer.numberOfChannels,
+    ].join("|");
+}
+
+function createPreservePitchBuffer(context, source, clip) {
+    const sourceBuffer = source.buffer;
+    const sourceDuration = getClipSourceDuration(clip);
+    const ratio = getClipStretchRatio(clip);
+    const inputLength = Math.max(1, Math.round(sourceDuration * sourceBuffer.sampleRate));
+    const outputLength = Math.max(1, Math.round(inputLength * ratio));
+    const output = context.createBuffer(sourceBuffer.numberOfChannels, outputLength, sourceBuffer.sampleRate);
+    const frameSize = 2048;
+    const hopIn = 512;
+    const hopOut = Math.max(1, Math.round(hopIn * ratio));
+    const window = new Float32Array(frameSize);
+    for (let i = 0; i < frameSize; i += 1) {
+        window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (frameSize - 1));
+    }
+    for (let channel = 0; channel < sourceBuffer.numberOfChannels; channel += 1) {
+        const input = sourceBuffer.getChannelData(channel);
+        const data = output.getChannelData(channel);
+        const weight = new Float32Array(outputLength);
+        for (let inPos = 0, outPos = 0; outPos < outputLength; inPos += hopIn, outPos += hopOut) {
+            for (let i = 0; i < frameSize; i += 1) {
+                if (inPos + i >= inputLength) {
+                    break;
+                }
+                const sourceIndex = Math.floor((clip.sourceStartTime * sourceBuffer.sampleRate) + inPos + i);
+                const outputIndex = outPos + i;
+                if (sourceIndex >= input.length || outputIndex >= outputLength) {
+                    break;
+                }
+                const w = window[i];
+                data[outputIndex] += input[sourceIndex] * w;
+                weight[outputIndex] += w;
+            }
+        }
+        for (let i = 0; i < outputLength; i += 1) {
+            if (weight[i] > 0) {
+                data[i] /= weight[i];
+            }
+        }
+    }
+    return output;
+}
+
+function getPreservePitchBuffer(context, source, clip) {
+    const key = getStretchCacheKey(source, clip);
+    const cached = stretchBufferCache.get(key);
+    if (cached) {
+        return cached;
+    }
+    const buffer = createPreservePitchBuffer(context, source, clip);
+    stretchBufferCache.set(key, buffer);
+    if (stretchBufferCache.size > 24) {
+        stretchBufferCache.delete(stretchBufferCache.keys().next().value);
+    }
+    return buffer;
+}
+
 function buildTrackGraph(context, destination, track, collectLive = false) {
     const input = context.createGain();
     let current = input;
@@ -1339,17 +1460,30 @@ function scheduleTimeline(context, destination, offset = 0, endTime = getProject
         }
         const node = context.createBufferSource();
         const gain = context.createGain();
-        node.buffer = source.buffer;
+        const ratio = getClipStretchRatio(clip);
+        const stretchMode = clip.stretch?.mode || "classic";
+        const usesPreservePitch = stretchMode === "preserve" && Math.abs(ratio - 1) > 0.001;
+        node.buffer = usesPreservePitch ? getPreservePitchBuffer(context, source, clip) : source.buffer;
         node.connect(gain);
         gain.connect(chainInput);
         const when = context.currentTime + Math.max(0, segmentStart - offset);
-        const sourceOffset = clip.sourceStartTime + (segmentStart - clip.startTime);
-        const playableDuration = Math.min(segmentEnd - segmentStart, source.buffer.duration - sourceOffset);
-        if (playableDuration <= 0) {
+        const localStart = segmentStart - clip.startTime;
+        const segmentDuration = segmentEnd - segmentStart;
+        let sourceOffset = getClipSourceTimeAtTimeline(clip, segmentStart);
+        let sourceDuration = getClipSourceTimeAtTimeline(clip, segmentEnd) - sourceOffset;
+        if (usesPreservePitch) {
+            sourceOffset = localStart;
+            sourceDuration = segmentDuration;
+        } else {
+            node.playbackRate.value = 1 / ratio;
+        }
+        const playableDuration = Math.min(sourceDuration, node.buffer.duration - sourceOffset);
+        if (playableDuration <= 0 || segmentDuration <= 0) {
             continue;
         }
         applyClipGainAutomation(gain.gain, clip, segmentStart, segmentEnd, when);
-        node.start(when, sourceOffset, playableDuration);
+        node.start(when, sourceOffset);
+        node.stop(when + segmentDuration);
         nodes.push(node);
     }
     return nodes;
@@ -1487,16 +1621,11 @@ function copyRange(start = selection.start, end = selection.end) {
         if (segmentEnd <= segmentStart) {
             continue;
         }
-        clips.push({
-            id: makeId("clip"),
-            sourceId: clip.sourceId,
-            startTime: segmentStart - start,
-            sourceStartTime: clip.sourceStartTime + (segmentStart - clip.startTime),
-            duration: segmentEnd - segmentStart,
-            gain: clip.gain,
-            fadeIn: 0,
-            fadeOut: 0,
-        });
+        const segment = makeClipSegment(clip, segmentStart, segmentEnd);
+        segment.startTime = segmentStart - start;
+        segment.fadeIn = 0;
+        segment.fadeOut = 0;
+        clips.push(segment);
     }
     return clips.length ? { duration: end - start, clips } : null;
 }
@@ -1516,17 +1645,15 @@ function deleteRange(start = selection.start, end = selection.end) {
             next.push({ ...clip, startTime: clip.startTime - length });
         } else {
             if (clip.startTime < start) {
-                next.push({ ...clip, duration: start - clip.startTime, fadeOut: 0 });
+                const left = makeClipSegment(clip, clip.startTime, start);
+                left.fadeOut = 0;
+                next.push(left);
             }
             if (clipEnd > end) {
-                next.push({
-                    ...clip,
-                    id: makeId("clip"),
-                    startTime: start,
-                    sourceStartTime: clip.sourceStartTime + (end - clip.startTime),
-                    duration: clipEnd - end,
-                    fadeIn: 0,
-                });
+                const right = makeClipSegment(clip, end, clipEnd);
+                right.startTime = start;
+                right.fadeIn = 0;
+                next.push(right);
             }
         }
     }
@@ -1549,15 +1676,11 @@ function trimToRange(start = selection.start, end = selection.end) {
         if (segmentEnd <= segmentStart) {
             continue;
         }
-        next.push({
-            ...clip,
-            id: makeId("clip"),
-            startTime: segmentStart - start,
-            sourceStartTime: clip.sourceStartTime + (segmentStart - clip.startTime),
-            duration: segmentEnd - segmentStart,
-            fadeIn: segmentStart > clip.startTime ? 0 : clip.fadeIn,
-            fadeOut: segmentEnd < clipEnd ? 0 : clip.fadeOut,
-        });
+        const segment = makeClipSegment(clip, segmentStart, segmentEnd);
+        segment.startTime = segmentStart - start;
+        segment.fadeIn = segmentStart > clip.startTime ? 0 : clip.fadeIn;
+        segment.fadeOut = segmentEnd < clipEnd ? 0 : clip.fadeOut;
+        next.push(segment);
     }
     track.clips = next;
     normalizeClips();
@@ -1578,17 +1701,14 @@ function silenceRange(start = selection.start, end = selection.end) {
             continue;
         }
         if (clip.startTime < start) {
-            next.push({ ...clip, duration: start - clip.startTime, fadeOut: 0 });
+            const left = makeClipSegment(clip, clip.startTime, start);
+            left.fadeOut = 0;
+            next.push(left);
         }
         if (clipEnd > end) {
-            next.push({
-                ...clip,
-                id: makeId("clip"),
-                startTime: end,
-                sourceStartTime: clip.sourceStartTime + (end - clip.startTime),
-                duration: clipEnd - end,
-                fadeIn: 0,
-            });
+            const right = makeClipSegment(clip, end, clipEnd);
+            right.fadeIn = 0;
+            next.push(right);
         }
     }
     track.clips = next;
@@ -1609,15 +1729,12 @@ function splitClipsAt(time) {
             next.push(clip);
             continue;
         }
-        next.push({ ...clip, duration: time - clip.startTime, fadeOut: 0 });
-        next.push({
-            ...clip,
-            id: makeId("clip"),
-            startTime: time,
-            sourceStartTime: clip.sourceStartTime + (time - clip.startTime),
-            duration: clipEnd - time,
-            fadeIn: 0,
-        });
+        const left = makeClipSegment(clip, clip.startTime, time);
+        left.fadeOut = 0;
+        next.push(left);
+        const right = makeClipSegment(clip, time, clipEnd);
+        right.fadeIn = 0;
+        next.push(right);
     }
     track.clips = next;
     normalizeClips();
@@ -1710,7 +1827,7 @@ function getRangePeak(range) {
         const buffer = source.buffer;
         const channelCount = Math.min(buffer.numberOfChannels, 2);
         const startIndex = Math.max(0, Math.floor(clip.sourceStartTime * buffer.sampleRate));
-        const endIndex = Math.min(buffer.length, Math.ceil((clip.sourceStartTime + clip.duration) * buffer.sampleRate));
+        const endIndex = Math.min(buffer.length, Math.ceil((clip.sourceStartTime + getClipSourceDuration(clip)) * buffer.sampleRate));
         for (let channel = 0; channel < channelCount; channel += 1) {
             const data = buffer.getChannelData(channel);
             for (let i = startIndex; i < endIndex; i += 1) {
@@ -1728,18 +1845,85 @@ function dbToGain(db) {
     return 10 ** (db / 20);
 }
 
+function getStretchRangeStats(range, clips) {
+    const clipDuration = clips.reduce((sum, clip) => sum + clip.duration, 0);
+    const rangeDuration = Math.max(0, range.end - range.start);
+    return {
+        clipDuration,
+        fixedDuration: Math.max(0, rangeDuration - clipDuration),
+        rangeDuration,
+    };
+}
+
+function getStretchRatioFromInputs(range, clips) {
+    const method = refs.stretchMethodSelect.value;
+    const stats = getStretchRangeStats(range, clips);
+    if (method === "speed-ratio") {
+        return 1 / clamp(Number(refs.stretchSpeedInput.value || 1), 0.25, 4);
+    }
+    if (method === "target-duration") {
+        const target = Math.max(0.01, Number(refs.stretchTargetDurationInput.value || stats.rangeDuration));
+        if (stats.clipDuration <= 0) {
+            return 1;
+        }
+        return (target - stats.fixedDuration) / stats.clipDuration;
+    }
+    if (method === "bpm") {
+        const fromBpm = Math.max(1, Number(refs.stretchFromBpmInput.value || 120));
+        const toBpm = Math.max(1, Number(refs.stretchToBpmInput.value || 120));
+        return fromBpm / toBpm;
+    }
+    return Number(refs.stretchRatioInput.value || 1);
+}
+
+function updateStretchParameterFields() {
+    const method = refs.stretchMethodSelect.value;
+    refs.stretchRatioField.hidden = method !== "length-ratio";
+    refs.stretchRatioField.style.display = method === "length-ratio" ? "" : "none";
+    refs.stretchSpeedField.hidden = method !== "speed-ratio";
+    refs.stretchSpeedField.style.display = method === "speed-ratio" ? "" : "none";
+    refs.stretchTargetDurationField.hidden = method !== "target-duration";
+    refs.stretchTargetDurationField.style.display = method === "target-duration" ? "" : "none";
+    refs.stretchFromBpmField.hidden = method !== "bpm";
+    refs.stretchFromBpmField.style.display = method === "bpm" ? "" : "none";
+    refs.stretchToBpmField.hidden = method !== "bpm";
+    refs.stretchToBpmField.style.display = method === "bpm" ? "" : "none";
+}
+
 function openQuickPanel(mode) {
     quickMode = mode;
     refs.quickPanel.hidden = false;
     const isNormalize = mode === "normalize";
     const isSilence = mode === "silence";
     const isFade = mode === "fade-in" || mode === "fade-out";
+    const isStretch = mode === "stretch";
     refs.normalizeGainField.hidden = !isNormalize;
     refs.normalizeGainField.style.display = isNormalize ? "" : "none";
     refs.fadeCurveField.hidden = !isFade;
     refs.fadeCurveField.style.display = isFade ? "" : "none";
     refs.silenceLengthField.hidden = !isSilence;
     refs.silenceLengthField.style.display = isSilence ? "" : "none";
+    refs.stretchModeField.hidden = !isStretch;
+    refs.stretchModeField.style.display = isStretch ? "" : "none";
+    refs.stretchMethodField.hidden = !isStretch;
+    refs.stretchMethodField.style.display = isStretch ? "" : "none";
+    if (isStretch) {
+        const range = getQuickEditRange();
+        const duration = Math.max(0.01, range.end - range.start);
+        refs.stretchTargetDurationInput.value = duration.toFixed(2);
+        updateStretchParameterFields();
+    } else {
+        [
+            refs.stretchRatioField,
+            refs.stretchSpeedField,
+            refs.stretchTargetDurationField,
+            refs.stretchFromBpmField,
+            refs.stretchToBpmField,
+        ].forEach((field) => {
+            field.hidden = true;
+            field.style.display = "none";
+        });
+    }
     refs.quickPanelLabel.textContent = mode === "normalize"
         ? "ノーマライズ"
         : mode === "fade-in"
@@ -1752,6 +1936,10 @@ function openQuickPanel(mode) {
         : selection.end > selection.start
         ? "現在の選択範囲に適用します。"
         : "選択範囲がないため全体に適用します。";
+    if (isStretch) {
+        refs.quickPanelLabel.textContent = "Time Stretch";
+        refs.quickPanelHint.textContent = "選択範囲内のクリップに非破壊で適用します。1.00で元の長さです。";
+    }
 }
 
 function closeQuickPanel() {
@@ -1786,7 +1974,31 @@ function applyQuickPanel() {
         setStatus("処理対象のクリップがありません。", "error");
         return;
     }
-    if (quickMode === "normalize") {
+    if (quickMode === "stretch") {
+        const ratio = clamp(getStretchRatioFromInputs(range, clips), 0.25, 4);
+        const mode = refs.stretchModeSelect.value === "preserve" ? "preserve" : "classic";
+        let delta = 0;
+        clips.forEach((clip) => {
+            const sourceDuration = getClipSourceDuration(clip);
+            const oldDuration = clip.duration;
+            clip.startTime += delta;
+            clip.sourceDuration = sourceDuration;
+            clip.duration = sourceDuration * ratio;
+            clip.stretch = { mode, ratio };
+            delta += clip.duration - oldDuration;
+        });
+        const track = getTrack();
+        track.clips.forEach((clip) => {
+            if (!clips.includes(clip) && clip.startTime >= range.end) {
+                clip.startTime += delta;
+            }
+        });
+        normalizeClips();
+        selection = { start: range.start, end: range.end + delta };
+        playbackOffset = selection.start;
+        stretchBufferCache = new Map();
+        setStatus(`タイムストレッチを${mode === "preserve" ? "ピッチ固定" : "Classic"}で適用しました。`, "active");
+    } else if (quickMode === "normalize") {
         const peak = getRangePeak(range);
         if (peak <= 0) {
             updateAfterProjectChange();
@@ -2725,6 +2937,8 @@ function bindEvents() {
     refs.quickNormalizeBtn.addEventListener("click", () => openQuickPanel("normalize"));
     refs.quickFadeInBtn.addEventListener("click", () => openQuickPanel("fade-in"));
     refs.quickFadeOutBtn.addEventListener("click", () => openQuickPanel("fade-out"));
+    refs.quickStretchBtn.addEventListener("click", () => openQuickPanel("stretch"));
+    refs.stretchMethodSelect.addEventListener("change", updateStretchParameterFields);
     refs.quickCloseBtn.addEventListener("click", closeQuickPanel);
     refs.quickApplyBtn.addEventListener("click", applyQuickPanel);
     refs.trackVolumeRange.addEventListener("input", () => setTrackVolume(refs.trackVolumeRange.value));
