@@ -26,6 +26,7 @@ const fitModeSelect = document.getElementById('fitMode');
 const dpiPreset = document.getElementById('dpiPreset');
 const dpiCustom = document.getElementById('dpiCustom');
 const imageFormatSelect = document.getElementById('imageFormat');
+const jpegOriginalOption = imageFormatSelect.querySelector('option[value="image/jpeg-original"]');
 const qualityInput = document.getElementById('quality');
 const qualityValue = document.getElementById('qualityValue');
 const qualityRow = document.getElementById('qualityRow');
@@ -33,6 +34,7 @@ const bgColorInput = document.getElementById('bgColor');
 const bgColorValue = document.getElementById('bgColorValue');
 const bgRow = document.getElementById('bgRow');
 const compressionSelect = document.getElementById('compression');
+const compressionOption = compressionSelect.closest('.option');
 const fileNameInput = document.getElementById('fileName');
 const statusEl = document.getElementById('status');
 const buildBtn = document.getElementById('buildPdf');
@@ -129,11 +131,22 @@ function updateBgColorLabel() {
 }
 
 function updateFormatControls() {
+    const jpegOriginalAllowed = state.items.length === 0 || state.items.every((item) => isJpegFile(item.file));
+    if (jpegOriginalOption) {
+        jpegOriginalOption.disabled = !jpegOriginalAllowed;
+    }
+    if (!jpegOriginalAllowed && imageFormatSelect.value === 'image/jpeg-original') {
+        imageFormatSelect.value = 'image/jpeg';
+    }
+
     const isJpeg = imageFormatSelect.value === 'image/jpeg';
+    const isOriginalJpeg = imageFormatSelect.value === 'image/jpeg-original';
     qualityInput.disabled = !isJpeg;
     bgColorInput.disabled = !isJpeg;
+    compressionSelect.disabled = isOriginalJpeg;
     qualityRow.classList.toggle('is-disabled', !isJpeg);
     bgRow.classList.toggle('is-disabled', !isJpeg);
+    compressionOption.classList.toggle('is-disabled', isOriginalJpeg);
 }
 
 function updateOrientationControl() {
@@ -207,6 +220,7 @@ function updateList() {
         empty.textContent = '画像がまだありません。';
         fileList.appendChild(empty);
         updateSummary();
+        updateFormatControls();
         return;
     }
 
@@ -261,6 +275,7 @@ function updateList() {
     });
 
     updateSummary();
+    updateFormatControls();
 }
 
 function moveItem(index, direction) {
@@ -301,6 +316,28 @@ function loadImage(url) {
     });
 }
 
+function isJpegFile(file) {
+    return file.type === 'image/jpeg' || /\.(jpe?g)$/i.test(file.name);
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read the image file.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function selectOriginalJpegWhenAvailable() {
+    if (state.items.length === 0 || imageFormatSelect.value !== 'image/jpeg') {
+        return;
+    }
+    if (state.items.every((item) => isJpegFile(item.file))) {
+        imageFormatSelect.value = 'image/jpeg-original';
+    }
+}
+
 async function addFiles(fileListLike) {
     if (state.busy) {
         return;
@@ -335,6 +372,7 @@ async function addFiles(fileListLike) {
     } finally {
         state.busy = false;
         fileInput.value = '';
+        selectOriginalJpegWhenAvailable();
         updateList();
         setStatus('準備完了');
     }
@@ -420,9 +458,15 @@ async function buildPdf() {
             const x = (page.width - drawWidth) / 2;
             const y = (page.height - drawHeight) / 2;
 
-            const dataUrl = renderToDataUrl(img, format, quality, background);
+            const useOriginalJpeg = format === 'image/jpeg-original';
+            if (useOriginalJpeg && !isJpegFile(item.file)) {
+                throw new Error('JPEG自動はJPEG画像だけで使用できます。');
+            }
+            const dataUrl = useOriginalJpeg
+                ? await readFileAsDataUrl(item.file)
+                : renderToDataUrl(img, format, quality, background);
             const formatName = format === 'image/png' ? 'PNG' : 'JPEG';
-            pdf.addImage(dataUrl, formatName, x, y, drawWidth, drawHeight, undefined, compression);
+            pdf.addImage(dataUrl, formatName, x, y, drawWidth, drawHeight, undefined, useOriginalJpeg ? undefined : compression);
             if (i < state.items.length - 1) {
                 pdf.addPage([page.width, page.height]);
             }

@@ -16,7 +16,7 @@
             <p class="lede">同じサイズの画像をまとめてPDF化。ページサイズ・DPI・圧縮を細かく調整できます。</p>
         </header>
 
-        <section class="card">
+        <section class="card input-card">
             <div class="section-heading">
                 <div>
                     <span class="section-label">Input</span>
@@ -95,6 +95,7 @@
                         <h3>並び順</h3>
                     </div>
                     <div class="list-actions">
+                        <button class="ghost-button" type="button" id="resetAll">クリア</button>
                         <button class="ghost-button" type="button" id="sortName">ファイル名順</button>
                         <button class="ghost-button" type="button" id="reverseOrder">逆順</button>
                     </div>
@@ -166,6 +167,7 @@
                         <span>形式</span>
                         <select id="imageFormat">
                             <option value="image/jpeg" selected>JPEG</option>
+                            <option value="image/jpeg-original">JPEG自動</option>
                             <option value="image/png">PNG</option>
                         </select>
                     </label>
@@ -201,23 +203,12 @@
                     <p class="option-hint">拡張子 .pdf は自動で付与されます。</p>
                 </div>
             </div>
-        </section>
-
-        <section class="card">
-            <div class="section-heading">
-                <div>
-                    <span class="section-label">Export</span>
-                    <h2>PDFを書き出す</h2>
-                </div>
-            </div>
-
             <div id="errorBanner" class="error-banner hidden" role="alert"></div>
 
-            <div class="controls">
+            <div class="controls settings-export">
                 <div class="status" id="status">画像を読み込んでください。</div>
                 <div class="actions">
                     <button class="pill-button" type="button" id="buildPdf">PDF作成</button>
-                    <button class="ghost-button" type="button" id="resetAll">リセット</button>
                 </div>
             </div>
         </section>
