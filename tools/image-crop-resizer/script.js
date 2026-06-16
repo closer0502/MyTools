@@ -70,6 +70,11 @@
         inputW: $("inputW"),
         inputH: $("inputH"),
     };
+    const tabEls = {
+        buttons: document.querySelectorAll("[data-tab-target]"),
+        crop: $("cropSection"),
+        resize: $("resizeSection"),
+    };
 
     let dragState = { active: false, mode: null, start: null, rect: null };
 
@@ -667,6 +672,23 @@
         return Math.max(1, Math.min(MAX_VISIBLE_THUMBS, rowCap || MAX_VISIBLE_THUMBS));
     };
 
+    const setActiveTab = (target) => {
+        const isResize = target === "resize";
+        tabEls.crop.classList.toggle("hidden", isResize);
+        tabEls.resize.classList.toggle("hidden", !isResize);
+        tabEls.buttons.forEach((button) => {
+            const active = button.dataset.tabTarget === target;
+            button.classList.toggle("is-active", active);
+            button.setAttribute("aria-selected", String(active));
+        });
+
+        if (isResize) {
+            clampThumbGridRowsDebounced();
+        } else {
+            drawCropCanvas();
+        }
+    };
+
     const renderResizeThumbs = (items) => {
         if (!items || !items.length) {
             resizeEls.thumbs.classList.add("hidden");
@@ -921,6 +943,10 @@
 // --- Event wiring ---
 // --- Event wiring ---
     const init = () => {
+        tabEls.buttons.forEach((button) => {
+            button.addEventListener("click", () => setActiveTab(button.dataset.tabTarget));
+        });
+
         // Crop drop zone
         bindDropZone($("cropDropZone"), $("cropFileInput"), handleCropFile);
         $("cropFileButton").addEventListener("click", (e) => {

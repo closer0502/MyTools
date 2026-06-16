@@ -12,20 +12,13 @@
             <span class="eyebrow">画像クロップ & リサイズ</span>
             <h1>Crop & Resize Studio</h1>
             <p class="lede">ドラッグと数値指定でクロップ、比率プリセットに合わせた調整、ピクセル・パーセント・辺合わせリサイズを1ページで完結。</p>
-            <div class="steps">
-                <span class="step-pill">ステップ1: クロップ</span>
-                <span class="step-pill">ステップ2: リサイズ</span>
+            <div class="tool-tabs" role="tablist" aria-label="ツール切り替え">
+                <button class="tool-tab is-active" type="button" role="tab" id="cropTab" aria-controls="cropSection" aria-selected="true" data-tab-target="crop">クロップ</button>
+                <button class="tool-tab" type="button" role="tab" id="resizeTab" aria-controls="resizeSection" aria-selected="false" data-tab-target="resize">リサイズ</button>
             </div>
         </header>
 
-        <section class="card" id="cropSection">
-            <div class="section-heading">
-                <div>
-                    <span class="section-label">Crop</span>
-                    <h2>クロップエリア</h2>
-                </div>
-                <p class="hint">ドラッグ＆ドロップと数値入力の両方に対応。選択範囲はアスペクト比プリセットで拡縮できます。</p>
-            </div>
+        <section class="card" id="cropSection" role="tabpanel" aria-labelledby="cropTab">
             <div class="layout layout--split">
                 <div class="panel">
                     <div class="drop-zone" id="cropDropZone">
@@ -135,14 +128,7 @@
             </div>
         </section>
 
-        <section class="card" id="resizeSection">
-            <div class="section-heading">
-                <div>
-                    <span class="section-label">Resize</span>
-                    <h2>リサイズエリア</h2>
-                </div>
-                <p class="hint">ピクセル指定とパーセント指定に対応。縦横比ロックで片側入力から自動計算できます。</p>
-            </div>
+        <section class="card hidden" id="resizeSection" role="tabpanel" aria-labelledby="resizeTab">
             <div class="layout layout--split">
                 <div class="panel">
                     <div class="source-toggle" role="group" aria-label="入力モード">
