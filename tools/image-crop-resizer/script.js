@@ -125,6 +125,90 @@
         return r;
     };
 
+    const clampAspectRect = (rect, mode, ratio) => {
+        if (!cropState.image || !ratio) return clampRect(rect);
+        const { naturalWidth: iw, naturalHeight: ih } = cropState.image;
+        const r = normalizeRect(rect);
+        const right = r.x + r.w;
+        const bottom = r.y + r.h;
+        const centerX = r.x + r.w / 2;
+        const centerY = r.y + r.h / 2;
+
+        let maxW = iw;
+        let maxH = ih;
+        switch (mode) {
+            case "nw":
+                maxW = right;
+                maxH = bottom;
+                break;
+            case "ne":
+                maxW = iw - r.x;
+                maxH = bottom;
+                break;
+            case "sw":
+                maxW = right;
+                maxH = ih - r.y;
+                break;
+            case "n":
+                maxH = bottom;
+                break;
+            case "s":
+                maxH = ih - r.y;
+                break;
+            case "e":
+                maxW = iw - r.x;
+                break;
+            case "se":
+            case "new":
+                maxW = iw - r.x;
+                maxH = ih - r.y;
+                break;
+            case "w":
+                maxW = right;
+                break;
+            default:
+                break;
+        }
+
+        const maxAspectW = Math.max(1, Math.min(maxW, maxH * ratio, iw, ih * ratio));
+        const w = Math.max(1, Math.min(r.w, maxAspectW));
+        const h = w / ratio;
+        const next = { x: r.x, y: r.y, w, h };
+
+        switch (mode) {
+            case "nw":
+                next.x = right - w;
+                next.y = bottom - h;
+                break;
+            case "ne":
+                next.y = bottom - h;
+                break;
+            case "sw":
+                next.x = right - w;
+                break;
+            case "n":
+                next.x = centerX - w / 2;
+                next.y = bottom - h;
+                break;
+            case "s":
+                next.x = centerX - w / 2;
+                break;
+            case "e":
+                next.y = centerY - h / 2;
+                break;
+            case "w":
+                next.x = right - w;
+                next.y = centerY - h / 2;
+                break;
+            default:
+                break;
+        }
+
+        next.x = clamp(next.x, 0, iw - next.w);
+        next.y = clamp(next.y, 0, ih - next.h);
+        return next;
+    };
+
     const enforceAspect = (rect, mode = "se", prefer = "auto") => {
         const ratio = getAspectValue();
         if (!ratio) return normalizeRect(rect);
@@ -178,8 +262,9 @@
     };
 
     const setSelection = (rect, mode = "se", prefer = "auto") => {
+        const ratio = getAspectValue();
         const rectAspect = enforceAspect(rect, mode, prefer);
-        cropState.selection = clampRect(rectAspect);
+        cropState.selection = ratio ? clampAspectRect(rectAspect, mode, ratio) : clampRect(rectAspect);
         syncSelectionInputs();
         drawCropCanvas();
         updateCropOutput();
