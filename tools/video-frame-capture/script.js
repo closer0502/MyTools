@@ -63,6 +63,12 @@ let currentFile = null;
 let isReady = false;
 let isBusy = false;
 let detectedFps = null;
+let ffmpeg = null;
+let ffmpegReady = false;
+let ffmpegInputReady = false;
+let probeLogLines = [];
+let isProbeActive = false;
+let isExportProgressActive = false;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -110,30 +116,116 @@ const getFps = () => {
     return Number.isFinite(fps) && fps > 0 ? fps : 30;
 };
 
-const detectVideoFps = () => {
+const getFFmpegGlobals = () => {
+    const ffmpegGlobal = window.FFmpegWASM || window.FFmpeg;
+    const utilGlobal = window.FFmpegUtil || window.FFmpegWASM;
+    if (!ffmpegGlobal?.FFmpeg || !utilGlobal?.toBlobURL) {
+        throw new Error("FFmpeg WASM is not loaded.");
+    }
+    return {
+        FFmpeg: ffmpegGlobal.FFmpeg,
+        toBlobURL: utilGlobal.toBlobURL,
+    };
+};
+
+const ensureFFmpeg = async () => {
+    if (ffmpegReady) {
+        return ffmpeg;
+    }
+    const { FFmpeg, toBlobURL } = getFFmpegGlobals();
+    ffmpeg = new FFmpeg();
+    ffmpeg.on("log", ({ message }) => {
+        if (isProbeActive) {
+            probeLogLines.push(message);
+        }
+    });
+    ffmpeg.on("progress", ({ progress }) => {
+        if (isExportProgressActive && Number.isFinite(progress)) {
+            setStatus(`Exporting with FFmpeg... ${Math.round(clamp(progress, 0, 1) * 100)}%`);
+        }
+    });
+
+    setStatus("Loading FFmpeg WASM...");
+    const ffmpegBaseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd";
+    const coreBaseURL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm";
+    await ffmpeg.load({
+        classWorkerURL: await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, "text/javascript"),
+        coreURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, "text/javascript"),
+        wasmURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, "application/wasm"),
+    });
+    ffmpegReady = true;
+    return ffmpeg;
+};
+
+const deleteVirtualFile = async (name) => {
+    if (!ffmpegReady) {
+        return;
+    }
     try {
-        if (!video.captureStream) {
-            return null;
-        }
-        const stream = video.captureStream();
-        const track = stream.getVideoTracks()[0];
-        if (!track) {
-            return null;
-        }
-        const settings = track.getSettings();
-        const fps = settings && Number.isFinite(settings.frameRate) ? settings.frameRate : null;
-        track.stop();
-        return fps;
+        await ffmpeg.deleteFile(name);
     } catch (error) {
+        // The file may not exist after a failed or cancelled export.
+    }
+};
+
+const ensureFFmpegInput = async () => {
+    if (ffmpegInputReady) {
+        return;
+    }
+    if (!currentFile) {
+        throw new Error("No input video is selected.");
+    }
+    await ensureFFmpeg();
+    await deleteVirtualFile("input.bin");
+    const data = new Uint8Array(await currentFile.arrayBuffer());
+    await ffmpeg.writeFile("input.bin", data);
+    ffmpegInputReady = true;
+};
+
+const parseRate = (value) => {
+    const text = String(value || "").trim();
+    if (!text || text === "0/0") {
         return null;
     }
+    const ratio = text.match(/^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/);
+    if (ratio) {
+        const numerator = Number(ratio[1]);
+        const denominator = Number(ratio[2]);
+        return denominator > 0 ? numerator / denominator : null;
+    }
+    const numeric = Number(text);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+};
+
+const parseVideoProbeInfo = (lines) => {
+    const videoLine = lines.find((line) => /Video:/i.test(line)) || "";
+    const fpsMatch = videoLine.match(/(\d+(?:\.\d+)?)\s*fps/i);
+    const tbrMatch = videoLine.match(/(\d+(?:\.\d+)?)\s*tbr/i);
+    return {
+        fps: parseRate(fpsMatch?.[1]) || parseRate(tbrMatch?.[1]),
+        line: videoLine,
+    };
+};
+
+const probeVideoInfo = async () => {
+    await ensureFFmpegInput();
+    probeLogLines = [];
+    isProbeActive = true;
+    try {
+        await ffmpeg.exec(["-hide_banner", "-i", "input.bin"]);
+    } catch (error) {
+        // ffmpeg exits with an error because no output was requested; probe info is still logged.
+    } finally {
+        isProbeActive = false;
+    }
+    return parseVideoProbeInfo(probeLogLines);
 };
 
 const getMaxFrame = () => {
     if (!isReady || !Number.isFinite(video.duration)) {
         return 0;
     }
-    return Math.max(0, Math.floor(video.duration * getFps()));
+    return Math.max(0, Math.ceil(video.duration * getFps()) - 1);
 };
 
 const setStatus = (message) => {
@@ -286,6 +378,59 @@ const canvasToBlob = (type, quality) =>
         frameCanvas.toBlob((blob) => resolve(blob), type, useQuality);
     });
 
+const getOutputProfile = () => {
+    const mime = formatSelect.value;
+    if (mime === "image/jpeg") {
+        return { ext: "jpg", mime };
+    }
+    if (mime === "image/webp") {
+        return { ext: "webp", mime };
+    }
+    return { ext: "png", mime: "image/png" };
+};
+
+const getFFmpegImageQualityArgs = () => {
+    const quality = clamp(Number(qualityRange.value) || 0.92, 0.5, 1);
+    const mime = formatSelect.value;
+    if (mime === "image/jpeg") {
+        const qscale = Math.round(31 - quality * 29);
+        return ["-q:v", String(clamp(qscale, 2, 31))];
+    }
+    if (mime === "image/webp") {
+        return ["-quality", String(Math.round(quality * 100))];
+    }
+    return [];
+};
+
+const blobFromFFmpegData = (data, type) =>
+    new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)], { type });
+
+const listVirtualFiles = async () => {
+    try {
+        return await ffmpeg.listDir(".");
+    } catch (error) {
+        return [];
+    }
+};
+
+const deleteMatchingVirtualFiles = async (predicate) => {
+    if (!ffmpegReady) {
+        return;
+    }
+    const entries = await listVirtualFiles();
+    await Promise.all(entries
+        .filter((entry) => !entry.isDir && predicate(entry.name))
+        .map((entry) => deleteVirtualFile(entry.name)));
+};
+
+const readMatchingVirtualFiles = async (predicate) => {
+    const entries = await listVirtualFiles();
+    return entries
+        .filter((entry) => !entry.isDir && predicate(entry.name))
+        .map((entry) => entry.name)
+        .sort();
+};
+
 const downloadBlob = (blob, filename) => {
     if (!blob) {
         return;
@@ -339,6 +484,8 @@ const handleFile = (file) => {
         URL.revokeObjectURL(objectUrl);
     }
     currentFile = file;
+    ffmpegInputReady = false;
+    detectedFps = null;
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     video.load();
@@ -431,6 +578,105 @@ const handleRangeExport = async () => {
     setControlsEnabled(true);
 };
 
+const handleExactCapture = async () => {
+    if (!isReady || isBusy) {
+        return;
+    }
+    isBusy = true;
+    setControlsEnabled(false);
+    setStatus("Exporting exact frame with FFmpeg...");
+    try {
+        await ensureFFmpegInput();
+        const { ext, mime } = getOutputProfile();
+        const frameIndex = clamp(Math.round(video.currentTime * getFps()), 0, getMaxFrame());
+        const outputName = `capture_000001.${ext}`;
+        await deleteMatchingVirtualFiles((name) => name.startsWith("capture_"));
+        isExportProgressActive = true;
+        await ffmpeg.exec([
+            "-hide_banner",
+            "-i", "input.bin",
+            "-vf", `select=eq(n\\,${frameIndex})`,
+            "-vsync", "0",
+            "-frames:v", "1",
+            ...getFFmpegImageQualityArgs(),
+            outputName,
+        ]);
+        const data = await ffmpeg.readFile(outputName);
+        const baseName = currentFile ? currentFile.name.replace(/\.[^/.]+$/, "") : "frame";
+        downloadBlob(blobFromFFmpegData(data, mime), `${baseName}_frame_${pad(frameIndex, 6)}.${ext}`);
+        await deleteVirtualFile(outputName);
+        setStatus("Frame exported with FFmpeg.");
+    } catch (error) {
+        console.error(error);
+        setStatus(`FFmpeg export failed: ${error.message}`);
+    } finally {
+        isExportProgressActive = false;
+        isBusy = false;
+        setControlsEnabled(true);
+    }
+};
+
+const handleExactRangeExport = async () => {
+    if (!isReady || isBusy || !rangeToggle.checked) {
+        return;
+    }
+    const startFrame = clampFrame(startFrameInput.value);
+    const endFrame = clampFrame(endFrameInput.value);
+    if (endFrame < startFrame) {
+        setStatus("End frame must be greater than or equal to start frame.");
+        return;
+    }
+
+    const totalFrames = endFrame - startFrame + 1;
+    isBusy = true;
+    setControlsEnabled(false);
+    setStatus(`Exporting exact frames with FFmpeg... (${totalFrames} frames)`);
+    try {
+        await ensureFFmpegInput();
+        const { ext } = getOutputProfile();
+        const baseName = currentFile ? currentFile.name.replace(/\.[^/.]+$/, "") : "frames";
+        const zip = new JSZip();
+        const digits = Math.max(6, String(endFrame).length);
+        const outputPattern = `frame_%0${digits}d.${ext}`;
+
+        await deleteMatchingVirtualFiles((name) => /^frame_\d+\.(png|jpe?g|webp)$/i.test(name));
+        isExportProgressActive = true;
+        await ffmpeg.exec([
+            "-hide_banner",
+            "-i", "input.bin",
+            "-vf", `select=between(n\\,${startFrame}\\,${endFrame})`,
+            "-vsync", "0",
+            "-frames:v", String(totalFrames),
+            ...getFFmpegImageQualityArgs(),
+            outputPattern,
+        ]);
+
+        const outputFiles = await readMatchingVirtualFiles((name) => new RegExp(`^frame_\\d+\\.${ext}$`, "i").test(name));
+        if (outputFiles.length === 0) {
+            throw new Error("No frames were extracted. Check the frame range.");
+        }
+        for (let index = 0; index < outputFiles.length; index += 1) {
+            const name = outputFiles[index];
+            const data = await ffmpeg.readFile(name);
+            const actualFrame = startFrame + index;
+            zip.file(`frame_${pad(actualFrame, digits)}.${ext}`, data);
+            setStatus(`Packing ZIP... ${index + 1}/${outputFiles.length}`);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        downloadBlob(zipBlob, `${baseName}_frames_${startFrame}-${endFrame}.zip`);
+        await deleteMatchingVirtualFiles((name) => /^frame_\d+\.(png|jpe?g|webp)$/i.test(name));
+        setStatus(`ZIP exported with ${outputFiles.length} frames.`);
+    } catch (error) {
+        console.error(error);
+        setStatus(`FFmpeg export failed: ${error.message}`);
+    } finally {
+        isExportProgressActive = false;
+        isBusy = false;
+        setControlsEnabled(true);
+    }
+};
+
 fileButton.addEventListener("click", (event) => {
     event.stopPropagation();
     fileInput.click();
@@ -464,24 +710,35 @@ dropZone.addEventListener("drop", (event) => {
     handleFile(file);
 });
 
-video.addEventListener("loadedmetadata", () => {
+video.addEventListener("loadedmetadata", async () => {
     isReady = true;
-    detectedFps = detectVideoFps();
-    if (detectedFps) {
-        fpsInput.value = Math.round(detectedFps);
-    }
+    setControlsEnabled(false);
+    setStatus("Probing video metadata with FFmpeg...");
     syncSliderStep();
     timeSlider.max = video.duration || 0;
     timeSlider.value = video.currentTime || 0;
     timecodeInput.value = formatTime(video.currentTime || 0);
     startFrameInput.value = 0;
     endFrameInput.value = 0;
+    try {
+        const probeInfo = await probeVideoInfo();
+        detectedFps = probeInfo.fps;
+        if (detectedFps) {
+            fpsInput.value = Number.isInteger(detectedFps) ? String(detectedFps) : detectedFps.toFixed(3);
+        }
+    } catch (error) {
+        console.error(error);
+        detectedFps = null;
+        setStatus(`FFmpeg probe failed. Use manual FPS: ${error.message}`);
+    }
     updateFileMeta();
     updateTimeLabels();
     updateFormatBadge();
     syncFrameBounds();
     setControlsEnabled(true);
-    setStatus("動画を読み込みました。");
+    if (detectedFps) {
+        setStatus(`Video loaded. FPS detected by FFmpeg: ${detectedFps.toFixed(3)}`);
+    }
 });
 
 video.addEventListener("loadeddata", () => {
@@ -572,7 +829,7 @@ qualityRange.addEventListener("input", () => {
     qualityValue.textContent = Number(qualityRange.value).toFixed(2);
 });
 
-captureBtn.addEventListener("click", handleCapture);
+captureBtn.addEventListener("click", handleExactCapture);
 
 rangeToggle.addEventListener("change", handleRangeToggle);
 
@@ -628,7 +885,7 @@ seekEndBtn.addEventListener("click", async () => {
     updateTimeLabels();
 });
 
-exportRangeBtn.addEventListener("click", handleRangeExport);
+exportRangeBtn.addEventListener("click", handleExactRangeExport);
 
 updateFormatBadge();
 updateQualityField();
