@@ -17,14 +17,20 @@
         <div class="layout layout--split">
             <section class="panel controls-panel">
                 <div class="upload-grid">
-                    <label class="file-field">
-                        <span class="field-label">画像A（ベース）</span>
-                        <input type="file" id="imageAInput" accept="image/*">
-                    </label>
-                    <label class="file-field">
-                        <span class="field-label">画像B（オーバーレイ）</span>
-                        <input type="file" id="imageBInput" accept="image/*">
-                    </label>
+                    <div class="upload-card">
+                        <label class="file-field">
+                            <span class="field-label">画像A（ベース）</span>
+                            <input type="file" id="imageAInput" accept="image/*">
+                        </label>
+                        <div class="drop-zone" id="imageADropZone">画像Aをドロップ</div>
+                    </div>
+                    <div class="upload-card">
+                        <label class="file-field">
+                            <span class="field-label">画像B（オーバーレイ）</span>
+                            <input type="file" id="imageBInput" accept="image/*">
+                        </label>
+                        <div class="drop-zone" id="imageBDropZone">画像Bをドロップ</div>
+                    </div>
                 </div>
 
                 <div class="control-grid">
@@ -34,8 +40,13 @@
                     </label>
 
                     <label class="range-field">
-                        <span class="field-label">ズーム <span class="mono" id="zoomValue">100%</span></span>
+                        <span class="field-label">全体ズーム <span class="mono" id="zoomValue">100%</span></span>
                         <input type="range" id="zoomRange" min="10" max="400" step="1" value="100">
+                    </label>
+
+                    <label class="range-field">
+                        <span class="field-label">B単体倍率 <span class="mono" id="overlayScaleValue">100%</span></span>
+                        <input type="range" id="overlayScaleRange" min="10" max="400" step="1" value="100">
                     </label>
 
                     <div class="toggle-row">
@@ -74,7 +85,7 @@
                     <button class="ghost-button" id="resetBtn" type="button">位置と倍率をリセット</button>
                 </div>
 
-                <p class="hint">操作: ドラッグでパン / マウスホイールでズーム / 矢印キーでBを1px移動（Shiftで10px）</p>
+                <p class="hint">操作: ドラッグでパン / マウスホイールで全体ズーム / 矢印キーでBを1px移動（Shiftで10px）</p>
             </section>
 
             <section class="panel viewer-panel">

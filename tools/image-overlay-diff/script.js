@@ -1,9 +1,13 @@
 ﻿const imageAInput = document.getElementById("imageAInput");
 const imageBInput = document.getElementById("imageBInput");
+const imageADropZone = document.getElementById("imageADropZone");
+const imageBDropZone = document.getElementById("imageBDropZone");
 const opacityRange = document.getElementById("opacityRange");
 const opacityValue = document.getElementById("opacityValue");
 const zoomRange = document.getElementById("zoomRange");
 const zoomValue = document.getElementById("zoomValue");
+const overlayScaleRange = document.getElementById("overlayScaleRange");
+const overlayScaleValue = document.getElementById("overlayScaleValue");
 const showBCheck = document.getElementById("showBCheck");
 const differenceCheck = document.getElementById("differenceCheck");
 const offsetXRange = document.getElementById("offsetXRange");
@@ -29,6 +33,7 @@ const state = {
     imageAFile: null,
     imageBFile: null,
     scale: 1,
+    overlayScale: 1,
     panX: 0,
     panY: 0,
     offsetX: 0,
@@ -50,6 +55,7 @@ const revokeUrl = (url) => {
 
 const updateStageVars = () => {
     viewerStage.style.setProperty("--scale", String(state.scale));
+    viewerStage.style.setProperty("--overlay-scale", String(state.overlayScale));
     viewerStage.style.setProperty("--pan-x", `${state.panX}px`);
     viewerStage.style.setProperty("--pan-y", `${state.panY}px`);
     viewerStage.style.setProperty("--offset-x", `${state.offsetX}px`);
@@ -60,6 +66,7 @@ const updateStageVars = () => {
 const updateLabels = () => {
     opacityValue.textContent = `${opacityRange.value}%`;
     zoomValue.textContent = `${Math.round(state.scale * 100)}%`;
+    overlayScaleValue.textContent = `${Math.round(state.overlayScale * 100)}%`;
     offsetXValue.textContent = `${state.offsetX}px`;
     offsetYValue.textContent = `${state.offsetY}px`;
 };
@@ -81,11 +88,15 @@ const updateMeta = () => {
     const sizeA = imageALayer.naturalWidth && imageALayer.naturalHeight
         ? `${imageALayer.naturalWidth}x${imageALayer.naturalHeight}`
         : "-";
-    const sizeB = imageBLayer.naturalWidth && imageBLayer.naturalHeight
+    const hasBSize = imageBLayer.naturalWidth && imageBLayer.naturalHeight;
+    const sizeB = hasBSize
         ? `${imageBLayer.naturalWidth}x${imageBLayer.naturalHeight}`
         : "-";
+    const scaledSizeB = hasBSize && state.overlayScale !== 1
+        ? ` -> ${Math.round(imageBLayer.naturalWidth * state.overlayScale)}x${Math.round(imageBLayer.naturalHeight * state.overlayScale)}`
+        : "";
 
-    metaInfo.textContent = `A: ${fileA} (${sizeA}) / B: ${fileB} (${sizeB})`;
+    metaInfo.textContent = `A: ${fileA} (${sizeA}) / B: ${fileB} (${sizeB}${scaledSizeB})`;
 };
 
 const resetPanAndOffsets = () => {
@@ -100,8 +111,14 @@ const resetPanAndOffsets = () => {
 };
 
 const getReferenceSize = () => {
-    const widths = [imageALayer.naturalWidth, imageBLayer.naturalWidth].filter(Boolean);
-    const heights = [imageALayer.naturalHeight, imageBLayer.naturalHeight].filter(Boolean);
+    const widths = [
+        imageALayer.naturalWidth,
+        imageBLayer.naturalWidth ? imageBLayer.naturalWidth * state.overlayScale : 0,
+    ].filter(Boolean);
+    const heights = [
+        imageALayer.naturalHeight,
+        imageBLayer.naturalHeight ? imageBLayer.naturalHeight * state.overlayScale : 0,
+    ].filter(Boolean);
     if (!widths.length || !heights.length) {
         return null;
     }
@@ -147,6 +164,50 @@ const loadImage = (file, target) => {
     };
 };
 
+const isFileDrag = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
+
+const getDroppedImageFile = (event) => {
+    const files = Array.from(event.dataTransfer?.files || []);
+    return files.find((file) => file.type.startsWith("image/")) || null;
+};
+
+const setupDropZone = (zone, target) => {
+    if (!zone) {
+        return;
+    }
+    let dragDepth = 0;
+
+    zone.addEventListener("dragenter", (event) => {
+        event.preventDefault();
+        dragDepth += 1;
+        zone.classList.add("is-drag-over");
+    });
+
+    zone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = "copy";
+        }
+    });
+
+    zone.addEventListener("dragleave", () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) {
+            zone.classList.remove("is-drag-over");
+        }
+    });
+
+    zone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        dragDepth = 0;
+        zone.classList.remove("is-drag-over");
+        const file = getDroppedImageFile(event);
+        if (file) {
+            loadImage(file, target);
+        }
+    });
+};
+
 const zoomBy = (deltaY) => {
     const currentPercent = Number(zoomRange.value);
     const step = deltaY > 0 ? -8 : 8;
@@ -177,6 +238,21 @@ imageBInput.addEventListener("change", (event) => {
     loadImage(event.target.files[0], "B");
 });
 
+setupDropZone(imageADropZone, "A");
+setupDropZone(imageBDropZone, "B");
+
+window.addEventListener("dragover", (event) => {
+    if (isFileDrag(event)) {
+        event.preventDefault();
+    }
+});
+
+window.addEventListener("drop", (event) => {
+    if (isFileDrag(event)) {
+        event.preventDefault();
+    }
+});
+
 opacityRange.addEventListener("input", () => {
     updateLabels();
     updateStageVars();
@@ -185,6 +261,13 @@ opacityRange.addEventListener("input", () => {
 zoomRange.addEventListener("input", () => {
     state.scale = Number(zoomRange.value) / 100;
     updateLabels();
+    updateStageVars();
+});
+
+overlayScaleRange.addEventListener("input", () => {
+    state.overlayScale = Number(overlayScaleRange.value) / 100;
+    updateLabels();
+    updateMeta();
     updateStageVars();
 });
 
@@ -212,9 +295,12 @@ fitBtn.addEventListener("click", fitToStage);
 
 resetBtn.addEventListener("click", () => {
     state.scale = 1;
+    state.overlayScale = 1;
     zoomRange.value = "100";
+    overlayScaleRange.value = "100";
     resetPanAndOffsets();
     updateLabels();
+    updateMeta();
     updateStageVars();
 });
 
