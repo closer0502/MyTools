@@ -11,12 +11,6 @@
         <header class="header">
             <span class="eyebrow">Video Utility</span>
             <h1>動画フレームキャプチャ</h1>
-            <p class="lede">ローカル動画の特定フレームを画像として保存します。</p>
-            <div class="steps">
-                <span class="step-pill">1. 動画を読み込み</span>
-                <span class="step-pill">2. フレームを選択</span>
-                <span class="step-pill">3. 画像を書き出し</span>
-            </div>
         </header>
 
         <section class="card">
@@ -37,25 +31,6 @@
                             <button class="ghost-button" type="button" id="fileButton">動画を選ぶ</button>
                             <input type="file" id="fileInput" accept="video/*" hidden>
                             <p class="hint small">ローカル動画のみ対応。外部URLは扱えません。</p>
-                        </div>
-                    </div>
-
-                    <div class="file-meta">
-                        <div class="meta-row">
-                            <span class="label">ファイル名</span>
-                            <span class="value" id="fileName">-</span>
-                        </div>
-                        <div class="meta-row">
-                            <span class="label">解像度</span>
-                            <span class="value" id="fileResolution">-</span>
-                        </div>
-                        <div class="meta-row">
-                            <span class="label">長さ</span>
-                            <span class="value mono" id="durationLabel">-</span>
-                        </div>
-                        <div class="meta-row">
-                            <span class="label">FPS</span>
-                            <span class="value" id="fileFps">-</span>
                         </div>
                     </div>
 
@@ -151,6 +126,24 @@
 
                 <div class="panel">
                     <div class="preview-stack">
+                        <div class="file-meta">
+                            <div class="meta-row">
+                                <span class="label">ファイル名</span>
+                                <span class="value" id="fileName">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="label">解像度</span>
+                                <span class="value" id="fileResolution">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="label">長さ</span>
+                                <span class="value mono" id="durationLabel">-</span>
+                            </div>
+                            <div class="meta-row">
+                                <span class="label">FPS</span>
+                                <span class="value" id="fileFps">-</span>
+                            </div>
+                        </div>
                         <div class="preview-block">
                             <div class="canvas-header">
                                 <div>
