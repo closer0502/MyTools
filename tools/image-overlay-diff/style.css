@@ -90,13 +90,16 @@ body {
 }
 
 .upload-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(128px, 0.9fr);
+    align-items: stretch;
     gap: 10px;
 }
 
 .drop-zone {
     display: grid;
     place-items: center;
-    min-height: 76px;
+    min-height: 0;
     padding: 14px;
     border-radius: 12px;
     border: 1px dashed rgba(148, 163, 184, 0.72);
@@ -128,10 +131,15 @@ input[type="range"] {
 }
 
 input[type="file"] {
+    box-sizing: border-box;
     padding: 10px 12px;
     border-radius: 10px;
     border: 1px solid var(--border);
     background: var(--bg-alt);
+    color: transparent;
+}
+
+input[type="file"]::file-selector-button {
     color: var(--text);
 }
 
@@ -361,5 +369,15 @@ input[type="range"] {
 
     .viewer-stage {
         min-height: 380px;
+    }
+}
+
+@media (max-width: 420px) {
+    .upload-card {
+        grid-template-columns: 1fr;
+    }
+
+    .drop-zone {
+        min-height: 64px;
     }
 }
