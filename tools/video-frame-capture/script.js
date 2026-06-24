@@ -225,8 +225,21 @@ const getMaxFrame = () => {
     if (!isReady || !Number.isFinite(video.duration)) {
         return 0;
     }
-    return Math.max(0, Math.ceil(video.duration * getFps()) - 1);
+    const frameCount = Math.round(video.duration * getFps());
+    return Math.max(0, frameCount - 1);
 };
+
+const getFrameIndexForTime = (time) => {
+    if (!isReady) {
+        return 0;
+    }
+    const frameIndex = Math.round(time * getFps());
+    return clamp(frameIndex, 0, getMaxFrame());
+};
+
+const getCurrentFrameIndex = () => getFrameIndexForTime(video.currentTime);
+
+const getFrameTime = (frameIndex) => clampFrame(frameIndex) / getFps();
 
 const setStatus = (message) => {
     statusText.textContent = message;
@@ -292,7 +305,7 @@ const updateTimeLabels = () => {
     const time = video.currentTime;
     timeSlider.value = time;
     currentTimeLabel.textContent = formatTime(time);
-    currentFrameLabel.textContent = `${Math.round(time * getFps())} frame`;
+    currentFrameLabel.textContent = `${getCurrentFrameIndex()} frame`;
     if (document.activeElement !== timecodeInput) {
         timecodeInput.value = formatTime(time);
     }
@@ -306,8 +319,7 @@ const updatePreviewMeta = () => {
         frameInfo.textContent = "-";
         return;
     }
-    const fps = getFps();
-    const frameIndex = Math.round(video.currentTime * fps);
+    const frameIndex = getCurrentFrameIndex();
     videoInfo.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
     frameInfo.textContent = `frame ${frameIndex}`;
 };
@@ -527,7 +539,7 @@ const handleCapture = async () => {
     drawFrame();
     const blob = await canvasToBlob(mime, quality);
     const ext = mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
-    const frameIndex = Math.round(video.currentTime * getFps());
+    const frameIndex = getCurrentFrameIndex();
     const baseName = currentFile ? currentFile.name.replace(/\.[^/.]+$/, "") : "frame";
     downloadBlob(blob, `${baseName}_frame_${pad(frameIndex, 6)}.${ext}`);
     setStatus("フレームを保存しました。");
@@ -588,7 +600,7 @@ const handleExactCapture = async () => {
     try {
         await ensureFFmpegInput();
         const { ext, mime } = getOutputProfile();
-        const frameIndex = clamp(Math.round(video.currentTime * getFps()), 0, getMaxFrame());
+        const frameIndex = getCurrentFrameIndex();
         const outputName = `capture_000001.${ext}`;
         await deleteMatchingVirtualFiles((name) => name.startsWith("capture_"));
         isExportProgressActive = true;
@@ -601,7 +613,12 @@ const handleExactCapture = async () => {
             ...getFFmpegImageQualityArgs(),
             outputName,
         ]);
-        const data = await ffmpeg.readFile(outputName);
+        let data;
+        try {
+            data = await ffmpeg.readFile(outputName);
+        } catch (error) {
+            throw new Error(`No frame was extracted for frame ${frameIndex}.`);
+        }
         const baseName = currentFile ? currentFile.name.replace(/\.[^/.]+$/, "") : "frame";
         downloadBlob(blobFromFFmpegData(data, mime), `${baseName}_frame_${pad(frameIndex, 6)}.${ext}`);
         await deleteVirtualFile(outputName);
@@ -853,7 +870,7 @@ setStartBtn.addEventListener("click", () => {
     if (!isReady || isBusy) {
         return;
     }
-    const frameIndex = Math.round(video.currentTime * getFps());
+    const frameIndex = getCurrentFrameIndex();
     startFrameInput.value = frameIndex;
     updateRangeLabels();
 });
@@ -862,7 +879,7 @@ setEndBtn.addEventListener("click", () => {
     if (!isReady || isBusy) {
         return;
     }
-    const frameIndex = Math.round(video.currentTime * getFps());
+    const frameIndex = getCurrentFrameIndex();
     endFrameInput.value = frameIndex;
     updateRangeLabels();
 });
@@ -880,7 +897,7 @@ seekEndBtn.addEventListener("click", async () => {
     if (!isReady || isBusy) {
         return;
     }
-    await seekTo(video.duration || 0);
+    await seekTo(getFrameTime(getMaxFrame()));
     drawFrame();
     updateTimeLabels();
 });
