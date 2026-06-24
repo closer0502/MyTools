@@ -67,8 +67,7 @@
                     <div class="file-chip" id="fileName">未選択</div>
                 </label>
                 <div class="action-stack">
-                    <button id="analyzeBtn" class="pill-button" disabled>Analyze / Build Terrain</button>
-                    <button id="resetViewBtn" class="ghost-button">Reset View</button>
+                    <button id="analyzeBtn" class="pill-button" disabled>解析</button>
                     <div class="status-line">
                         <div class="spinner" id="spinner" aria-hidden="true"></div>
                         <div id="statusText">音源を選択してください。</div>
@@ -93,6 +92,7 @@
                     <h3>3D Terrain</h3>
                 </div>
                 <div class="stage-right">
+                    <button id="resetViewBtn" class="ghost-button stage-reset" type="button">Reset View</button>
                     <div class="playback-inline">
                         <button id="playBtn" class="pill-button small" disabled>Play</button>
                         <input type="range" id="seekBar" min="0" max="100" step="0.1" value="0" disabled>
