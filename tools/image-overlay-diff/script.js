@@ -7,7 +7,8 @@ const opacityValue = document.getElementById("opacityValue");
 const zoomRange = document.getElementById("zoomRange");
 const zoomValue = document.getElementById("zoomValue");
 const overlayScaleRange = document.getElementById("overlayScaleRange");
-const overlayScaleValue = document.getElementById("overlayScaleValue");
+const overlayScaleInput = document.getElementById("overlayScaleInput");
+const overlayScaledSize = document.getElementById("overlayScaledSize");
 const showBCheck = document.getElementById("showBCheck");
 const differenceCheck = document.getElementById("differenceCheck");
 const offsetXRange = document.getElementById("offsetXRange");
@@ -47,6 +48,8 @@ const state = {
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+const formatPercentValue = (value) => Number(value.toFixed(2)).toString();
+
 const revokeUrl = (url) => {
     if (url) {
         URL.revokeObjectURL(url);
@@ -66,9 +69,34 @@ const updateStageVars = () => {
 const updateLabels = () => {
     opacityValue.textContent = `${opacityRange.value}%`;
     zoomValue.textContent = `${Math.round(state.scale * 100)}%`;
-    overlayScaleValue.textContent = `${Math.round(state.overlayScale * 100)}%`;
+    if (document.activeElement !== overlayScaleInput) {
+        overlayScaleInput.value = formatPercentValue(state.overlayScale * 100);
+    }
     offsetXValue.textContent = `${state.offsetX}px`;
     offsetYValue.textContent = `${state.offsetY}px`;
+};
+
+const getOverlayScaledSizeText = () => {
+    if (!imageBLayer.naturalWidth || !imageBLayer.naturalHeight) {
+        return "-";
+    }
+    return `${Math.round(imageBLayer.naturalWidth * state.overlayScale)}x${Math.round(imageBLayer.naturalHeight * state.overlayScale)}`;
+};
+
+const updateOverlayScaledSize = () => {
+    overlayScaledSize.textContent = getOverlayScaledSizeText();
+};
+
+const setOverlayScalePercent = (percent) => {
+    const nextPercent = clamp(percent, 10, 400);
+    state.overlayScale = nextPercent / 100;
+    overlayScaleRange.value = formatPercentValue(nextPercent);
+    if (document.activeElement !== overlayScaleInput) {
+        overlayScaleInput.value = formatPercentValue(nextPercent);
+    }
+    updateOverlayScaledSize();
+    updateMeta();
+    updateStageVars();
 };
 
 const updateLayerVisibility = () => {
@@ -93,10 +121,34 @@ const updateMeta = () => {
         ? `${imageBLayer.naturalWidth}x${imageBLayer.naturalHeight}`
         : "-";
     const scaledSizeB = hasBSize && state.overlayScale !== 1
-        ? ` -> ${Math.round(imageBLayer.naturalWidth * state.overlayScale)}x${Math.round(imageBLayer.naturalHeight * state.overlayScale)}`
+        ? ` -> ${getOverlayScaledSizeText()}`
         : "";
 
-    metaInfo.textContent = `A: ${fileA} (${sizeA}) / B: ${fileB} (${sizeB}${scaledSizeB})`;
+    metaInfo.replaceChildren();
+
+    const lineA = document.createElement("div");
+    lineA.className = "meta-line";
+    const labelA = document.createElement("span");
+    labelA.textContent = "A: ";
+    const nameA = document.createElement("strong");
+    nameA.className = "meta-file";
+    nameA.textContent = fileA;
+    const detailsA = document.createElement("span");
+    detailsA.textContent = ` (${sizeA})`;
+    lineA.append(labelA, nameA, detailsA);
+
+    const lineB = document.createElement("div");
+    lineB.className = "meta-line";
+    const labelB = document.createElement("span");
+    labelB.textContent = "B: ";
+    const nameB = document.createElement("strong");
+    nameB.className = "meta-file";
+    nameB.textContent = fileB;
+    const detailsB = document.createElement("span");
+    detailsB.textContent = ` (${sizeB}${scaledSizeB})`;
+    lineB.append(labelB, nameB, detailsB);
+
+    metaInfo.append(lineA, lineB);
 };
 
 const resetPanAndOffsets = () => {
@@ -159,6 +211,7 @@ const loadImage = (file, target) => {
 
     layer.onload = () => {
         updateLayerVisibility();
+        updateOverlayScaledSize();
         updateMeta();
         fitToStage();
     };
@@ -265,10 +318,22 @@ zoomRange.addEventListener("input", () => {
 });
 
 overlayScaleRange.addEventListener("input", () => {
-    state.overlayScale = Number(overlayScaleRange.value) / 100;
+    setOverlayScalePercent(Number(overlayScaleRange.value));
     updateLabels();
-    updateMeta();
-    updateStageVars();
+});
+
+overlayScaleInput.addEventListener("input", () => {
+    const inputValue = Number(overlayScaleInput.value);
+    if (!Number.isFinite(inputValue)) {
+        return;
+    }
+    setOverlayScalePercent(inputValue);
+});
+
+overlayScaleInput.addEventListener("blur", () => {
+    const inputValue = Number(overlayScaleInput.value);
+    setOverlayScalePercent(Number.isFinite(inputValue) ? inputValue : state.overlayScale * 100);
+    overlayScaleInput.value = formatPercentValue(state.overlayScale * 100);
 });
 
 showBCheck.addEventListener("change", updateLayerVisibility);
@@ -298,8 +363,10 @@ resetBtn.addEventListener("click", () => {
     state.overlayScale = 1;
     zoomRange.value = "100";
     overlayScaleRange.value = "100";
+    overlayScaleInput.value = "100";
     resetPanAndOffsets();
     updateLabels();
+    updateOverlayScaledSize();
     updateMeta();
     updateStageVars();
 });
@@ -382,5 +449,6 @@ window.addEventListener("beforeunload", () => {
 
 updateLabels();
 updateLayerVisibility();
+updateOverlayScaledSize();
 updateMeta();
 updateStageVars();

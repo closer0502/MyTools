@@ -45,8 +45,15 @@
                     </label>
 
                     <label class="range-field">
-                        <span class="field-label">B単体倍率 <span class="mono" id="overlayScaleValue">100%</span></span>
-                        <input type="range" id="overlayScaleRange" min="10" max="400" step="1" value="100">
+                        <span class="field-label">
+                            B単体倍率
+                            <span class="percent-input-wrap">
+                                <input class="mono percent-input" type="number" id="overlayScaleInput" min="10" max="400" step="0.1" value="100" aria-label="B単体倍率">
+                                <span>%</span>
+                            </span>
+                            <span class="mono scaled-size" id="overlayScaledSize">-</span>
+                        </span>
+                        <input type="range" id="overlayScaleRange" min="10" max="400" step="0.1" value="100">
                     </label>
 
                     <div class="toggle-row">
@@ -56,7 +63,7 @@
                         </label>
                         <label class="toggle-item">
                             <input type="checkbox" id="differenceCheck">
-                            <span>差分強調（difference）</span>
+                            <span>差分強調（Bの透明度100%推奨）</span>
                         </label>
                     </div>
 
@@ -85,13 +92,15 @@
                     <button class="ghost-button" id="resetBtn" type="button">位置と倍率をリセット</button>
                 </div>
 
-                <p class="hint">操作: ドラッグでパン / マウスホイールで全体ズーム / 矢印キーでBを1px移動（Shiftで10px）</p>
             </section>
 
             <section class="panel viewer-panel">
                 <div class="viewer-header">
                     <h2>プレビュー</h2>
-                    <span class="meta mono" id="metaInfo">画像Aと画像Bを読み込んでください</span>
+                    <div class="viewer-meta">
+                        <div class="meta mono" id="metaInfo">画像Aと画像Bを読み込んでください</div>
+                        <p class="hint viewer-hint">操作: ドラッグでパン / マウスホイールで全体ズーム / 矢印キーでBを1px移動（Shiftで10px）</p>
+                    </div>
                 </div>
 
                 <div class="viewer-stage" id="viewerStage" tabindex="0" aria-label="画像比較ビューア">
