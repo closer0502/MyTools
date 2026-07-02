@@ -180,6 +180,96 @@ function truncateText(text, max = 240) {
     return `${text.slice(0, max)}…`;
 }
 
+function fullText(value) {
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+    return String(value);
+}
+
+function entryCopyText(entry) {
+    return [
+        entry.title,
+        entry.detail,
+        `${formatBytes(entry.size)} · offset ${formatOffset(entry.offset || 0)}`
+    ].filter(Boolean).join('\n');
+}
+
+function signatureCopyText(hit, format) {
+    const note = isHeaderSignature(hit, format) ? 'file header' : 'embedded candidate';
+    return `${hit.name}\n${note}\noffset ${formatOffset(hit.offset)} · ${hit.length} bytes`;
+}
+
+async function copyText(text, button) {
+    const value = fullText(text);
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(value);
+        } else {
+            const textarea = document.createElement('textarea');
+            textarea.value = value;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            textarea.remove();
+        }
+        if (button) {
+            const original = button.textContent;
+            button.textContent = 'Copied';
+            button.disabled = true;
+            window.setTimeout(() => {
+                button.textContent = original;
+                button.disabled = false;
+            }, 1200);
+        }
+    } catch (error) {
+        showError('クリップボードへのコピーに失敗しました。ブラウザの権限設定を確認してください。');
+    }
+}
+
+function createCopyButton(text, label = 'コピー') {
+    const button = document.createElement('button');
+    button.className = 'copy-button';
+    button.type = 'button';
+    button.textContent = label;
+    button.title = 'クリップボードにコピー';
+    button.addEventListener('click', (event) => {
+        event.stopPropagation();
+        copyText(text, button);
+    });
+    return button;
+}
+
+function createExpandableText(text) {
+    const value = fullText(text);
+    const wrap = document.createElement('div');
+    wrap.className = 'text-preview';
+
+    const content = document.createElement('div');
+    content.className = 'text-preview__content';
+    content.textContent = value;
+    wrap.appendChild(content);
+
+    if (value.length > 320 || value.includes('\n')) {
+        wrap.classList.add('is-collapsed');
+        const toggle = document.createElement('button');
+        toggle.className = 'text-toggle';
+        toggle.type = 'button';
+        toggle.textContent = '全文を表示';
+        toggle.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const collapsed = wrap.classList.toggle('is-collapsed');
+            toggle.textContent = collapsed ? '全文を表示' : '折りたたむ';
+        });
+        wrap.appendChild(toggle);
+    }
+
+    return wrap;
+}
+
 function readUint32BE(bytes, offset) {
     return ((bytes[offset] << 24) >>> 0) + (bytes[offset + 1] << 16) + (bytes[offset + 2] << 8) + bytes[offset + 3];
 }
@@ -219,11 +309,19 @@ function readAscii(bytes, start, length) {
 
 function hexPreview(bytes, start, length) {
     const end = Math.min(bytes.length, start + length);
-    const chunk = [];
+    const lines = [];
+    let chunk = [];
     for (let i = start; i < end; i++) {
         chunk.push(bytes[i].toString(16).padStart(2, '0').toUpperCase());
+        if (chunk.length === 16) {
+            lines.push(chunk.join(' '));
+            chunk = [];
+        }
     }
-    return chunk.join(' ');
+    if (chunk.length) {
+        lines.push(chunk.join(' '));
+    }
+    return lines.join('\n');
 }
 
 function detectFormat(bytes) {
@@ -354,11 +452,11 @@ function parsePngMeta(type, data, offset) {
         return {
             details: [
                 { label: 'Keyword', value: parsed.keyword || '-' },
-                { label: 'Text', value: truncateText(text) }
+                { label: 'Text', value: text || '-' }
             ],
             metaEntry: {
                 title: `tEXt: ${parsed.keyword || 'text'}`,
-                detail: truncateText(text),
+                detail: text || '-',
                 size: data.length,
                 offset
             }
@@ -367,7 +465,7 @@ function parsePngMeta(type, data, offset) {
 
     if (type === 'iTXt') {
         const parsed = parsePngInternationalText(data);
-        const text = parsed.compressed ? '(compressed text)' : truncateText(parsed.text);
+        const text = parsed.compressed ? '(compressed text)' : fullText(parsed.text);
         return {
             details: [
                 { label: 'Keyword', value: parsed.keyword || '-' },
@@ -681,10 +779,10 @@ function parseJpegMeta(name, data, details, tags, offset) {
         if (headerText.startsWith(xmpHeader)) {
             const xmpText = decodeUtf8(data.slice(xmpHeader.length));
             details.push({ label: 'APP1', value: 'XMP data' });
-            details.push({ label: 'XMP', value: truncateText(xmpText, 200) });
+            details.push({ label: 'XMP', value: xmpText || '-' });
             return {
                 title: 'XMP (APP1)',
-                detail: truncateText(xmpText, 200),
+                detail: xmpText || '-',
                 size: data.length,
                 offset
             };
@@ -719,10 +817,11 @@ function parseJpegMeta(name, data, details, tags, offset) {
 
     if (name === 'COM') {
         const comment = decodeLatin1(data);
-        details.push({ label: 'Comment', value: truncateText(trimNulls(comment)) });
+        const text = trimNulls(comment);
+        details.push({ label: 'Comment', value: text || '-' });
         return {
             title: 'COM (comment)',
-            detail: truncateText(trimNulls(comment)),
+            detail: text || '-',
             size: data.length,
             offset
         };
@@ -901,10 +1000,10 @@ function parseWebp(bytes) {
         if (type === 'XMP ') {
             const text = decodeUtf8(data);
             return {
-                details: [{ label: 'XMP', value: truncateText(text, 200) }],
+                details: [{ label: 'XMP', value: text || '-' }],
                 metaEntry: {
                     title: 'XMP (WEBP)',
-                    detail: truncateText(text, 200),
+                    detail: text || '-',
                     size: data.length,
                     offset
                 }
@@ -972,10 +1071,10 @@ function parseWav(bytes) {
         if (type === 'iXML') {
             const text = decodeUtf8(data);
             return {
-                details: [{ label: 'iXML', value: truncateText(text, 200) }],
+                details: [{ label: 'iXML', value: text || '-' }],
                 metaEntry: {
                     title: 'iXML',
-                    detail: truncateText(text, 200),
+                    detail: text || '-',
                     size: data.length,
                     offset
                 }
@@ -983,11 +1082,12 @@ function parseWav(bytes) {
         }
         if (type === 'bext') {
             const text = decodeLatin1(data.slice(0, 256));
+            const cleanText = trimNulls(text);
             return {
-                details: [{ label: 'BEXT', value: truncateText(trimNulls(text), 200) }],
+                details: [{ label: 'BEXT', value: cleanText || '-' }],
                 metaEntry: {
                     title: 'BEXT',
-                    detail: truncateText(trimNulls(text), 200),
+                    detail: cleanText || '-',
                     size: data.length,
                     offset
                 }
@@ -1558,7 +1658,8 @@ function renderDetail(item, bytes) {
         label.textContent = entry.label;
         const value = document.createElement('div');
         value.className = 'detail-value';
-        value.textContent = entry.value;
+        value.appendChild(createExpandableText(entry.value));
+        value.appendChild(createCopyButton(entry.value));
         grid.appendChild(label);
         grid.appendChild(value);
     });
@@ -1585,15 +1686,20 @@ function renderMeta(meta) {
     meta.forEach((entry) => {
         const item = document.createElement('div');
         item.className = 'detail-item';
+        const header = document.createElement('div');
+        header.className = 'item-header';
         const title = document.createElement('div');
         title.className = 'item-title';
         title.textContent = entry.title;
+        header.appendChild(title);
+        header.appendChild(createCopyButton(entryCopyText(entry)));
         const detail = document.createElement('div');
-        detail.textContent = entry.detail;
+        detail.className = 'item-detail';
+        detail.appendChild(createExpandableText(entry.detail));
         const metaInfo = document.createElement('div');
         metaInfo.className = 'item-meta';
         metaInfo.textContent = `${formatBytes(entry.size)} · offset ${formatOffset(entry.offset || 0)}`;
-        item.appendChild(title);
+        item.appendChild(header);
         item.appendChild(detail);
         item.appendChild(metaInfo);
         fragment.appendChild(item);
@@ -1611,16 +1717,20 @@ function renderSignatures(signatures, format) {
     signatures.forEach((hit) => {
         const item = document.createElement('div');
         item.className = 'detail-item';
+        const header = document.createElement('div');
+        header.className = 'item-header';
         const title = document.createElement('div');
         title.className = 'item-title';
         title.textContent = hit.name;
+        header.appendChild(title);
+        header.appendChild(createCopyButton(signatureCopyText(hit, format)));
         const detail = document.createElement('div');
         const note = isHeaderSignature(hit, format) ? 'file header' : 'embedded candidate';
         detail.textContent = note;
         const meta = document.createElement('div');
         meta.className = 'item-meta';
         meta.textContent = `offset ${formatOffset(hit.offset)} · ${hit.length} bytes`;
-        item.appendChild(title);
+        item.appendChild(header);
         item.appendChild(detail);
         item.appendChild(meta);
         fragment.appendChild(item);
