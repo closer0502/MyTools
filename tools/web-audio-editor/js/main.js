@@ -39,6 +39,13 @@ let quickMode = null;
 const meterOverHoldUntil = { Left: 0, Right: 0 };
 const METER_OVER_THRESHOLD = 0.98;
 const METER_OVER_HOLD_MS = 650;
+const REDUCTION_DISPLAY_FLOOR_DB = 0.1;
+const METER_VALUE_WINDOW_MS = 1000;
+const meterDbWindows = {
+    Left: { startedAt: 0, max: -Infinity },
+    Right: { startedAt: 0, max: -Infinity },
+};
+const reductionValueWindows = new Map();
 
 function ensureAudioContext() {
     if (!audioCtx) {
@@ -622,6 +629,7 @@ function buildTrackGraph(context, destination, track, collectLive = false) {
         current.connect(node.input);
         current = node.output;
         if (collectLive) {
+            node.effectType = effect.type;
             nextLive.set(effect.id, node);
         }
     }
@@ -1534,6 +1542,8 @@ function updateMeters() {
     if (!liveMixer?.analysers?.length || !meterDataLeft || !meterDataRight) {
         meterOverHoldUntil.Left = 0;
         meterOverHoldUntil.Right = 0;
+        resetMeterValueWindows();
+        resetReductionValueWindows();
         setMeterLevel("Left", 0, 0);
         setMeterLevel("Right", 0, 0);
         updateReductionMeters();
@@ -1546,23 +1556,71 @@ function updateMeters() {
     updateReductionMeters();
 }
 
-function getReductionAmount(node) {
-    const raw = node?.reduction?.reduction;
+function getOneSecondMax(bucket, value, now = performance.now()) {
+    if (!bucket.startedAt || now - bucket.startedAt >= METER_VALUE_WINDOW_MS) {
+        bucket.startedAt = now;
+        bucket.max = value;
+        return value;
+    }
+    bucket.max = Math.max(bucket.max, value);
+    return bucket.max;
+}
+
+function resetMeterValueWindows() {
+    Object.values(meterDbWindows).forEach((bucket) => {
+        bucket.startedAt = 0;
+        bucket.max = -Infinity;
+    });
+}
+
+function resetReductionValueWindows() {
+    reductionValueWindows.clear();
+}
+
+function getAudioParamValue(param, fallback = 0) {
+    const value = typeof param === "number" ? param : param?.value;
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function getReductionAmount(live) {
+    const threshold = getAudioParamValue(live?.params?.threshold);
+    const knee = getAudioParamValue(live?.params?.knee);
+    if ((live?.effectType === "compressor" || live?.effectType === "limiter") && threshold >= 0 && knee <= 0) {
+        return 0;
+    }
+    const raw = live?.reduction?.reduction;
     const value = typeof raw === "number" ? raw : raw?.value;
-    return Number.isFinite(value) ? Math.abs(value) : 0;
+    const amount = Number.isFinite(value) ? Math.abs(value) : 0;
+    return amount >= REDUCTION_DISPLAY_FLOOR_DB ? amount : 0;
+}
+
+function getReductionDisplayAmount(effectId, amount) {
+    if (!reductionValueWindows.has(effectId)) {
+        reductionValueWindows.set(effectId, { startedAt: 0, max: 0 });
+    }
+    return getOneSecondMax(reductionValueWindows.get(effectId), amount);
 }
 
 function updateReductionMeters() {
+    const activeIds = new Set();
     document.querySelectorAll(".reduction-meter").forEach((meter) => {
-        const live = liveEffects.get(meter.dataset.effectId);
+        const effectId = meter.dataset.effectId;
+        activeIds.add(effectId);
+        const live = liveEffects.get(effectId);
         const amount = getReductionAmount(live);
+        const displayAmount = live ? getReductionDisplayAmount(effectId, amount) : 0;
         const fill = meter.querySelector(".reduction-fill");
         const value = meter.querySelector(".reduction-value");
         if (fill) {
             fill.style.width = `${clamp(amount / 24, 0, 1) * 100}%`;
         }
         if (value) {
-            value.textContent = `${amount.toFixed(1)} dB`;
+            value.textContent = `${displayAmount.toFixed(1)} dB`;
+        }
+    });
+    [...reductionValueWindows.keys()].forEach((effectId) => {
+        if (!activeIds.has(effectId)) {
+            reductionValueWindows.delete(effectId);
         }
     });
 }
@@ -1585,6 +1643,8 @@ function getPeak(data) {
 
 function setMeterLevel(side, rms, peakValue) {
     const db = rms > 0 ? 20 * Math.log10(rms) : -Infinity;
+    const peakDb = peakValue > 0 ? 20 * Math.log10(peakValue) : -Infinity;
+    const displayDb = getOneSecondMax(meterDbWindows[side], peakDb);
     const normalized = clamp((db + 60) / 60, 0, 1);
     const fill = refs[`vu${side}`];
     const peak = refs[`vu${side}Peak`];
@@ -1596,7 +1656,7 @@ function setMeterLevel(side, rms, peakValue) {
     fill.style.height = `${normalized * 100}%`;
     peak.style.bottom = `${normalized * 100}%`;
     name.classList.toggle("is-over", performance.now() < meterOverHoldUntil[side]);
-    label.textContent = Number.isFinite(db) && db > -60 ? `${db.toFixed(1)} dB` : "-∞ dB";
+    label.textContent = Number.isFinite(displayDb) && displayDb > -60 ? `${displayDb.toFixed(1)} dB` : "-∞ dB";
 }
 
 function getFFmpegGlobals() {

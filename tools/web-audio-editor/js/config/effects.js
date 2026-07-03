@@ -43,9 +43,11 @@ export const effectDefinitions = {
         label: "Compressor",
         params: {
             threshold: { label: "Th", min: -80, max: 0, step: 1, default: -24 },
+            knee: { label: "Knee", min: 0, max: 40, step: 0.1, default: 0 },
             ratio: { label: "Ratio", min: 1, max: 20, step: 0.1, default: 4 },
             attack: { label: "Atk", min: 0, max: 1, step: 0.005, default: 0.003 },
             release: { label: "Rel", min: 0.01, max: 1, step: 0.01, default: 0.25 },
+            outputGain: { label: "Out dB", min: -24, max: 24, step: 0.1, default: 0 },
         },
     },
     limiter: {
@@ -53,6 +55,7 @@ export const effectDefinitions = {
         params: {
             threshold: { label: "Ceil", min: -24, max: 0, step: 0.1, default: -1 },
             release: { label: "Rel", min: 0.01, max: 1, step: 0.01, default: 0.08 },
+            outputGain: { label: "Out dB", min: -24, max: 24, step: 0.1, default: 0 },
         },
     },
     delay: {

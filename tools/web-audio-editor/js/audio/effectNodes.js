@@ -1,5 +1,7 @@
 import { clamp } from "../utils/math.js";
 
+const dbToGain = (db) => 10 ** (Number(db) / 20);
+
 function createLoopBuffer(context, duration, valueAtPhase) {
     const sampleRate = context.sampleRate;
     const length = Math.max(2, Math.ceil(duration * sampleRate));
@@ -241,36 +243,54 @@ export function buildEffectNode(context, effect) {
     }
     if (effect.type === "compressor") {
         const node = context.createDynamicsCompressor();
+        const output = context.createGain();
         node.threshold.value = Number(params.threshold ?? -24);
+        node.knee.value = Number(params.knee ?? 0);
         node.ratio.value = Number(params.ratio ?? 4);
         node.attack.value = Number(params.attack ?? 0.003);
         node.release.value = Number(params.release ?? 0.25);
+        output.gain.value = dbToGain(params.outputGain ?? 0);
+        node.connect(output);
         return {
             input: node,
-            output: node,
+            output,
             reduction: node,
             params: {
                 threshold: node.threshold,
+                knee: node.knee,
                 ratio: node.ratio,
                 attack: node.attack,
                 release: node.release,
+            },
+            setParam: (key, value) => {
+                if (key === "outputGain") {
+                    output.gain.setTargetAtTime(dbToGain(value), context.currentTime, 0.01);
+                }
             },
         };
     }
     if (effect.type === "limiter") {
         const node = context.createDynamicsCompressor();
+        const output = context.createGain();
         node.threshold.value = Number(params.threshold ?? -1);
         node.knee.value = 0;
         node.ratio.value = 20;
         node.attack.value = 0.001;
         node.release.value = Number(params.release ?? 0.08);
+        output.gain.value = dbToGain(params.outputGain ?? 0);
+        node.connect(output);
         return {
             input: node,
-            output: node,
+            output,
             reduction: node,
             params: {
                 threshold: node.threshold,
                 release: node.release,
+            },
+            setParam: (key, value) => {
+                if (key === "outputGain") {
+                    output.gain.setTargetAtTime(dbToGain(value), context.currentTime, 0.01);
+                }
             },
         };
     }
