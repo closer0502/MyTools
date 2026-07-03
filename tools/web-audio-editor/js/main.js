@@ -36,6 +36,9 @@ let dragState = null;
 let meterDataLeft = null;
 let meterDataRight = null;
 let quickMode = null;
+const meterOverHoldUntil = { Left: 0, Right: 0 };
+const METER_OVER_THRESHOLD = 0.98;
+const METER_OVER_HOLD_MS = 650;
 
 function ensureAudioContext() {
     if (!audioCtx) {
@@ -1529,15 +1532,17 @@ function toggleOutputChannel(channel) {
 
 function updateMeters() {
     if (!liveMixer?.analysers?.length || !meterDataLeft || !meterDataRight) {
-        setMeterLevel("Left", 0);
-        setMeterLevel("Right", 0);
+        meterOverHoldUntil.Left = 0;
+        meterOverHoldUntil.Right = 0;
+        setMeterLevel("Left", 0, 0);
+        setMeterLevel("Right", 0, 0);
         updateReductionMeters();
         return;
     }
     liveMixer.analysers[0].getFloatTimeDomainData(meterDataLeft);
     liveMixer.analysers[1].getFloatTimeDomainData(meterDataRight);
-    setMeterLevel("Left", getRms(meterDataLeft));
-    setMeterLevel("Right", getRms(meterDataRight));
+    setMeterLevel("Left", getRms(meterDataLeft), getPeak(meterDataLeft));
+    setMeterLevel("Right", getRms(meterDataRight), getPeak(meterDataRight));
     updateReductionMeters();
 }
 
@@ -1570,14 +1575,27 @@ function getRms(data) {
     return Math.sqrt(sum / data.length);
 }
 
-function setMeterLevel(side, rms) {
+function getPeak(data) {
+    let peak = 0;
+    for (let i = 0; i < data.length; i += 1) {
+        peak = Math.max(peak, Math.abs(data[i]));
+    }
+    return peak;
+}
+
+function setMeterLevel(side, rms, peakValue) {
     const db = rms > 0 ? 20 * Math.log10(rms) : -Infinity;
     const normalized = clamp((db + 60) / 60, 0, 1);
     const fill = refs[`vu${side}`];
     const peak = refs[`vu${side}Peak`];
     const label = refs[`vu${side}Label`];
+    const name = refs[`vu${side}Name`];
+    if (peakValue >= METER_OVER_THRESHOLD) {
+        meterOverHoldUntil[side] = performance.now() + METER_OVER_HOLD_MS;
+    }
     fill.style.height = `${normalized * 100}%`;
     peak.style.bottom = `${normalized * 100}%`;
+    name.classList.toggle("is-over", performance.now() < meterOverHoldUntil[side]);
     label.textContent = Number.isFinite(db) && db > -60 ? `${db.toFixed(1)} dB` : "-∞ dB";
 }
 

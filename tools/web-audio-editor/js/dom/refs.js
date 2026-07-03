@@ -62,6 +62,8 @@ export const refs = {
     selectionStartInput: $("selectionStartInput"),
     selectionEndInput: $("selectionEndInput"),
     playheadInput: $("playheadInput"),
+    vuLeftName: $("vuLeftName"),
+    vuRightName: $("vuRightName"),
     vuLeft: $("vuLeft"),
     vuRight: $("vuRight"),
     vuLeftPeak: $("vuLeftPeak"),

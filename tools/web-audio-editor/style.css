@@ -655,6 +655,36 @@ input[type="range"] {
     color: var(--muted);
     font-weight: 700;
     letter-spacing: 0.08em;
+    transition: color 0.12s ease, text-shadow 0.12s ease;
+}
+
+.meter-label.is-over {
+    color: #ff2d2d;
+    text-shadow:
+        0 0 2px rgba(255, 255, 255, 0.95),
+        0 0 7px rgba(255, 45, 45, 1),
+        0 0 16px rgba(255, 0, 0, 0.95),
+        0 0 30px rgba(185, 28, 28, 0.85);
+    animation: meter-over-pulse 0.65s ease-out;
+}
+
+@keyframes meter-over-pulse {
+    0% {
+        color: #ff0000;
+        text-shadow:
+            0 0 3px rgba(255, 255, 255, 1),
+            0 0 10px rgba(255, 0, 0, 1),
+            0 0 22px rgba(220, 38, 38, 1),
+            0 0 42px rgba(127, 29, 29, 0.95);
+    }
+    100% {
+        color: #ff2d2d;
+        text-shadow:
+            0 0 2px rgba(255, 255, 255, 0.95),
+            0 0 7px rgba(255, 45, 45, 1),
+            0 0 16px rgba(255, 0, 0, 0.95),
+            0 0 30px rgba(185, 28, 28, 0.85);
+    }
 }
 
 .meter-shell {
