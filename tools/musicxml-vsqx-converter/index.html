@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicXML → VSQX コンバーター</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <span class="eyebrow">Score → Vocal</span>
+            <h1>MusicXML → VSQX コンバーター</h1>
+            <p class="lede">楽譜からボーカルパートを選び、音符・拍子・テンポ・歌詞をVOCALOID用のVSQX 4へ変換します。ファイルはブラウザ内だけで処理されます。</p>
+            <div class="steps" aria-label="変換手順">
+                <span class="step-pill is-active" data-step="1">1. 楽譜を読み込み</span>
+                <span class="step-pill" data-step="2">2. ボーカルを選択</span>
+                <span class="step-pill" data-step="3">3. 確認して保存</span>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <section class="card import-card">
+                <div class="section-heading">
+                    <div>
+                        <span class="section-label">Input</span>
+                        <h2>MusicXMLを読み込む</h2>
+                    </div>
+                    <p class="hint">.musicxml / .xml / 圧縮MusicXML .mxl に対応</p>
+                </div>
+
+                <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="MusicXMLファイルを選択">
+                    <div class="music-mark" aria-hidden="true">♪</div>
+                    <div class="drop-copy">
+                        <p class="primary">ここにMusicXMLをドロップ</p>
+                        <p class="secondary">楽譜の内容を解析し、ボーカル候補を自動選択します</p>
+                    </div>
+                    <div class="drop-actions">
+                        <button class="pill-button" type="button" id="fileButton">ファイルを選ぶ</button>
+                        <button class="ghost-button" type="button" id="sampleButton">サンプルで試す</button>
+                    </div>
+                    <input id="fileInput" type="file" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/xml,text/xml" hidden>
+                </div>
+
+                <div class="file-summary" id="fileSummary" hidden>
+                    <div class="summary-main">
+                        <span class="status-dot is-active"></span>
+                        <div>
+                            <strong id="fileName">-</strong>
+                            <span id="scoreTitle">-</span>
+                        </div>
+                    </div>
+                    <dl class="summary-stats">
+                        <div><dt>パート</dt><dd id="partCount">0</dd></div>
+                        <div><dt>小節</dt><dd id="measureCount">0</dd></div>
+                        <div><dt>歌詞付き音符</dt><dd id="lyricCount">0</dd></div>
+                    </dl>
+                </div>
+                <div class="message error-message" id="errorMessage" role="alert" hidden></div>
+            </section>
+
+            <div class="conversion-area" id="conversionArea" hidden>
+                <section class="card parts-card">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-label">Vocal parts</span>
+                            <h2>ボーカルとして使うパート</h2>
+                        </div>
+                        <p class="hint" id="selectionHint">歌詞とパート名から候補を選びました。必要なら変更できます。</p>
+                    </div>
+                    <div class="parts-list" id="partsList"></div>
+                </section>
+
+                <section class="card settings-card">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-label">Options</span>
+                            <h2>変換設定</h2>
+                        </div>
+                        <span class="format-badge">VSQX 4 / 480 TPQN</span>
+                    </div>
+                    <div class="settings-grid">
+                        <label>
+                            <span>移調</span>
+                            <span class="field-with-unit">
+                                <input type="number" id="transposeInput" min="-48" max="48" step="1" value="0">
+                                <span>半音</span>
+                            </span>
+                        </label>
+                        <label>
+                            <span>歌詞がない音符</span>
+                            <input type="text" id="defaultLyricInput" maxlength="16" value="あ">
+                        </label>
+                        <label>
+                            <span>和音の扱い</span>
+                            <select id="chordPolicySelect">
+                                <option value="highest">最高音を使う</option>
+                                <option value="lowest">最低音を使う</option>
+                                <option value="first">先頭音を使う</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>テンポ未指定時</span>
+                            <span class="field-with-unit">
+                                <input type="number" id="defaultTempoInput" min="20" max="400" step="0.01" value="120">
+                                <span>BPM</span>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="switches">
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="expandRepeatsInput" checked>
+                            <span>リピートを展開し、周回ごとの歌詞を使う</span>
+                        </label>
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="mergeTiesInput" checked>
+                            <span>タイでつながった同音程を結合する</span>
+                        </label>
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="trimOverlapsInput" checked>
+                            <span>重なった音符を次の音符の直前で短くする</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="card preview-card">
+                    <div class="section-heading">
+                        <div>
+                            <span class="section-label">Preview</span>
+                            <h2>変換プレビュー</h2>
+                        </div>
+                        <div class="preview-stats">
+                            <span><strong id="previewTrackCount">0</strong>トラック</span>
+                            <span><strong id="previewNoteCount">0</strong>音符</span>
+                            <span><strong id="previewTempoCount">0</strong>テンポ</span>
+                        </div>
+                    </div>
+
+                    <div class="piano-roll-frame">
+                        <canvas id="pianoRoll" height="280" aria-label="変換後の簡易ピアノロール"></canvas>
+                        <div class="empty-preview" id="emptyPreview">変換するパートを選択してください</div>
+                    </div>
+
+                    <div class="preview-columns">
+                        <div>
+                            <h3>音符一覧</h3>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Track</th>
+                                            <th>位置</th>
+                                            <th>音程</th>
+                                            <th>長さ</th>
+                                            <th>歌詞</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="notesBody"></tbody>
+                                </table>
+                            </div>
+                            <p class="table-note" id="tableNote"></p>
+                        </div>
+                        <div>
+                            <h3>変換メッセージ</h3>
+                            <ul class="warnings-list" id="warningsList"></ul>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card export-card">
+                    <div>
+                        <span class="section-label">Export</span>
+                        <h2>VSQXを書き出す</h2>
+                        <p id="exportDescription">選択したボーカルパートをVSQX 4形式で保存します。</p>
+                    </div>
+                    <button class="pill-button export-button" type="button" id="exportButton" disabled>
+                        VSQXをダウンロード
+                    </button>
+                </section>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
