@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MusicXML → VSQX コンバーター</title>
+    <title>MusicXML / SVP → VSQX コンバーター</title>
     <link rel="stylesheet" href="style.css">
     <script defer src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script defer src="script.js"></script>
@@ -12,8 +12,8 @@
     <div class="app">
         <header class="header">
             <span class="eyebrow">Score → Vocal</span>
-            <h1>MusicXML → VSQX コンバーター</h1>
-            <p class="lede">楽譜からボーカルパートを選び、音符・拍子・テンポ・歌詞をVOCALOID用のVSQX 4へ変換します。ファイルはブラウザ内だけで処理されます。</p>
+            <h1>MusicXML / SVP → VSQX コンバーター</h1>
+            <p class="lede">楽譜またはSynthesizer Vプロジェクトからトラックを選び、メロディーと歌詞をVOCALOID用のVSQX 4へ変換します。ファイルはブラウザ内だけで処理されます。</p>
             <div class="steps" aria-label="変換手順">
                 <span class="step-pill is-active" data-step="1">1. 楽譜を読み込み</span>
                 <span class="step-pill" data-step="2">2. ボーカルを選択</span>
@@ -26,22 +26,44 @@
                 <div class="section-heading">
                     <div>
                         <span class="section-label">Input</span>
-                        <h2>MusicXMLを読み込む</h2>
+                        <h2>変換元を読み込む</h2>
                     </div>
-                    <p class="hint">.musicxml / .xml / 圧縮MusicXML .mxl に対応</p>
+                    <p class="hint">MusicXML / MXL / Synthesizer V Project</p>
                 </div>
 
-                <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="MusicXMLファイルを選択">
-                    <div class="music-mark" aria-hidden="true">♪</div>
-                    <div class="drop-copy">
-                        <p class="primary">ここにMusicXMLをドロップ</p>
-                        <p class="secondary">楽譜の内容を解析し、ボーカル候補を自動選択します</p>
+                <div class="source-tabs" role="tablist" aria-label="変換元の形式">
+                    <button class="source-tab is-active" id="musicXmlTab" type="button" role="tab" aria-selected="true" aria-controls="musicXmlPanel">MusicXML / MXL</button>
+                    <button class="source-tab" id="svpTab" type="button" role="tab" aria-selected="false" aria-controls="svpPanel">SVP</button>
+                </div>
+
+                <div class="source-panel" id="musicXmlPanel" role="tabpanel" aria-labelledby="musicXmlTab">
+                    <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="MusicXMLファイルを選択">
+                        <div class="music-mark" aria-hidden="true">♪</div>
+                        <div class="drop-copy">
+                            <p class="primary">ここにMusicXMLをドロップ</p>
+                            <p class="secondary">楽譜の内容を解析し、ボーカル候補を自動選択します</p>
+                        </div>
+                        <div class="drop-actions">
+                            <button class="pill-button" type="button" id="fileButton">ファイルを選ぶ</button>
+                            <button class="ghost-button" type="button" id="sampleButton">サンプルで試す</button>
+                        </div>
+                        <input id="fileInput" type="file" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/xml,text/xml" hidden>
                     </div>
-                    <div class="drop-actions">
-                        <button class="pill-button" type="button" id="fileButton">ファイルを選ぶ</button>
-                        <button class="ghost-button" type="button" id="sampleButton">サンプルで試す</button>
+                </div>
+
+                <div class="source-panel" id="svpPanel" role="tabpanel" aria-labelledby="svpTab" hidden>
+                    <div class="drop-zone" id="svpDropZone" tabindex="0" role="button" aria-label="SVPファイルを選択">
+                        <div class="music-mark svp-mark" aria-hidden="true">SV</div>
+                        <div class="drop-copy">
+                            <p class="primary">ここにSVPファイルをドロップ</p>
+                            <p class="secondary">音符の位置・長さ・音程・歌詞を読み込みます</p>
+                        </div>
+                        <div class="drop-actions">
+                            <button class="pill-button" type="button" id="svpFileButton">SVPを選ぶ</button>
+                            <button class="ghost-button" type="button" id="svpSampleButton">サンプルで試す</button>
+                        </div>
+                        <input id="svpFileInput" type="file" accept=".svp,application/json" hidden>
                     </div>
-                    <input id="fileInput" type="file" accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/xml,text/xml" hidden>
                 </div>
 
                 <div class="file-summary" id="fileSummary" hidden>
@@ -66,7 +88,7 @@
                     <div class="section-heading">
                         <div>
                             <span class="section-label">Vocal parts</span>
-                            <h2>ボーカルとして使うパート</h2>
+                            <h2 id="partsTitle">ボーカルとして使うパート</h2>
                         </div>
                         <p class="hint" id="selectionHint">歌詞とパート名から候補を選びました。必要なら変更できます。</p>
                     </div>
@@ -110,7 +132,7 @@
                         </label>
                     </div>
                     <div class="switches">
-                        <label class="checkbox-row">
+                        <label class="checkbox-row" id="repeatOptionRow">
                             <input type="checkbox" id="expandRepeatsInput" checked>
                             <span>リピートを展開し、周回ごとの歌詞を使う</span>
                         </label>
@@ -167,6 +189,36 @@
                             <ul class="warnings-list" id="warningsList"></ul>
                         </div>
                     </div>
+
+                    <section class="lyrics-transfer">
+                        <div class="lyrics-transfer-head">
+                            <div>
+                                <span class="section-label">Lyrics transfer</span>
+                                <h3>歌詞流し込み</h3>
+                                <p>選択したトラックの歌詞を、音符順にすべて並べます。</p>
+                            </div>
+                            <div class="lyrics-transfer-controls">
+                                <label>
+                                    <span>トラック</span>
+                                    <select id="lyricsTrackSelect" aria-label="歌詞を表示するトラック"></select>
+                                </label>
+                                <label>
+                                    <span>区切り</span>
+                                    <select id="lyricsSeparatorSelect" aria-label="歌詞の区切り方">
+                                        <option value="space">半角スペース</option>
+                                        <option value="newline">改行</option>
+                                        <option value="none">区切りなし</option>
+                                    </select>
+                                </label>
+                                <button class="pill-button lyrics-copy-button" type="button" id="copyLyricsButton" disabled>歌詞をコピー</button>
+                            </div>
+                        </div>
+                        <textarea id="lyricsOutput" rows="5" readonly spellcheck="false" aria-label="流し込み用歌詞"></textarea>
+                        <div class="lyrics-transfer-foot">
+                            <span id="lyricsCount">0音分</span>
+                            <span id="lyricsCopyStatus" role="status" aria-live="polite">半角スペース区切りで、VOCALOIDの歌詞入力へ貼り付けられます。</span>
+                        </div>
+                    </section>
                 </section>
 
                 <section class="card export-card">

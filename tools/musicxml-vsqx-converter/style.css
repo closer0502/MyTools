@@ -92,6 +92,39 @@ select {
     gap: var(--space-3);
 }
 
+.source-tabs {
+    display: flex;
+    width: fit-content;
+    gap: 6px;
+    margin-bottom: var(--space-3);
+    padding: 5px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.source-tab {
+    min-height: 38px;
+    padding: 7px 17px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.source-tab.is-active {
+    border-color: rgba(56, 189, 248, 0.48);
+    background: var(--accent-soft);
+    color: #e6faff;
+}
+
+.source-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 .card {
     padding: var(--space-4);
     border: 1px solid var(--border);
@@ -161,6 +194,13 @@ select {
     color: #ddd6fe;
     font-family: var(--font-display);
     font-size: 31px;
+}
+
+.svp-mark {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
 }
 
 .drop-copy {
@@ -577,6 +617,86 @@ tbody tr:last-child td {
     color: #a7f3d0;
 }
 
+.lyrics-transfer {
+    display: grid;
+    gap: 12px;
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background:
+        linear-gradient(135deg, rgba(167, 139, 250, 0.055), rgba(56, 189, 248, 0.035)),
+        rgba(255, 255, 255, 0.018);
+}
+
+.lyrics-transfer-head,
+.lyrics-transfer-controls,
+.lyrics-transfer-foot {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.lyrics-transfer h3 {
+    margin: 1px 0 2px;
+    font-size: 16px;
+}
+
+.lyrics-transfer p,
+.lyrics-transfer-foot {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.lyrics-transfer-controls {
+    justify-content: flex-end;
+}
+
+.lyrics-transfer-controls label {
+    display: grid;
+    gap: 4px;
+    min-width: 160px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.lyrics-transfer-controls select {
+    min-height: 38px;
+    font-size: 13px;
+}
+
+.lyrics-copy-button {
+    min-height: 38px;
+    align-self: flex-end;
+}
+
+#lyricsOutput {
+    width: 100%;
+    min-height: 122px;
+    resize: vertical;
+    padding: 13px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #0a1120;
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.85;
+}
+
+#lyricsOutput:focus {
+    outline: 2px solid rgba(56, 189, 248, 0.5);
+    outline-offset: 2px;
+}
+
+#lyricsCount {
+    color: var(--accent-strong);
+    font-family: var(--font-mono);
+}
+
 .export-card {
     display: flex;
     justify-content: space-between;
@@ -684,6 +804,20 @@ tbody tr:last-child td {
     .export-button {
         width: 100%;
         min-width: 0;
+    }
+
+    .lyrics-transfer-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .lyrics-transfer-controls label {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+
+    .lyrics-copy-button {
+        width: 100%;
     }
 }
 

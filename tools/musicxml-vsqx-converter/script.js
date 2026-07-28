@@ -1,6 +1,7 @@
 "use strict";
 
 const TPQN = 480;
+const SVP_BLICKS_PER_QUARTER = 705600000;
 const NOTE_NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
 const STEP_TO_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const TRACK_COLORS = ["#38bdf8", "#a78bfa", "#34d399", "#f59e0b", "#fb7185", "#22d3ee"];
@@ -10,10 +11,18 @@ const MAX_MXL_BYTES = 50 * 1024 * 1024;
 const MAX_XML_CHARACTERS = 60 * 1024 * 1024;
 
 const refs = {
+    musicXmlTab: document.getElementById("musicXmlTab"),
+    svpTab: document.getElementById("svpTab"),
+    musicXmlPanel: document.getElementById("musicXmlPanel"),
+    svpPanel: document.getElementById("svpPanel"),
     dropZone: document.getElementById("dropZone"),
     fileInput: document.getElementById("fileInput"),
     fileButton: document.getElementById("fileButton"),
     sampleButton: document.getElementById("sampleButton"),
+    svpDropZone: document.getElementById("svpDropZone"),
+    svpFileInput: document.getElementById("svpFileInput"),
+    svpFileButton: document.getElementById("svpFileButton"),
+    svpSampleButton: document.getElementById("svpSampleButton"),
     fileSummary: document.getElementById("fileSummary"),
     fileName: document.getElementById("fileName"),
     scoreTitle: document.getElementById("scoreTitle"),
@@ -23,11 +32,13 @@ const refs = {
     errorMessage: document.getElementById("errorMessage"),
     conversionArea: document.getElementById("conversionArea"),
     partsList: document.getElementById("partsList"),
+    partsTitle: document.getElementById("partsTitle"),
     selectionHint: document.getElementById("selectionHint"),
     transposeInput: document.getElementById("transposeInput"),
     defaultLyricInput: document.getElementById("defaultLyricInput"),
     chordPolicySelect: document.getElementById("chordPolicySelect"),
     defaultTempoInput: document.getElementById("defaultTempoInput"),
+    repeatOptionRow: document.getElementById("repeatOptionRow"),
     expandRepeatsInput: document.getElementById("expandRepeatsInput"),
     mergeTiesInput: document.getElementById("mergeTiesInput"),
     trimOverlapsInput: document.getElementById("trimOverlapsInput"),
@@ -39,11 +50,22 @@ const refs = {
     notesBody: document.getElementById("notesBody"),
     tableNote: document.getElementById("tableNote"),
     warningsList: document.getElementById("warningsList"),
+    lyricsTrackSelect: document.getElementById("lyricsTrackSelect"),
+    lyricsSeparatorSelect: document.getElementById("lyricsSeparatorSelect"),
+    copyLyricsButton: document.getElementById("copyLyricsButton"),
+    lyricsOutput: document.getElementById("lyricsOutput"),
+    lyricsCount: document.getElementById("lyricsCount"),
+    lyricsCopyStatus: document.getElementById("lyricsCopyStatus"),
     exportDescription: document.getElementById("exportDescription"),
     exportButton: document.getElementById("exportButton")
 };
 
 const state = {
+    inputMode: "musicxml",
+    sessions: {
+        musicxml: null,
+        svp: null
+    },
     score: null,
     fileName: "",
     preview: null
@@ -143,6 +165,7 @@ function parseMusicXML(source, fileName) {
     });
 
     return {
+        sourceType: "musicxml",
         documentNode,
         root,
         title,
@@ -292,7 +315,12 @@ function renderScore() {
     refs.errorMessage.hidden = true;
     refs.partsList.replaceChildren(...score.parts.map(createPartRow));
 
-    if (score.totalLyrics > 0) {
+    const isSvp = score.sourceType === "svp";
+    refs.partsTitle.textContent = isSvp ? "変換するSVPトラック" : "ボーカルとして使うパート";
+    refs.repeatOptionRow.hidden = isSvp;
+    if (isSvp) {
+        refs.selectionHint.textContent = "歌詞付き音符の多いトラックを選びました。複数トラックも選択できます。";
+    } else if (score.totalLyrics > 0) {
         refs.selectionHint.textContent = "歌詞付き音符を優先して候補を選びました。必要なら変更できます。";
     } else {
         refs.selectionHint.textContent = "歌詞が見つからないため、パート名と音符数から候補を選びました。";
@@ -338,7 +366,7 @@ function createPartRow(part) {
         const option = document.createElement("option");
         option.value = voice.id;
         option.selected = voice.id === part.selectedVoice;
-        option.textContent = `Voice ${voice.id} · ${voice.noteCount}音${voice.lyricCount ? ` · 歌詞${voice.lyricCount}` : ""}`;
+        option.textContent = `${voice.label || `Voice ${voice.id}`} · ${voice.noteCount}音${voice.lyricCount ? ` · 歌詞${voice.lyricCount}` : ""}`;
         voiceSelect.append(option);
     });
     if (!part.voices.length) {
@@ -412,18 +440,29 @@ function buildPreview() {
         };
     }
 
-    const parsedTracks = selectedParts.map(part => parsePartTimeline(part, part.selectedVoice, options));
-    const firstScorePart = state.score.parts[0];
-    const masterSource = parsedTracks.find(track => track.id === firstScorePart.id) ||
-        parsePartTimeline(firstScorePart, chooseBestVoice(firstScorePart), options);
-    const allMasterTempos = [
-        ...masterSource.tempos,
-        ...parsedTracks.flatMap(track => track.tempos)
-    ];
-    const allMasterTimeSignatures = [
-        ...masterSource.timeSignatures,
-        ...parsedTracks.flatMap(track => track.timeSignatures)
-    ];
+    const isSvp = state.score.sourceType === "svp";
+    const parsedTracks = isSvp
+        ? selectedParts.map(part => parseSvpTrack(part, options))
+        : selectedParts.map(part => parsePartTimeline(part, part.selectedVoice, options));
+    let allMasterTempos;
+    let allMasterTimeSignatures;
+
+    if (isSvp) {
+        allMasterTempos = state.score.tempos;
+        allMasterTimeSignatures = state.score.timeSignatures;
+    } else {
+        const firstScorePart = state.score.parts[0];
+        const masterSource = parsedTracks.find(track => track.id === firstScorePart.id) ||
+            parsePartTimeline(firstScorePart, chooseBestVoice(firstScorePart), options);
+        allMasterTempos = [
+            ...masterSource.tempos,
+            ...parsedTracks.flatMap(track => track.tempos)
+        ];
+        allMasterTimeSignatures = [
+            ...masterSource.timeSignatures,
+            ...parsedTracks.flatMap(track => track.timeSignatures)
+        ];
+    }
     const warnings = [];
     parsedTracks.forEach(track => warnings.push(...track.warnings));
 
@@ -440,6 +479,51 @@ function buildPreview() {
         totalTick: Math.max(...parsedTracks.map(track => track.totalTick), 0),
         options
     };
+}
+
+function parseSvpTrack(part, options) {
+    const warnings = [...(part.importWarnings || [])];
+    let notes = part.svpNotes.map((note, sourceOrder) => ({
+        tick: Math.max(0, Math.round(note.tick)),
+        duration: Math.max(1, Math.round(note.duration)),
+        noteNumber: clamp(Math.round(note.noteNumber + options.transpose), 0, 127),
+        lyric: normalizeSvpLyric(note.lyric, options.defaultLyric),
+        usedDefaultLyric: !String(note.lyric || "").trim(),
+        generatedPhoneme: true,
+        sourceOrder
+    }));
+
+    notes = applyChordPolicy(notes, options.chordPolicy, part, warnings);
+    notes.sort((a, b) => a.tick - b.tick || a.noteNumber - b.noteNumber || a.sourceOrder - b.sourceOrder);
+    if (options.trimOverlaps) {
+        notes = trimNoteOverlaps(notes, part, warnings);
+    }
+
+    const defaultLyricCount = notes.filter(note => note.usedDefaultLyric).length;
+    if (defaultLyricCount) {
+        warnings.push(`${part.name}: 歌詞がない${defaultLyricCount}音に「${options.defaultLyric}」を設定しました。`);
+    }
+    if (!notes.length) {
+        warnings.push(`${part.name}: 変換できる音符がありません。`);
+    }
+
+    return {
+        id: part.id,
+        name: part.name,
+        voice: "main",
+        notes,
+        tempos: [],
+        timeSignatures: [],
+        totalTick: Math.max(...notes.map(note => note.tick + note.duration), 0),
+        warnings
+    };
+}
+
+function normalizeSvpLyric(lyric, defaultLyric) {
+    const value = String(lyric || "").trim();
+    if (!value) return defaultLyric;
+    if (value === "+" || value === "-") return "ー";
+    return value;
 }
 
 function parsePartTimeline(part, selectedVoice, options) {
@@ -916,6 +1000,7 @@ function updatePreview() {
 
     renderNoteTable(preview);
     renderWarnings(preview);
+    renderLyricsTransfer(preview);
     drawPianoRoll(preview);
     setCurrentStep(preview.tracks.length ? 3 : 2);
 }
@@ -960,6 +1045,92 @@ function renderWarnings(preview) {
         item.textContent = message;
         return item;
     }));
+}
+
+function renderLyricsTransfer(preview) {
+    const previousTrackId = refs.lyricsTrackSelect.value;
+    const options = preview.tracks.map(track => {
+        const option = document.createElement("option");
+        option.value = track.id;
+        option.textContent = `${track.name}（${track.notes.length}音）`;
+        return option;
+    });
+    refs.lyricsTrackSelect.replaceChildren(...options);
+
+    const hasPrevious = preview.tracks.some(track => track.id === previousTrackId);
+    if (hasPrevious) {
+        refs.lyricsTrackSelect.value = previousTrackId;
+    } else if (preview.tracks[0]) {
+        refs.lyricsTrackSelect.value = preview.tracks[0].id;
+    }
+
+    refs.lyricsTrackSelect.disabled = preview.tracks.length === 0;
+    updateLyricsTransferText();
+}
+
+function updateLyricsTransferText() {
+    const preview = state.preview;
+    const track = preview?.tracks.find(item => item.id === refs.lyricsTrackSelect.value);
+    if (!track) {
+        refs.lyricsOutput.value = "";
+        refs.lyricsCount.textContent = "0音分";
+        refs.copyLyricsButton.disabled = true;
+        refs.lyricsCopyStatus.textContent = "変換するトラックを選択してください。";
+        return;
+    }
+
+    const separator = {
+        space: " ",
+        newline: "\n",
+        none: ""
+    }[refs.lyricsSeparatorSelect.value] ?? " ";
+    const lyrics = track.notes.map(note =>
+        String(note.lyric || preview.options?.defaultLyric || "あ").trim()
+    );
+    refs.lyricsOutput.value = lyrics.join(separator);
+    refs.lyricsCount.textContent = `${lyrics.length}音分`;
+    refs.copyLyricsButton.disabled = lyrics.length === 0;
+    refs.lyricsCopyStatus.textContent = {
+        space: "半角スペース区切りで、VOCALOIDの歌詞入力へ貼り付けられます。",
+        newline: "1音ずつ改行してコピーします。",
+        none: "歌詞を区切らず連結してコピーします。"
+    }[refs.lyricsSeparatorSelect.value] || "";
+}
+
+async function copyLyricsToClipboard() {
+    const text = refs.lyricsOutput.value;
+    if (!text) return;
+
+    let copied = false;
+    try {
+        if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            copied = true;
+        }
+    } catch {
+        copied = false;
+    }
+
+    if (!copied) {
+        refs.lyricsOutput.focus();
+        refs.lyricsOutput.select();
+        try {
+            copied = document.execCommand("copy");
+        } catch {
+            copied = false;
+        }
+        refs.lyricsOutput.setSelectionRange(0, 0);
+    }
+
+    const originalLabel = refs.copyLyricsButton.textContent;
+    refs.copyLyricsButton.textContent = copied ? "コピーしました" : "コピーできませんでした";
+    refs.lyricsCopyStatus.textContent = copied
+        ? `${refs.lyricsCount.textContent}の歌詞をクリップボードへコピーしました。`
+        : "歌詞欄を選択し、Ctrl+Cでコピーしてください。";
+    setTimeout(() => {
+        refs.copyLyricsButton.textContent = originalLabel;
+        updateLyricsTransferText();
+    }, 1600);
 }
 
 function drawPianoRoll(preview) {
@@ -1223,6 +1394,219 @@ function sanitizeFileName(value) {
         .slice(0, 120) || "converted";
 }
 
+function parseSvp(source, fileName) {
+    let payload;
+    try {
+        payload = JSON.parse(
+            String(source)
+                .replace(/^\uFEFF/, "")
+                .replace(/\u0000+$/, "")
+        );
+    } catch (error) {
+        throw new Error(`SVPをJSONとして解析できませんでした。${error.message}`);
+    }
+
+    const project = payload?.project?.tracks ? payload.project : payload;
+    const tracks = Array.isArray(project?.tracks) ? project.tracks : [];
+    if (!tracks.length) {
+        throw new Error("SVP内に変換できるトラックが見つかりませんでした。");
+    }
+
+    const blicksPerQuarter = numberValue(
+        project.blicksPerQuarter ?? project.time?.blicksPerQuarter,
+        SVP_BLICKS_PER_QUARTER
+    );
+    const libraryMap = buildSvpLibraryMap(project.library);
+    const parts = tracks.map((track, index) =>
+        analyzeSvpTrack(track, index, libraryMap, blicksPerQuarter)
+    );
+    const ranked = [...parts].sort((a, b) => b.candidateScore - a.candidateScore);
+    const best = ranked.find(part => part.noteCount > 0) || ranked[0];
+    parts.forEach(part => {
+        part.selected = part.id === best.id;
+        part.recommended = part.id === best.id;
+        part.selectedVoice = "main";
+    });
+
+    const timeAxis = project.time || project.timeAxis || {};
+    const tempoSource = Array.isArray(timeAxis.tempo)
+        ? timeAxis.tempo
+        : Array.isArray(project.tempo) ? project.tempo : [];
+    const meterSource = Array.isArray(timeAxis.meter)
+        ? timeAxis.meter
+        : Array.isArray(project.meter) ? project.meter : [];
+    const tempos = tempoSource.map(item => ({
+        tick: svpBlickToTick(numberValue(item.position ?? item.blick, 0), blicksPerQuarter),
+        bpm: numberValue(item.bpm ?? item.tempo, 120)
+    }));
+    const timeSignatures = meterSource.map(item => ({
+        measure: Math.max(0, Math.round(numberValue(item.index ?? item.measure, 0))),
+        numerator: Math.max(1, Math.round(numberValue(item.numerator, 4))),
+        denominator: Math.max(1, Math.round(numberValue(item.denominator, 4)))
+    }));
+    const maxTick = Math.max(
+        ...parts.flatMap(part => part.svpNotes.map(note => note.tick + note.duration)),
+        0
+    );
+    const firstMeter = timeSignatures[0] || { numerator: 4, denominator: 4 };
+    const ticksPerMeasure = TPQN * 4 * firstMeter.numerator / firstMeter.denominator;
+    const title =
+        String(project.name || project.title || "").trim() ||
+        fileName.replace(/\.svp$/i, "");
+
+    return {
+        sourceType: "svp",
+        title,
+        parts,
+        tempos,
+        timeSignatures,
+        totalLyrics: parts.reduce((sum, part) => sum + part.lyricCount, 0),
+        measureCount: Math.max(1, Math.ceil(maxTick / Math.max(ticksPerMeasure, 1))),
+        fileName,
+        loadWarnings: [
+            "SVPの歌声パラメータ、ピッチカーブ、発音記号、ボイス設定は変換せず、音符と歌詞のみを使用します。"
+        ]
+    };
+}
+
+function buildSvpLibraryMap(library) {
+    let groups = [];
+    if (Array.isArray(library)) {
+        groups = library;
+    } else if (Array.isArray(library?.groups)) {
+        groups = library.groups;
+    } else if (library && typeof library === "object") {
+        groups = Object.values(library).filter(value => value && typeof value === "object");
+    }
+    const map = new Map();
+    groups.forEach(group => {
+        const id = getSvpGroupId(group);
+        if (id) map.set(id, group);
+    });
+    return map;
+}
+
+function getSvpGroupId(group) {
+    return String(group?.uuid ?? group?.id ?? group?.groupID ?? group?.groupId ?? "").trim();
+}
+
+function analyzeSvpTrack(track, index, libraryMap, blicksPerQuarter) {
+    const importWarnings = [];
+    const groupInstances = [];
+    const mainGroup = track.mainGroup || track.main_group;
+    if (mainGroup && Array.isArray(mainGroup.notes)) {
+        groupInstances.push({ group: mainGroup, blickOffset: 0, pitchOffset: 0 });
+    }
+
+    const references = Array.isArray(track.groups)
+        ? track.groups
+        : Array.isArray(track.groupReferences) ? track.groupReferences : [];
+    references.forEach(reference => {
+        const referenceId = String(
+            reference.groupID ?? reference.groupId ?? reference.targetID ?? reference.targetId ?? reference.uuid ?? ""
+        ).trim();
+        const group = Array.isArray(reference.notes) ? reference : libraryMap.get(referenceId);
+        if (!group) {
+            importWarnings.push(`参照ノートグループ「${referenceId || "ID不明"}」を見つけられなかったため省略しました。`);
+            return;
+        }
+        groupInstances.push({
+            group,
+            blickOffset: numberValue(reference.blickOffset ?? reference.onset ?? reference.offset, 0),
+            pitchOffset: numberValue(reference.pitchOffset ?? reference.pitch, 0)
+        });
+    });
+
+    if (!groupInstances.length && Array.isArray(track.notes)) {
+        groupInstances.push({ group: track, blickOffset: 0, pitchOffset: 0 });
+    }
+
+    const svpNotes = [];
+    groupInstances.forEach(instance => {
+        instance.group.notes.forEach(note => {
+            const onset = numberValue(note.onset ?? note.position, NaN);
+            const duration = numberValue(note.duration ?? note.length, NaN);
+            const pitch = numberValue(note.pitch ?? note.noteNumber, NaN);
+            if (![onset, duration, pitch].every(Number.isFinite) || duration <= 0) return;
+            svpNotes.push({
+                tick: Math.max(0, svpBlickToTick(onset + instance.blickOffset, blicksPerQuarter)),
+                duration: Math.max(1, svpBlickToTick(duration, blicksPerQuarter)),
+                noteNumber: pitch + instance.pitchOffset,
+                lyric: String(note.lyrics ?? note.lyric ?? "")
+            });
+        });
+    });
+    svpNotes.sort((a, b) => a.tick - b.tick || a.noteNumber - b.noteNumber);
+
+    const lyricCount = svpNotes.filter(note => note.lyric.trim() && note.lyric !== "+" && note.lyric !== "-").length;
+    const pitches = svpNotes.map(note => note.noteNumber);
+    const name = String(track.name || mainGroup?.name || `Track ${index + 1}`).trim();
+
+    return {
+        id: `SVP${index + 1}`,
+        index,
+        name,
+        instrument: "Synthesizer V",
+        noteCount: svpNotes.length,
+        lyricCount,
+        chordCount: 0,
+        voices: [{
+            id: "main",
+            label: "全ノートグループ",
+            noteCount: svpNotes.length,
+            lyricCount
+        }],
+        staves: ["1"],
+        minPitch: pitches.length ? Math.min(...pitches) : null,
+        maxPitch: pitches.length ? Math.max(...pitches) : null,
+        candidateScore: lyricCount * 1000 + svpNotes.length,
+        selected: false,
+        recommended: false,
+        selectedVoice: "main",
+        svpNotes,
+        importWarnings
+    };
+}
+
+function svpBlickToTick(blick, blicksPerQuarter = SVP_BLICKS_PER_QUARTER) {
+    return Math.round(numberValue(blick, 0) / Math.max(blicksPerQuarter, 1) * TPQN);
+}
+
+function setLoadedScore(mode, score, fileName) {
+    const session = { score, fileName };
+    state.sessions[mode] = session;
+    state.inputMode = mode;
+    state.score = score;
+    state.fileName = fileName;
+    renderScore();
+}
+
+function activateSourceMode(mode) {
+    state.inputMode = mode;
+    const isMusicXml = mode === "musicxml";
+    refs.musicXmlTab.classList.toggle("is-active", isMusicXml);
+    refs.musicXmlTab.setAttribute("aria-selected", isMusicXml ? "true" : "false");
+    refs.svpTab.classList.toggle("is-active", !isMusicXml);
+    refs.svpTab.setAttribute("aria-selected", isMusicXml ? "false" : "true");
+    refs.musicXmlPanel.hidden = !isMusicXml;
+    refs.svpPanel.hidden = isMusicXml;
+    refs.errorMessage.hidden = true;
+
+    const session = state.sessions[mode];
+    if (session) {
+        state.score = session.score;
+        state.fileName = session.fileName;
+        renderScore();
+    } else {
+        state.score = null;
+        state.fileName = "";
+        state.preview = null;
+        refs.fileSummary.hidden = true;
+        refs.conversionArea.hidden = true;
+        setCurrentStep(1);
+    }
+}
+
 async function loadFile(file) {
     if (!file) return;
     if (!/\.(musicxml|xml|mxl)$/i.test(file.name)) {
@@ -1231,18 +1615,37 @@ async function loadFile(file) {
     }
     try {
         const loaded = await readMusicXmlSource(file);
-        state.fileName = file.name;
-        state.score = parseMusicXML(loaded.source, file.name);
-        state.score.archivePath = loaded.archivePath;
-        state.score.loadWarnings = [
-            ...(state.score.loadWarnings || []),
+        const score = parseMusicXML(loaded.source, file.name);
+        score.archivePath = loaded.archivePath;
+        score.loadWarnings = [
+            ...(score.loadWarnings || []),
             ...loaded.warnings
         ];
-        renderScore();
+        setLoadedScore("musicxml", score, file.name);
     } catch (error) {
         showError(error.message || "MusicXMLの読み込みに失敗しました。");
     } finally {
         refs.fileInput.value = "";
+    }
+}
+
+async function loadSvpFile(file) {
+    if (!file) return;
+    if (!/\.svp$/i.test(file.name)) {
+        showError(".svpファイルを選択してください。");
+        return;
+    }
+    if (file.size > MAX_XML_CHARACTERS) {
+        showError("SVPファイルが大きすぎます。60 MB以下のファイルを選択してください。");
+        return;
+    }
+    try {
+        const score = parseSvp(await file.text(), file.name);
+        setLoadedScore("svp", score, file.name);
+    } catch (error) {
+        showError(error.message || "SVPの読み込みに失敗しました。");
+    } finally {
+        refs.svpFileInput.value = "";
     }
 }
 
@@ -1383,9 +1786,17 @@ function isPartwiseMusicXml(source) {
 
 function loadSample() {
     try {
-        state.fileName = "vocal-and-piano-sample.musicxml";
-        state.score = parseMusicXML(createSampleMusicXml(), state.fileName);
-        renderScore();
+        const fileName = "vocal-and-piano-sample.musicxml";
+        setLoadedScore("musicxml", parseMusicXML(createSampleMusicXml(), fileName), fileName);
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+function loadSvpSample() {
+    try {
+        const fileName = "synthv-vocal-sample.svp";
+        setLoadedScore("svp", parseSvp(createSampleSvp(), fileName), fileName);
     } catch (error) {
         showError(error.message);
     }
@@ -1457,6 +1868,53 @@ function createSampleMusicXml() {
 </score-partwise>`;
 }
 
+function createSampleSvp() {
+    return JSON.stringify({
+        version: 135,
+        name: "Synthesizer V Vocal Sample",
+        time: {
+            meter: [{ index: 0, numerator: 4, denominator: 4 }],
+            tempo: [
+                { position: 0, bpm: 112 },
+                { position: SVP_BLICKS_PER_QUARTER * 4, bpm: 118 }
+            ]
+        },
+        tracks: [
+            {
+                name: "Lead Vocal",
+                mainGroup: {
+                    uuid: "sample-main",
+                    name: "Main",
+                    notes: [
+                        { onset: 0, duration: SVP_BLICKS_PER_QUARTER, pitch: 60, lyrics: "こ" },
+                        { onset: SVP_BLICKS_PER_QUARTER, duration: SVP_BLICKS_PER_QUARTER, pitch: 62, lyrics: "ん" },
+                        { onset: SVP_BLICKS_PER_QUARTER * 2, duration: SVP_BLICKS_PER_QUARTER, pitch: 64, lyrics: "に" },
+                        { onset: SVP_BLICKS_PER_QUARTER * 3, duration: SVP_BLICKS_PER_QUARTER, pitch: 67, lyrics: "ち" },
+                        { onset: SVP_BLICKS_PER_QUARTER * 4, duration: SVP_BLICKS_PER_QUARTER * 2, pitch: 69, lyrics: "は" }
+                    ]
+                },
+                groups: []
+            },
+            {
+                name: "Backing Vocal",
+                mainGroup: {
+                    uuid: "sample-backing",
+                    name: "Backing",
+                    notes: [
+                        { onset: 0, duration: SVP_BLICKS_PER_QUARTER * 2, pitch: 55, lyrics: "あ" },
+                        { onset: SVP_BLICKS_PER_QUARTER * 2, duration: SVP_BLICKS_PER_QUARTER * 2, pitch: 57, lyrics: "+" }
+                    ]
+                },
+                groups: []
+            }
+        ],
+        library: []
+    }, null, 2);
+}
+
+refs.musicXmlTab.addEventListener("click", () => activateSourceMode("musicxml"));
+refs.svpTab.addEventListener("click", () => activateSourceMode("svp"));
+
 refs.fileButton.addEventListener("click", event => {
     event.stopPropagation();
     refs.fileInput.click();
@@ -1486,6 +1944,39 @@ refs.dropZone.addEventListener("drop", event => {
     loadFile(event.dataTransfer?.files?.[0]);
 });
 
+refs.svpFileButton.addEventListener("click", event => {
+    event.stopPropagation();
+    refs.svpFileInput.click();
+});
+refs.svpSampleButton.addEventListener("click", event => {
+    event.stopPropagation();
+    loadSvpSample();
+});
+refs.svpFileInput.addEventListener("change", event => loadSvpFile(event.target.files[0]));
+refs.svpDropZone.addEventListener("click", event => {
+    if (!event.target.closest("button")) refs.svpFileInput.click();
+});
+refs.svpDropZone.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        refs.svpFileInput.click();
+    }
+});
+refs.svpDropZone.addEventListener("dragover", event => {
+    event.preventDefault();
+    refs.svpDropZone.classList.add("is-dragover");
+});
+refs.svpDropZone.addEventListener("dragleave", () => refs.svpDropZone.classList.remove("is-dragover"));
+refs.svpDropZone.addEventListener("drop", event => {
+    event.preventDefault();
+    refs.svpDropZone.classList.remove("is-dragover");
+    loadSvpFile(event.dataTransfer?.files?.[0]);
+});
+
+refs.lyricsTrackSelect.addEventListener("change", updateLyricsTransferText);
+refs.lyricsSeparatorSelect.addEventListener("change", updateLyricsTransferText);
+refs.copyLyricsButton.addEventListener("click", copyLyricsToClipboard);
+
 [
     refs.transposeInput,
     refs.defaultLyricInput,
@@ -1502,3 +1993,5 @@ refs.exportButton.addEventListener("click", downloadVsqx);
 window.addEventListener("resize", () => {
     if (state.preview) drawPianoRoll(state.preview);
 });
+
+activateSourceMode("musicxml");
