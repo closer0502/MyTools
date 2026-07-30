@@ -16,8 +16,14 @@
 
         <div class="card">
             <section class="input-area">
-                <label for="textInput">テキスト</label>
-                <textarea id="textInput" placeholder="ここにテキストを入力してください..."></textarea>
+                <div class="input-label-row">
+                    <label for="textInput">テキスト</label>
+                    <span class="file-drop-status" id="fileDropStatus" role="status">テキストファイルをドロップできます</span>
+                </div>
+                <textarea id="textInput" aria-describedby="fileDropStatus" placeholder="ここにテキストを入力、またはファイルをドロップしてください..."></textarea>
+                <div class="input-actions">
+                    <button class="ghost-button" id="clearButton" type="button">クリア</button>
+                </div>
             </section>
 
             <section class="stats">

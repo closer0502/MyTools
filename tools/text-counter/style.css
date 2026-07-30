@@ -48,6 +48,29 @@ body {
     color: var(--muted);
 }
 
+.input-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.file-drop-status {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+    text-align: right;
+}
+
+.file-drop-status.is-loaded {
+    color: var(--accent-strong);
+}
+
+.file-drop-status.is-error {
+    color: #fca5a5;
+}
+
 textarea {
     width: 100%;
     min-height: 240px;
@@ -68,6 +91,45 @@ textarea:focus {
     border-color: rgba(56, 189, 248, 0.7);
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
     background: #0e192c;
+}
+
+.input-area.is-dragover textarea {
+    border-color: var(--accent);
+    background:
+        linear-gradient(rgba(56, 189, 248, 0.09), rgba(56, 189, 248, 0.09)),
+        var(--bg-alt);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+}
+
+.input-area.is-dragover .file-drop-status {
+    color: var(--accent-strong);
+}
+
+.input-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.ghost-button {
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.ghost-button:hover {
+    border-color: rgba(56, 189, 248, 0.55);
+    background: rgba(56, 189, 248, 0.08);
+    transform: translateY(-1px);
+}
+
+.ghost-button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
 }
 
 .stats {
@@ -112,5 +174,10 @@ textarea:focus {
 
     textarea {
         min-height: 180px;
+    }
+
+    .file-drop-status {
+        width: 100%;
+        text-align: left;
     }
 }
