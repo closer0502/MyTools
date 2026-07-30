@@ -1292,6 +1292,21 @@ function buildVsqx(score, preview) {
       <vol>0</vol>
     </masterUnit>
 ${mixerUnits}
+    <monoUnit>
+      <iGin>0</iGin>
+      <sLvl>-898</sLvl>
+      <sEnable>0</sEnable>
+      <m>0</m>
+      <s>0</s>
+      <pan>64</pan>
+      <vol>0</vol>
+    </monoUnit>
+    <stUnit>
+      <iGin>0</iGin>
+      <m>0</m>
+      <s>0</s>
+      <vol>-129</vol>
+    </stUnit>
   </mixer>
   <masterTrack>
     <seqName>${cdata(sequenceName)}</seqName>
@@ -1302,8 +1317,8 @@ ${timeSignatureXml}
 ${tempoXml}
   </masterTrack>
 ${tracksXml}
-  <seTrack/>
-  <karaokeTrack/>
+  <monoTrack/>
+  <stTrack/>
   <aux>
     <id><![CDATA[AUX_VST_HOST_CHUNK_INFO]]></id>
     <content><![CDATA[VlNDSwAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=]]></content>
@@ -1321,7 +1336,7 @@ function buildVsqxTrack(track, trackNumber, preMeasureTicks) {
         `        <n>${clamp(Math.round(note.noteNumber), 0, 127)}</n>`,
         "        <v>64</v>",
         `        <y>${cdata(note.lyric)}</y>`,
-        "        <p lock=\"0\"><![CDATA[a]]></p>",
+        "        <p><![CDATA[a]]></p>",
         "        <nStyle>",
         "          <v id=\"accent\">50</v>",
         "          <v id=\"bendDep\">8</v>",
@@ -1330,6 +1345,8 @@ function buildVsqxTrack(track, trackNumber, preMeasureTicks) {
         "          <v id=\"fallPort\">0</v>",
         "          <v id=\"opening\">127</v>",
         "          <v id=\"risePort\">0</v>",
+        "          <v id=\"vibLen\">0</v>",
+        "          <v id=\"vibType\">0</v>",
         "        </nStyle>",
         "      </note>"
     ].join("\n")).join("\n");
@@ -1338,17 +1355,17 @@ function buildVsqxTrack(track, trackNumber, preMeasureTicks) {
     <tNo>${trackNumber}</tNo>
     <name>${cdata(track.name)}</name>
     <comment>${cdata(`MusicXML ${track.id} / Voice ${track.voice}`)}</comment>
-    <musicalPart>
+    <vsPart>
       <t>${preMeasureTicks}</t>
       <playTime>${Math.max(1, Math.round(playTime))}</playTime>
       <name>${cdata(track.name)}</name>
       <comment><![CDATA[Converted vocal part]]></comment>
-      <stylePlugin>
-        <stylePluginID><![CDATA[ACA9C502-A04B-42b5-B2EB-5CEA36D16FCE]]></stylePluginID>
-        <stylePluginName><![CDATA[VOCALOID2 Compatible Style]]></stylePluginName>
+      <sPlug>
+        <id><![CDATA[ACA9C502-A04B-42b5-B2EB-5CEA36D16FCE]]></id>
+        <name><![CDATA[VOCALOID2 Compatible Style]]></name>
         <version><![CDATA[3.0.0.1]]></version>
-      </stylePlugin>
-      <partStyle>
+      </sPlug>
+      <pStyle>
         <v id="accent">50</v>
         <v id="bendDep">8</v>
         <v id="bendLen">0</v>
@@ -1356,14 +1373,25 @@ function buildVsqxTrack(track, trackNumber, preMeasureTicks) {
         <v id="fallPort">0</v>
         <v id="opening">127</v>
         <v id="risePort">0</v>
-      </partStyle>
+      </pStyle>
       <singer>
         <t>0</t>
         <bs>0</bs>
         <pc>0</pc>
       </singer>
+      <cc><t>0</t><v id="D">64</v></cc>
+      <cc><t>0</t><v id="B">0</v></cc>
+      <cc><t>0</t><v id="R">64</v></cc>
+      <cc><t>0</t><v id="C">0</v></cc>
+      <cc><t>0</t><v id="G">64</v></cc>
+      <cc><t>0</t><v id="P">0</v></cc>
+      <cc><t>0</t><v id="S">2</v></cc>
+      <cc><t>0</t><v id="T">64</v></cc>
+      <cc><t>0</t><v id="X">0</v></cc>
+      <cc><t>0</t><v id="W">0</v></cc>
 ${notesXml}
-    </musicalPart>
+      <plane>0</plane>
+    </vsPart>
   </vsTrack>`;
 }
 
@@ -1376,6 +1404,13 @@ function downloadVsqx() {
     const noteCount = state.preview.tracks.reduce((sum, track) => sum + track.notes.length, 0);
     if (!noteCount) return;
     const vsqx = buildVsqx(state.score, state.preview);
+    const validationErrors = validateVsqx4Structure(vsqx);
+    if (validationErrors.length) {
+        console.error("VSQX4 validation failed", validationErrors);
+        showError(`VSQX4の構造検査に失敗したため保存を中止しました。${validationErrors.join(" / ")}`);
+        return;
+    }
+    refs.errorMessage.hidden = true;
     const blob = new Blob([vsqx], { type: "application/xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1385,6 +1420,91 @@ function downloadVsqx() {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function validateVsqx4Structure(source) {
+    const errors = [];
+    const documentNode = new DOMParser().parseFromString(source, "application/xml");
+    const parserError = descendants(documentNode, "parsererror")[0];
+    if (parserError) {
+        return ["XMLとして正しく解析できません。"];
+    }
+
+    const root = documentNode.documentElement;
+    if (root?.localName !== "vsq4" ||
+        root.namespaceURI !== "http://www.yamaha.co.jp/vocaloid/schema/vsq4/") {
+        errors.push("VSQX4のルート要素または名前空間が不正です。");
+        return errors;
+    }
+
+    const requiredRootChildren = [
+        "vender",
+        "version",
+        "vVoiceTable",
+        "mixer",
+        "masterTrack",
+        "vsTrack",
+        "monoTrack",
+        "stTrack"
+    ];
+    requiredRootChildren.forEach(name => {
+        if (!firstChild(root, name)) errors.push(`必須要素 ${name} がありません。`);
+    });
+
+    const mixer = firstChild(root, "mixer");
+    ["masterUnit", "vsUnit", "monoUnit", "stUnit"].forEach(name => {
+        if (mixer && !firstChild(mixer, name)) errors.push(`mixer/${name} がありません。`);
+    });
+
+    const tracks = directChildren(root, "vsTrack");
+    const trackNumbers = new Set();
+    tracks.forEach((track, trackIndex) => {
+        const trackNumber = childText(track, "tNo");
+        if (!/^\d+$/.test(trackNumber)) {
+            errors.push(`トラック${trackIndex + 1}の tNo が不正です。`);
+        } else if (trackNumbers.has(trackNumber)) {
+            errors.push(`トラック番号 ${trackNumber} が重複しています。`);
+        }
+        trackNumbers.add(trackNumber);
+
+        const parts = directChildren(track, "vsPart");
+        if (!parts.length) errors.push(`トラック${trackIndex + 1}に vsPart がありません。`);
+        parts.forEach((part, partIndex) => {
+            ["t", "playTime", "sPlug", "pStyle", "singer", "note", "plane"].forEach(name => {
+                if (!firstChild(part, name)) {
+                    errors.push(`トラック${trackIndex + 1}・パート${partIndex + 1}に ${name} がありません。`);
+                }
+            });
+            directChildren(part, "note").forEach((note, noteIndex) => {
+                const position = numberValue(childText(note, "t"), NaN);
+                const duration = numberValue(childText(note, "dur"), NaN);
+                const noteNumber = numberValue(childText(note, "n"), NaN);
+                if (!Number.isInteger(position) || position < 0) {
+                    errors.push(`トラック${trackIndex + 1}・音符${noteIndex + 1}の位置が不正です。`);
+                }
+                if (!Number.isInteger(duration) || duration < 1) {
+                    errors.push(`トラック${trackIndex + 1}・音符${noteIndex + 1}の長さが不正です。`);
+                }
+                if (!Number.isInteger(noteNumber) || noteNumber < 0 || noteNumber > 127) {
+                    errors.push(`トラック${trackIndex + 1}・音符${noteIndex + 1}の音程が不正です。`);
+                }
+            });
+        });
+    });
+
+    const vsUnitCount = mixer ? directChildren(mixer, "vsUnit").length : 0;
+    if (vsUnitCount !== tracks.length) {
+        errors.push(`vsUnit数（${vsUnitCount}）とvsTrack数（${tracks.length}）が一致しません。`);
+    }
+
+    const vsq3OnlyNames = ["musicalPart", "stylePlugin", "partStyle", "seTrack", "karaokeTrack"];
+    vsq3OnlyNames.forEach(name => {
+        if (descendants(root, name).length) {
+            errors.push(`VSQX4内にVSQX3用要素 ${name} が残っています。`);
+        }
+    });
+
+    return [...new Set(errors)];
 }
 
 function sanitizeFileName(value) {
