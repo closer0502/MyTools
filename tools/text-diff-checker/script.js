@@ -3,6 +3,8 @@ const textBInput = document.getElementById("textB");
 const compareBtn = document.getElementById("compareBtn");
 const swapBtn = document.getElementById("swapBtn");
 const clearBtn = document.getElementById("clearBtn");
+const textAFileStatus = document.getElementById("textAFileStatus");
+const textBFileStatus = document.getElementById("textBFileStatus");
 
 const addedCountEl = document.getElementById("addedCount");
 const removedCountEl = document.getElementById("removedCount");
@@ -16,6 +18,170 @@ const resultMeta = document.getElementById("resultMeta");
 const EMPTY_STATE = "Run a comparison to see the sentence differences.";
 // 移動（移動元／移動先）を表示する際に使う色の配列
 const MOVE_COLORS = ["#38bdf8", "#f472b6", "#4ade80", "#facc15", "#fb923c", "#a78bfa"];
+const MAX_TEXT_FILE_BYTES = 10 * 1024 * 1024;
+const DEFAULT_FILE_DROP_STATUS = "テキストファイルをドロップできます";
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function detectUtf16Encoding(bytes) {
+    const sampleLength = Math.min(bytes.length, 4096);
+    const pairCount = Math.floor(sampleLength / 2);
+    if (pairCount < 4) return "";
+
+    let evenZeros = 0;
+    let oddZeros = 0;
+    for (let index = 0; index < pairCount * 2; index += 2) {
+        if (bytes[index] === 0) evenZeros += 1;
+        if (bytes[index + 1] === 0) oddZeros += 1;
+    }
+
+    if (oddZeros / pairCount > 0.3 && evenZeros / pairCount < 0.1) return "utf-16le";
+    if (evenZeros / pairCount > 0.3 && oddZeros / pairCount < 0.1) return "utf-16be";
+    return "";
+}
+
+function looksLikeBinaryBytes(bytes) {
+    const sampleLength = Math.min(bytes.length, 8192);
+    let suspiciousControls = 0;
+
+    for (let index = 0; index < sampleLength; index += 1) {
+        const byte = bytes[index];
+        if (byte === 0) return true;
+        if (byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0c && byte !== 0x0d) {
+            suspiciousControls += 1;
+        }
+    }
+
+    return suspiciousControls > 8 && suspiciousControls / Math.max(sampleLength, 1) > 0.01;
+}
+
+function looksLikeBinaryText(text) {
+    const sample = text.slice(0, 8192);
+    let suspiciousControls = 0;
+
+    for (const character of sample) {
+        const code = character.codePointAt(0);
+        if (code === 0) return true;
+        if (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0c && code !== 0x0d) {
+            suspiciousControls += 1;
+        }
+    }
+
+    return suspiciousControls > 8 && suspiciousControls / Math.max(sample.length, 1) > 0.01;
+}
+
+async function readTextFile(file) {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let text;
+
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+        text = new TextDecoder("utf-16le").decode(buffer);
+    } else if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+        text = new TextDecoder("utf-16be").decode(buffer);
+    } else {
+        const detectedUtf16 = detectUtf16Encoding(bytes);
+        if (detectedUtf16) {
+            text = new TextDecoder(detectedUtf16, { fatal: true }).decode(buffer);
+        } else {
+            if (looksLikeBinaryBytes(bytes)) {
+                throw new Error("バイナリファイルの可能性があるため読み込みませんでした。");
+            }
+            try {
+                text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+            } catch {
+                try {
+                    text = new TextDecoder("shift_jis", { fatal: true }).decode(buffer);
+                } catch {
+                    throw new Error("テキストとして文字コードを判定できませんでした。");
+                }
+            }
+        }
+    }
+
+    if (looksLikeBinaryText(text)) {
+        throw new Error("バイナリファイルの可能性があるため読み込みませんでした。");
+    }
+    return text;
+}
+
+function setFileDropStatus(statusElement, message, state = "") {
+    statusElement.textContent = message;
+    statusElement.classList.toggle("is-loaded", state === "loaded");
+    statusElement.classList.toggle("is-error", state === "error");
+}
+
+function resetFileDropStatus(statusElement) {
+    setFileDropStatus(statusElement, DEFAULT_FILE_DROP_STATUS);
+}
+
+function enableTextFileDrop(textarea, statusElement, label) {
+    const inputBlock = textarea.closest(".input-block");
+
+    const clearDragState = () => {
+        inputBlock.classList.remove("is-dragover");
+    };
+
+    textarea.addEventListener("dragenter", (event) => {
+        event.preventDefault();
+        inputBlock.classList.add("is-dragover");
+    });
+
+    textarea.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        inputBlock.classList.add("is-dragover");
+    });
+
+    textarea.addEventListener("dragleave", () => {
+        clearDragState();
+        if (!statusElement.classList.contains("is-loaded") &&
+            !statusElement.classList.contains("is-error")) {
+            resetFileDropStatus(statusElement);
+        }
+    });
+
+    textarea.addEventListener("drop", async (event) => {
+        event.preventDefault();
+        clearDragState();
+
+        const files = Array.from(event.dataTransfer?.files || []);
+        const file = files[0];
+        if (!file) {
+            setFileDropStatus(statusElement, "テキストファイルをドロップしてください。", "error");
+            return;
+        }
+        if (file.size > MAX_TEXT_FILE_BYTES) {
+            setFileDropStatus(statusElement, `${file.name} は10 MBを超えています。`, "error");
+            return;
+        }
+
+        setFileDropStatus(statusElement, `${file.name} を読み込んでいます…`);
+        try {
+            textarea.value = await readTextFile(file);
+            setFileDropStatus(
+                statusElement,
+                `${file.name} · ${formatFileSize(file.size)}`,
+                "loaded"
+            );
+            textarea.focus();
+        } catch (error) {
+            setFileDropStatus(
+                statusElement,
+                error.message || `${file.name} の読み込みに失敗しました。`,
+                "error"
+            );
+        }
+    });
+
+    textarea.addEventListener("input", () => {
+        setFileDropStatus(statusElement, `${label}は手入力または編集済みです`);
+    });
+}
 
 /**
  * テキストを文単位に分割する
@@ -587,18 +753,38 @@ function runComparison() {
     }
 }
 
+enableTextFileDrop(textAInput, textAFileStatus, "文章A");
+enableTextFileDrop(textBInput, textBFileStatus, "文章B");
+
 compareBtn.addEventListener("click", runComparison);
 
 swapBtn.addEventListener("click", () => {
     const temp = textAInput.value;
     textAInput.value = textBInput.value;
     textBInput.value = temp;
+
+    const aStatus = {
+        message: textAFileStatus.textContent,
+        state: textAFileStatus.classList.contains("is-loaded")
+            ? "loaded"
+            : textAFileStatus.classList.contains("is-error") ? "error" : ""
+    };
+    const bStatus = {
+        message: textBFileStatus.textContent,
+        state: textBFileStatus.classList.contains("is-loaded")
+            ? "loaded"
+            : textBFileStatus.classList.contains("is-error") ? "error" : ""
+    };
+    setFileDropStatus(textAFileStatus, bStatus.message, bStatus.state);
+    setFileDropStatus(textBFileStatus, aStatus.message, aStatus.state);
     runComparison();
 });
 
 clearBtn.addEventListener("click", () => {
     textAInput.value = "";
     textBInput.value = "";
+    resetFileDropStatus(textAFileStatus);
+    resetFileDropStatus(textBFileStatus);
     updateStats([]);
     diffOutput.innerHTML = `<div class="empty-state">${EMPTY_STATE}</div>`;
     resultMeta.textContent = "No comparison yet.";

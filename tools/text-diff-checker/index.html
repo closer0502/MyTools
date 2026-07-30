@@ -17,12 +17,18 @@
         <section class="panel">
             <div class="inputs">
                 <div class="input-block">
-                    <label for="textA">文章A</label>
-                    <textarea id="textA" placeholder="ここに文章Aを入力してください..."></textarea>
+                    <div class="input-label-row">
+                        <label for="textA">文章A</label>
+                        <span class="file-drop-status" id="textAFileStatus" role="status">テキストファイルをドロップできます</span>
+                    </div>
+                    <textarea id="textA" aria-describedby="textAFileStatus" placeholder="ここに文章Aを入力、またはテキストファイルをドロップしてください..."></textarea>
                 </div>
                 <div class="input-block">
-                    <label for="textB">文章B</label>
-                    <textarea id="textB" placeholder="ここに文章Bを入力してください..."></textarea>
+                    <div class="input-label-row">
+                        <label for="textB">文章B</label>
+                        <span class="file-drop-status" id="textBFileStatus" role="status">テキストファイルをドロップできます</span>
+                    </div>
+                    <textarea id="textB" aria-describedby="textBFileStatus" placeholder="ここに文章Bを入力、またはテキストファイルをドロップしてください..."></textarea>
                 </div>
             </div>
 
