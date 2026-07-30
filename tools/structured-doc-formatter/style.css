@@ -37,60 +37,57 @@ body {
     color: var(--muted);
 }
 
-.tab-bar {
-    display: flex;
-    width: fit-content;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 6px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.04);
-    margin: 0 auto var(--space-4);
-}
-
-.tab-button {
-    border: 0;
-    border-radius: 999px;
-    padding: 8px 18px;
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
-}
-
-.tab-button.is-active {
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(34, 211, 238, 0.35));
-    color: #e6faff;
-    box-shadow: 0 8px 24px rgba(34, 211, 238, 0.18);
-}
-
-.tab-button:hover {
-    color: var(--text);
-    transform: translateY(-1px);
-}
-
-.tab-button:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-}
-
 .input-grid {
     display: grid;
     gap: var(--space-3);
 }
 
+.input-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: 6px;
+}
+
 .section-label {
     display: inline-block;
-    margin-bottom: 6px;
     color: var(--muted);
     font-size: 13px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
+}
+
+.format-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 4px 11px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.format-badge[data-format="json"] {
+    border-color: rgba(56, 189, 248, 0.55);
+    background: rgba(56, 189, 248, 0.12);
+    color: #bae6fd;
+}
+
+.format-badge[data-format="html"] {
+    border-color: rgba(251, 146, 60, 0.55);
+    background: rgba(251, 146, 60, 0.11);
+    color: #fed7aa;
+}
+
+.format-badge[data-format="xml"] {
+    border-color: rgba(167, 139, 250, 0.55);
+    background: rgba(167, 139, 250, 0.12);
+    color: #ddd6fe;
 }
 
 .drop-zone {
@@ -311,64 +308,6 @@ input[type="range"] {
     border-radius: 50%;
     background: var(--accent);
     box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.16);
-}
-
-.is-hidden {
-    display: none;
-}
-
-.markup-card {
-    margin-top: var(--space-4);
-}
-
-.tool-header {
-    text-align: center;
-    margin-bottom: var(--space-3);
-}
-
-.tool-header h2 {
-    margin: 0 0 var(--space-2);
-    font-size: 26px;
-}
-
-.tool-header p {
-    margin: 0;
-    color: var(--muted);
-}
-
-.tool-eyebrow {
-    display: inline-block;
-    padding: 4px 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    background: rgba(255, 255, 255, 0.03);
-    margin-bottom: var(--space-2);
-}
-
-.select-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--text);
-    font-size: 14px;
-}
-
-.select-control select {
-    padding: 8px 10px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-alt);
-    color: var(--text);
-    font-family: var(--font-sans);
-}
-
-.select-control select:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
 }
 
 @media (max-width: 720px) {

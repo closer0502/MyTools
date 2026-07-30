@@ -11,25 +11,23 @@
         <header class="header">
             <span class="eyebrow">JSON / HTML・XML</span>
             <h1>構造化テキストフォーマッター</h1>
-            <p>タブで切り替え、JSONやHTML/XMLを整形して表示します。</p>
+            <p>ファイル名と内容からJSON・HTML・XMLを自動判定して整形します。</p>
         </header>
 
-        <div class="tab-bar" role="tablist" aria-label="表示切り替え">
-            <button class="tab-button is-active" type="button" id="jsonTab" role="tab" aria-selected="true" aria-controls="jsonCard" data-target="jsonCard">JSON</button>
-            <button class="tab-button" type="button" id="markupTab" role="tab" aria-selected="false" aria-controls="markupCard" data-target="markupCard">HTML/XML</button>
-        </div>
-
-        <div class="card" id="jsonCard" role="tabpanel" aria-labelledby="jsonTab">
+        <div class="card">
             <div class="input-grid">
                 <section>
-                    <span class="section-label">入力</span>
-                    <div class="drop-zone" id="dropZone">
-                        <p class="primary">ここにJSONファイルをドロップ</p>
-                        <p class="secondary">クリックして選択、または下のテキスト欄に貼り付けてもOK</p>
-                        <button class="ghost-button" type="button" id="fileSelect">ファイルを選択</button>
-                        <input id="fileInput" type="file" accept=".json,application/json" hidden>
+                    <div class="input-heading">
+                        <span class="section-label">入力</span>
+                        <span class="format-badge" id="formatBadge" data-format="unknown">自動判定待ち</span>
                     </div>
-                    <textarea id="jsonInput" placeholder="{\n    \"name\": \"sample\",\n    \"items\": [1, 2, 3]\n}"></textarea>
+                    <div class="drop-zone" id="dropZone">
+                        <p class="primary">ここにJSON・HTML・XMLファイルをドロップ</p>
+                        <p class="secondary" id="fileStatus">ファイルを選択、または下のテキスト欄に貼り付けてもOK</p>
+                        <button class="ghost-button" type="button" id="fileSelect">ファイルを選択</button>
+                        <input id="fileInput" type="file" accept=".json,.html,.htm,.xml,.xhtml,.svg,.vsqx,.txt,application/json,application/xml,text/xml,text/html,text/plain" hidden>
+                    </div>
+                    <textarea id="sourceInput" aria-describedby="formatBadge fileStatus" placeholder="JSON、HTML、XMLを貼り付けてください。形式は自動判定されます。"></textarea>
                 </section>
 
                 <section class="controls">
@@ -43,9 +41,9 @@
                     <div class="options">
                         <label class="checkbox">
                             <input type="checkbox" id="allowTrailingCommaFix" checked>
-                            <span>トレーリングカンマを自動で除去（エラー時のみ）</span>
+                            <span>JSONのトレーリングカンマを自動で除去</span>
                         </label>
-                        <p class="option-note">エラーになったときだけ試します。自動修正した場合は警告を表示します。</p>
+                        <p class="option-note">JSON判定時のみ使用します。HTML/XMLでは無視されます。</p>
                     </div>
                     <button class="pill-button" type="button" id="formatButton">整形して表示</button>
                 </section>
@@ -55,7 +53,7 @@
                 <div class="section-header">
                     <div>
                         <span class="section-label">出力</span>
-                        <p class="hint">パースできたJSONをハイライト付きで表示します。</p>
+                        <p class="hint" id="outputHint">判定した形式に合わせてハイライト表示します。</p>
                     </div>
                     <button class="ghost-button" type="button" id="copyButton">コピー</button>
                 </div>
@@ -65,57 +63,6 @@
                 <div class="status-bar">
                     <span class="status-dot"></span>
                     <span id="statusLabel">準備完了</span>
-                </div>
-            </div>
-        </div>
-        <div class="card markup-card is-hidden" id="markupCard" role="tabpanel" aria-labelledby="markupTab">
-            <div class="input-grid">
-                <section>
-                    <span class="section-label">入力</span>
-                    <div class="drop-zone" id="markupDropZone">
-                        <p class="primary">ここにHTML/XMLファイルをドロップ</p>
-                        <p class="secondary">または下のエディタに貼り付け</p>
-                        <button class="ghost-button" type="button" id="markupFileSelect">ファイルを選択</button>
-                        <input id="markupFileInput" type="file" accept=".html,.htm,.xml,.xhtml,.svg,.txt" hidden>
-                    </div>
-                    <textarea id="markupInput" placeholder="<root>\n  <item id=&quot;a&quot;>Hello</item>\n</root>"></textarea>
-                </section>
-
-                <section class="controls">
-                    <div>
-                        <span class="section-label">インデント</span>
-                        <div class="indent-control">
-                            <input id="markupIndentRange" type="range" min="0" max="8" value="2" aria-label="インデント幅">
-                            <span class="indent-value" id="markupIndentValue">2スペース</span>
-                        </div>
-                    </div>
-                    <div class="options markup-options">
-                        <label class="select-control">
-                            <span>モード</span>
-                            <select id="markupMode">
-                                <option value="html">HTML</option>
-                                <option value="xml">XML</option>
-                            </select>
-                        </label>
-                        <p class="option-note">XMLモードは整形式を検証し、タグの大文字小文字を保持します。</p>
-                    </div>
-                    <button class="pill-button" type="button" id="markupFormatButton">整形して表示</button>
-                </section>
-            </div>
-
-            <div class="output-section">
-                <div class="section-header">
-                    <div>
-                        <span class="section-label">プレビュー</span>
-                        <p class="hint">整形済みマークアップをハイライト表示します。</p>
-                    </div>
-                    <button class="ghost-button" type="button" id="markupCopyButton">コピー</button>
-                </div>
-                <pre id="markupOutput" class="code-block" aria-live="polite"></pre>
-                <div id="markupErrorBanner" class="error-banner hidden" role="alert"></div>
-                <div class="status-bar">
-                    <span class="status-dot"></span>
-                    <span id="markupStatusLabel">準備完了</span>
                 </div>
             </div>
         </div>
