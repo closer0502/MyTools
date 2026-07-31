@@ -531,6 +531,30 @@ select:disabled {
     pointer-events: none;
 }
 
+.piano-roll-legend {
+    position: absolute;
+    right: 10px;
+    bottom: 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 9px;
+    border: 1px solid rgba(251, 191, 36, 0.36);
+    border-radius: 999px;
+    background: rgba(10, 17, 32, 0.88);
+    color: #fde68a;
+    font-size: 11px;
+    pointer-events: none;
+}
+
+.overlap-legend-swatch {
+    width: 20px;
+    height: 8px;
+    border: 1px solid rgba(253, 230, 138, 0.9);
+    border-radius: 3px;
+    background: rgba(251, 191, 36, 0.32);
+}
+
 .preview-columns {
     display: grid;
     grid-template-columns: minmax(0, 1.65fr) minmax(270px, 0.75fr);
@@ -577,11 +601,50 @@ td {
     font-family: var(--font-mono);
 }
 
-td:last-child {
+td.lyric-cell {
     max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
     font-family: var(--font-sans);
+}
+
+.adjustment-cell {
+    color: var(--muted);
+    text-align: center;
+}
+
+.adjustment-badge {
+    display: inline-flex;
+    padding: 3px 7px;
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    border-radius: 999px;
+    background: rgba(251, 191, 36, 0.12);
+    color: #fde68a;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+tbody tr.is-overlap-adjusted td {
+    background: rgba(251, 191, 36, 0.075);
+    border-bottom-color: rgba(251, 191, 36, 0.24);
+}
+
+tbody tr.is-overlap-adjusted td:first-child {
+    box-shadow: inset 3px 0 0 #fbbf24;
+}
+
+tbody tr.is-target td {
+    animation: overlap-row-focus 1.4s ease;
+}
+
+@keyframes overlap-row-focus {
+    0%,
+    100% {
+        background: rgba(251, 191, 36, 0.075);
+    }
+    35% {
+        background: rgba(251, 191, 36, 0.28);
+    }
 }
 
 tbody tr:last-child td {
@@ -604,17 +667,143 @@ tbody tr:last-child td {
 
 .warnings-list li {
     padding: 9px 10px;
-    border: 1px solid rgba(245, 158, 11, 0.26);
+    border: 1px solid rgba(56, 189, 248, 0.28);
     border-radius: 10px;
-    background: rgba(245, 158, 11, 0.07);
-    color: #fde68a;
+    background: rgba(56, 189, 248, 0.07);
+    color: #bae6fd;
     font-size: 12px;
+}
+
+.warnings-list li.message-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    border-left-width: 4px;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.16);
+}
+
+.message-type-badge {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 56px;
+    padding: 3px 7px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.5;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.message-copy {
+    min-width: 0;
+    line-height: 1.55;
+}
+
+.warnings-list li.message-info {
+    border-color: rgba(56, 189, 248, 0.72);
+    border-left-color: #38bdf8;
+    background: rgba(14, 165, 233, 0.17);
+    color: #e0f2fe;
+}
+
+.message-info .message-type-badge {
+    border-color: #7dd3fc;
+    background: #38bdf8;
+    color: #082f49;
+}
+
+.warnings-list li.message-adjustment {
+    border-color: rgba(167, 139, 250, 0.74);
+    border-left-color: #a78bfa;
+    background: rgba(139, 92, 246, 0.2);
+    color: #f5f3ff;
+}
+
+.message-adjustment .message-type-badge {
+    border-color: #c4b5fd;
+    background: #a78bfa;
+    color: #1e1b4b;
+}
+
+.warnings-list li.message-warning {
+    border-color: rgba(251, 191, 36, 0.78);
+    border-left-color: #fbbf24;
+    background: rgba(245, 158, 11, 0.2);
+    color: #fffbeb;
+}
+
+.message-warning .message-type-badge {
+    border-color: #fde68a;
+    background: #fbbf24;
+    color: #422006;
+}
+
+.warnings-list li.message-danger {
+    border-color: rgba(251, 113, 133, 0.82);
+    border-left-color: #fb7185;
+    background: rgba(244, 63, 94, 0.22);
+    color: #fff1f2;
+}
+
+.message-danger .message-type-badge {
+    border-color: #fecdd3;
+    background: #fb7185;
+    color: #4c0519;
 }
 
 .warnings-list li.is-ok {
     border-color: rgba(52, 211, 153, 0.25);
     background: rgba(52, 211, 153, 0.07);
     color: #a7f3d0;
+}
+
+.warnings-list li.overlap-detail {
+    padding: 0;
+    border-color: rgba(167, 139, 250, 0.76);
+    border-left: 4px solid #a78bfa;
+    background: rgba(139, 92, 246, 0.2);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.16);
+    overflow: hidden;
+}
+
+.overlap-detail-button {
+    display: grid;
+    gap: 5px;
+    width: 100%;
+    padding: 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.overlap-detail-button:hover {
+    background: rgba(167, 139, 250, 0.16);
+}
+
+.overlap-detail-button:focus-visible {
+    outline: 2px solid #a78bfa;
+    outline-offset: -2px;
+}
+
+.overlap-detail-heading {
+    color: #f5f3ff;
+    font-weight: 800;
+}
+
+.overlap-detail-copy {
+    color: #ede9fe;
+    line-height: 1.55;
+}
+
+.overlap-detail-action {
+    color: #ddd6fe;
+    font-size: 11px;
+    font-weight: 700;
 }
 
 .lyrics-transfer {

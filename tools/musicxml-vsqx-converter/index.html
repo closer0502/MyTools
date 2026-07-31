@@ -163,6 +163,10 @@
                     <div class="piano-roll-frame">
                         <canvas id="pianoRoll" height="280" aria-label="変換後の簡易ピアノロール"></canvas>
                         <div class="empty-preview" id="emptyPreview">変換するパートを選択してください</div>
+                        <div class="piano-roll-legend" id="overlapLegend" hidden>
+                            <span class="overlap-legend-swatch"></span>
+                            黄色の半透明部分：重なり調整で短縮
+                        </div>
                     </div>
 
                     <div class="preview-columns">
@@ -177,6 +181,7 @@
                                             <th>音程</th>
                                             <th>長さ</th>
                                             <th>歌詞</th>
+                                            <th>調整</th>
                                         </tr>
                                     </thead>
                                     <tbody id="notesBody"></tbody>

@@ -47,6 +47,7 @@ const refs = {
     previewTempoCount: document.getElementById("previewTempoCount"),
     pianoRoll: document.getElementById("pianoRoll"),
     emptyPreview: document.getElementById("emptyPreview"),
+    overlapLegend: document.getElementById("overlapLegend"),
     notesBody: document.getElementById("notesBody"),
     tableNote: document.getElementById("tableNote"),
     warningsList: document.getElementById("warningsList"),
@@ -435,6 +436,7 @@ function buildPreview() {
             tempos: [{ tick: 0, bpm: options.defaultTempo }],
             timeSignatures: [{ measure: 0, numerator: 4, denominator: 4 }],
             warnings: [],
+            overlapAdjustments: [],
             totalTick: 0,
             options
         };
@@ -470,12 +472,23 @@ function buildPreview() {
         warnings.push("発音記号は仮の「a」で出力します。VOCALOIDで歌手を選び、必要に応じて歌詞を再入力してください。");
     }
     warnings.push("出力後、VOCALOID側で使用するボイスバンクを選択してください。");
+    const overlapAdjustments = parsedTracks.flatMap((track, trackIndex) =>
+        track.notes
+            .filter(note => note.overlapAdjustment)
+            .map(note => ({
+                track,
+                trackIndex,
+                note,
+                ...note.overlapAdjustment
+            }))
+    );
 
     return {
         tracks: parsedTracks,
         tempos: normalizeTempoEvents(allMasterTempos, options.defaultTempo),
         timeSignatures: normalizeTimeSignatures(allMasterTimeSignatures),
         warnings: [...new Set([...(state.score.loadWarnings || []), ...warnings])],
+        overlapAdjustments,
         totalTick: Math.max(...parsedTracks.map(track => track.totalTick), 0),
         options
     };
@@ -953,12 +966,24 @@ function trimNoteOverlaps(notes, part, warnings) {
         const current = result[index];
         const next = result[index + 1];
         if (current.tick < next.tick && current.tick + current.duration > next.tick) {
-            current.duration = Math.max(1, next.tick - current.tick);
+            const originalDuration = current.duration;
+            const adjustedDuration = Math.max(1, next.tick - current.tick);
+            current.duration = adjustedDuration;
+            current.overlapAdjustment = {
+                originalDuration,
+                adjustedDuration,
+                trimmedTicks: originalDuration - adjustedDuration,
+                originalEndTick: current.tick + originalDuration,
+                adjustedEndTick: current.tick + adjustedDuration,
+                nextTick: next.tick,
+                nextNoteNumber: next.noteNumber,
+                nextLyric: next.lyric
+            };
             trimCount += 1;
         }
     }
     if (trimCount) {
-        warnings.push(`${part.name}: 重なっていた${trimCount}音の長さを調整しました。`);
+        warnings.push(`${part.name}: 重なっていた${trimCount}音を、次の音の開始位置に合わせて短縮しました。`);
     }
     return result;
 }
@@ -994,6 +1019,7 @@ function updatePreview() {
     refs.previewTempoCount.textContent = String(preview.tempos.length);
     refs.exportButton.disabled = noteCount === 0;
     refs.emptyPreview.hidden = noteCount > 0;
+    refs.overlapLegend.hidden = preview.overlapAdjustments.length === 0;
     refs.exportDescription.textContent = preview.tracks.length
         ? `${preview.tracks.map(track => track.name).join("、")}をVSQX 4形式で保存します。`
         : "変換するパートを1つ以上選択してください。";
@@ -1011,40 +1037,137 @@ function renderNoteTable(preview) {
         track.notes.forEach(note => rows.push({ track, trackIndex, note }));
     });
     rows.sort((a, b) => a.note.tick - b.note.tick || a.trackIndex - b.trackIndex);
-    const visibleRows = rows.slice(0, 120);
+    const initialRows = rows.slice(0, 120);
+    const initialKeys = new Set(initialRows.map(item => noteRowId(item.trackIndex, item.note)));
+    const adjustedExtraRows = rows.filter(item =>
+        item.note.overlapAdjustment && !initialKeys.has(noteRowId(item.trackIndex, item.note))
+    );
+    const visibleRows = [...initialRows, ...adjustedExtraRows]
+        .sort((a, b) => a.note.tick - b.note.tick || a.trackIndex - b.trackIndex);
     refs.notesBody.replaceChildren(...visibleRows.map(item => {
         const row = document.createElement("tr");
-        [
+        row.id = noteRowId(item.trackIndex, item.note);
+        if (item.note.overlapAdjustment) {
+            row.className = "is-overlap-adjusted";
+        }
+        const values = [
             item.track.name,
             formatTick(item.note.tick),
             midiToNoteName(item.note.noteNumber),
             String(item.note.duration),
             item.note.lyric
-        ].forEach(text => {
+        ];
+        values.forEach((text, cellIndex) => {
             const cell = document.createElement("td");
             cell.textContent = text;
+            if (cellIndex === 1) {
+                cell.title = formatMusicalPosition(item.note.tick, preview.timeSignatures);
+            }
+            if (cellIndex === 4) {
+                cell.className = "lyric-cell";
+            }
             row.append(cell);
         });
+        const adjustmentCell = document.createElement("td");
+        adjustmentCell.className = "adjustment-cell";
+        if (item.note.overlapAdjustment) {
+            const badge = document.createElement("span");
+            badge.className = "adjustment-badge";
+            badge.textContent = `${item.note.overlapAdjustment.originalDuration}→${item.note.duration}`;
+            badge.title = `${item.note.overlapAdjustment.trimmedTicks} tick短縮しました`;
+            adjustmentCell.append(badge);
+        } else {
+            adjustmentCell.textContent = "—";
+        }
+        row.append(adjustmentCell);
         return row;
     }));
-    refs.tableNote.textContent = rows.length > visibleRows.length
-        ? `先頭${visibleRows.length}音を表示しています（全${rows.length}音）。`
+    refs.tableNote.textContent = rows.length > initialRows.length
+        ? adjustedExtraRows.length
+            ? `先頭${initialRows.length}音と、範囲外の調整対象${adjustedExtraRows.length}音を表示しています（全${rows.length}音）。`
+            : `先頭${initialRows.length}音を表示しています（全${rows.length}音）。`
         : rows.length ? `全${rows.length}音を表示しています。` : "音符はまだありません。";
 }
 
 function renderWarnings(preview) {
-    if (!preview.warnings.length) {
+    if (!preview.warnings.length && !preview.overlapAdjustments.length) {
         const item = document.createElement("li");
         item.className = "is-ok";
         item.textContent = "変換上の警告はありません。";
         refs.warningsList.replaceChildren(item);
         return;
     }
-    refs.warningsList.replaceChildren(...preview.warnings.map(message => {
+    const items = preview.warnings.map(message => {
         const item = document.createElement("li");
-        item.textContent = message;
+        const messageType = classifyConversionMessage(message);
+        item.className = `message-item message-${messageType.key}`;
+
+        const badge = document.createElement("span");
+        badge.className = "message-type-badge";
+        badge.textContent = messageType.label;
+
+        const copy = document.createElement("span");
+        copy.className = "message-copy";
+        copy.textContent = message;
+
+        item.append(badge, copy);
         return item;
-    }));
+    });
+    preview.overlapAdjustments.forEach((adjustment, index) => {
+        const item = document.createElement("li");
+        item.className = "overlap-detail";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "overlap-detail-button";
+
+        const heading = document.createElement("span");
+        heading.className = "overlap-detail-heading";
+        heading.textContent = `自動補正：重なり調整 ${index + 1} — ${formatMusicalPosition(adjustment.note.tick, preview.timeSignatures)}`;
+
+        const detail = document.createElement("span");
+        detail.className = "overlap-detail-copy";
+        const currentName = midiToNoteName(adjustment.note.noteNumber);
+        const nextName = midiToNoteName(adjustment.nextNoteNumber);
+        detail.textContent =
+            `${currentName}「${adjustment.note.lyric}」を ${adjustment.originalDuration}→${adjustment.adjustedDuration} tick ` +
+            `（${adjustment.trimmedTicks} tick短縮）。次の${nextName}「${adjustment.nextLyric}」は` +
+            `${formatMusicalPosition(adjustment.nextTick, preview.timeSignatures)}から開始します。`;
+
+        const action = document.createElement("span");
+        action.className = "overlap-detail-action";
+        action.textContent = "音符一覧で確認 →";
+
+        button.append(heading, detail, action);
+        button.addEventListener("click", () => focusNoteRow(adjustment));
+        item.append(button);
+        items.push(item);
+    });
+    refs.warningsList.replaceChildren(...items);
+}
+
+function classifyConversionMessage(message) {
+    if (/(変換できる音符がありません|対応する終了記号がない|多すぎるため)/.test(message)) {
+        return { key: "danger", label: "要確認" };
+    }
+    if (/(省略しました|展開せず|ないため|見つからない|安全でない|利用できなかった)/.test(message)) {
+        return { key: "warning", label: "注意" };
+    }
+    if (/(設定しました|収めました|丸めました|選びました|短縮しました|調整しました)/.test(message)) {
+        return { key: "adjustment", label: "自動補正" };
+    }
+    return { key: "info", label: "案内" };
+}
+
+function noteRowId(trackIndex, note) {
+    return `note-row-${trackIndex}-${Math.max(0, Math.round(numberValue(note.sourceOrder, note.tick)))}`;
+}
+
+function focusNoteRow(adjustment) {
+    const row = document.getElementById(noteRowId(adjustment.trackIndex, adjustment.note));
+    if (!row) return;
+    row.classList.add("is-target");
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    setTimeout(() => row.classList.remove("is-target"), 1400);
 }
 
 function renderLyricsTransfer(preview) {
@@ -1192,6 +1315,34 @@ function drawPianoRoll(preview) {
         context.stroke();
     }
 
+    const adjustedNotes = allNotes.filter(note => note.overlapAdjustment);
+    const adjustmentBoundaries = new Set(adjustedNotes.map(note => note.overlapAdjustment.nextTick));
+    context.save();
+    context.setLineDash([4, 4]);
+    context.lineWidth = 1;
+    adjustmentBoundaries.forEach(tick => {
+        const x = labelWidth + tick / totalTick * plotWidth;
+        context.strokeStyle = "rgba(251, 191, 36, 0.62)";
+        context.beginPath();
+        context.moveTo(x, top);
+        context.lineTo(x, top + plotHeight);
+        context.stroke();
+    });
+    context.restore();
+
+    adjustedNotes.forEach(note => {
+        const adjustment = note.overlapAdjustment;
+        const adjustedEndX = labelWidth + adjustment.adjustedEndTick / totalTick * plotWidth;
+        const originalEndX = labelWidth + adjustment.originalEndTick / totalTick * plotWidth;
+        const y = top + (maxPitch - note.noteNumber) * rowHeight + 1;
+        const height = Math.max(rowHeight - 2, 3);
+        context.fillStyle = "rgba(251, 191, 36, 0.32)";
+        context.fillRect(adjustedEndX, y, Math.max(originalEndX - adjustedEndX, 2), height);
+        context.strokeStyle = "rgba(253, 230, 138, 0.9)";
+        context.lineWidth = 1;
+        context.strokeRect(adjustedEndX, y, Math.max(originalEndX - adjustedEndX, 2), height);
+    });
+
     allNotes.forEach(note => {
         const x = labelWidth + note.tick / totalTick * plotWidth;
         const width = Math.max(note.duration / totalTick * plotWidth, 2);
@@ -1203,6 +1354,12 @@ function drawPianoRoll(preview) {
         roundRect(context, x, y, width, height, Math.min(3, height / 2));
         context.fill();
         context.globalAlpha = 1;
+        if (note.overlapAdjustment) {
+            context.strokeStyle = "#fbbf24";
+            context.lineWidth = 1.5;
+            roundRect(context, x, y, width, height, Math.min(3, height / 2));
+            context.stroke();
+        }
     });
 }
 
@@ -1230,6 +1387,34 @@ function formatTick(tick) {
     const quarter = Math.floor(tick / TPQN);
     const remainder = tick % TPQN;
     return `${quarter + 1}:${String(remainder).padStart(3, "0")}`;
+}
+
+function formatMusicalPosition(tick, timeSignatures) {
+    const targetTick = Math.max(0, Math.round(tick));
+    const signatures = normalizeTimeSignatures(timeSignatures || []);
+    let currentMeasure = 0;
+    let consumedTicks = 0;
+    let activeSignature = signatures[0] || { measure: 0, numerator: 4, denominator: 4 };
+
+    for (let index = 1; index < signatures.length; index += 1) {
+        const nextSignature = signatures[index];
+        const ticksPerMeasure = TPQN * 4 * activeSignature.numerator / activeSignature.denominator;
+        const measureCount = Math.max(0, nextSignature.measure - currentMeasure);
+        const segmentTicks = Math.round(ticksPerMeasure * measureCount);
+        if (targetTick < consumedTicks + segmentTicks) break;
+        consumedTicks += segmentTicks;
+        currentMeasure = nextSignature.measure;
+        activeSignature = nextSignature;
+    }
+
+    const ticksPerBeat = TPQN * 4 / activeSignature.denominator;
+    const ticksPerMeasure = ticksPerBeat * activeSignature.numerator;
+    const tickWithinSegment = Math.max(0, targetTick - consumedTicks);
+    const measureOffset = Math.floor(tickWithinSegment / Math.max(ticksPerMeasure, 1));
+    const tickWithinMeasure = tickWithinSegment - measureOffset * ticksPerMeasure;
+    const beat = Math.floor(tickWithinMeasure / Math.max(ticksPerBeat, 1)) + 1;
+    const tickWithinBeat = Math.round(tickWithinMeasure - (beat - 1) * ticksPerBeat);
+    return `${currentMeasure + measureOffset + 1}小節 ${beat}拍 +${tickWithinBeat} tick（${formatTick(targetTick)}）`;
 }
 
 function buildVsqx(score, preview) {
