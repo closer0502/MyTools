@@ -40,21 +40,19 @@
                         </label>
                         <button class="ghost-button" id="addPointButton" type="button">＋ 点を追加</button>
                         <button class="ghost-button" id="resetButton" type="button">リセット</button>
-                        <button class="ghost-button mode-button is-active" id="curveModeButton" type="button" aria-pressed="false">直線：ON</button>
                     </div>
                 </div>
                 <div class="canvas-wrap">
-                    <canvas id="waveCanvas" aria-label="ベジェ曲線で波形を編集するキャンバス"></canvas>
-                    <div class="canvas-hint" id="canvasHint">ダブルクリック：点を追加　／　点をドラッグ：位置　／　直線モードで発音を確認　／　Shift＋クリック：削除</div>
+                    <canvas id="waveCanvas" aria-label="単調スプライン曲線で波形を編集するキャンバス"></canvas>
+                    <div class="canvas-hint" id="canvasHint">ダブルクリック：点を追加　／　点をドラッグ：位置　／　線を上下ドラッグ：カーブ　／　Shift＋クリック：削除</div>
                 </div>
                 <div class="editor-foot">
                     <label class="range-field">
-                        <span>選択点のカーブ</span>
-                        <input id="curveRange" type="range" min="0" max="100" value="55">
-                        <output id="curveValue">55%</output>
+                        <span>選択線のカーブ</span>
+                        <input id="curveRange" type="range" min="0" max="100" value="100">
+                        <output id="curveValue">100%</output>
                     </label>
-                    <label class="check-field"><input id="symmetryCheck" type="checkbox"> 左右対称に保つ</label>
-                    <span class="selection-label" id="selectionLabel">点を選択するとハンドルを表示</span>
+                    <span class="selection-label" id="selectionLabel">点を選択してください</span>
                 </div>
             </section>
 

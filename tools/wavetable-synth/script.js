@@ -13,16 +13,18 @@ const NOTE_KEYS = [
 ];
 
 const presets = {
-    sine: [0, .35, 0, -.35],
-    triangle: [0, 1, 0, -1],
-    saw: [-1, 1, 1, -1],
+    sine: [0, .7071, 1, .7071, 0, -.7071, -1, -.7071],
+    triangle: [-1, -.5, 0, .5, 1, .5, 0, -.5],
+    saw: Array.from({ length: 16 }, (_, index) => -1 + index * (2 / 15)),
     square: [-1, -1, 1, 1],
-    pluck: [0, .8, -.1, -.6, .2, -.3],
+    pluck: [0, .95, -.62, .43, -.29, .2, -.13, .085, -.052, .03, -.015, .006],
 };
 
 let waveformPoints = [];
-let curveMode = "linear";
+let curveMode = "spline";
 let selectedPoint = 1;
+let selectedSegment = 1;
+let hoveredSegment = null;
 let drag = null;
 let audioContext = null;
 let activeVoices = new Map();
@@ -31,13 +33,11 @@ let tableWorkletUrl = null;
 let tableWorkletReady = null;
 
 function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
-function clonePoints(points) { return points.map((point) => ({ x: point.x, y: point.y, inX: point.inX, inY: point.inY, outX: point.outX, outY: point.outY })); }
+function clonePoints(points) { return points.map((point) => ({ x: point.x, y: point.y, curve: point.curve ?? 1 })); }
 function makePoints(values) {
     return values.map((y, index) => {
         const x = index / values.length;
-        const nextX = 1 / values.length;
-        const handle = nextX * .42;
-        return { x, y, inX: -handle, inY: 0, outX: handle, outY: 0 };
+        return { x, y, curve: 1 };
     });
 }
 function getResolutionValue(name, fallback) {
@@ -49,29 +49,10 @@ function getVerticalBitDepth() { return getResolutionValue("vertical", 16); }
 function resetWaveform() {
     const base = makePoints(presets.sine);
     waveformPoints = clonePoints(base);
+    selectedSegment = 1;
     syncUI();
 }
 function currentPoints() { return waveformPoints; }
-function syncCurveModeUI() {
-    const isBezier = curveMode === "bezier";
-    const button = $("curveModeButton");
-    button.textContent = isBezier ? "ベジェ曲線：ON" : "直線：ON";
-    button.classList.toggle("is-active", !isBezier);
-    button.setAttribute("aria-pressed", String(isBezier));
-    $("curveRange").disabled = !isBezier;
-    $("symmetryCheck").disabled = !isBezier;
-    $("canvasHint").textContent = isBezier
-        ? "ダブルクリック：点を追加　／　点をドラッグ：位置　／　ハンドルをドラッグ：カーブ　／　Shift＋クリック：削除"
-        : "ダブルクリック：点を追加　／　点をドラッグ：位置　／　直線モードで発音を確認　／　Shift＋クリック：削除";
-}
-function toggleCurveMode() {
-    drag = null;
-    curveMode = curveMode === "linear" ? "bezier" : "linear";
-    syncCurveModeUI();
-    drawWave();
-    updateAudioHint();
-}
-
 function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     const ratio = window.devicePixelRatio || 1;
@@ -83,6 +64,9 @@ function resizeCanvas() {
 function pointToCanvas(point) {
     const rect = canvas.getBoundingClientRect();
     return { x: point.x * rect.width, y: (1 - (point.y + 1) / 2) * rect.height };
+}
+function waveToCanvas(x, y, width, height) {
+    return { x: x * width, y: (1 - (y + 1) / 2) * height };
 }
 function canvasToPoint(event) {
     const rect = canvas.getBoundingClientRect();
@@ -106,26 +90,92 @@ function drawGrid(width, height) {
     ctx.strokeStyle = "rgba(255,255,255,.32)";
     ctx.beginPath(); ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2); ctx.stroke();
 }
-function drawWave() {
+function getSplineModel(points) {
+    const count = points.length;
+    const lengths = [];
+    const slopes = [];
+    for (let i = 0; i < count; i += 1) {
+        const next = (i + 1) % count;
+        const nextX = i === count - 1 ? points[0].x + 1 : points[next].x;
+        const length = Math.max(0.0001, nextX - points[i].x);
+        lengths.push(length);
+        slopes.push((points[next].y - points[i].y) / length);
+    }
+
+    const tangents = points.map((_, index) => {
+        const left = (index - 1 + count) % count;
+        const leftSlope = slopes[left];
+        const rightSlope = slopes[index];
+        if (leftSlope === 0 || rightSlope === 0 || leftSlope * rightSlope < 0) return 0;
+        const leftLength = lengths[left];
+        const rightLength = lengths[index];
+        const leftWeight = 2 * rightLength + leftLength;
+        const rightWeight = rightLength + 2 * leftLength;
+        return (leftWeight + rightWeight) / (leftWeight / leftSlope + rightWeight / rightSlope);
+    });
+
+    return points.map((point, index) => {
+        const next = (index + 1) % count;
+        const amount = clamp(point.curve ?? 1, 0, 1);
+        const linearSlope = slopes[index];
+        return {
+            x0: point.x,
+            x1: index === count - 1 ? points[0].x + 1 : points[next].x,
+            y0: point.y,
+            y1: points[next].y,
+            curve: amount,
+            m0: linearSlope + (tangents[index] - linearSlope) * amount,
+            m1: linearSlope + (tangents[next] - linearSlope) * amount,
+        };
+    });
+}
+function evaluateSpline(segment, t) {
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const h00 = 2 * t3 - 3 * t2 + 1;
+    const h10 = t3 - 2 * t2 + t;
+    const h01 = -2 * t3 + 3 * t2;
+    const h11 = t3 - t2;
+    const length = segment.x1 - segment.x0;
+    return h00 * segment.y0 + h10 * length * segment.m0 + h01 * segment.y1 + h11 * length * segment.m1;
+}
+function drawWave(updateAudio = true) {
     if (!canvas.width) return;
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
     drawGrid(width, height);
     const points = currentPoints();
+    const spline = curveMode === "spline" ? getSplineModel(points) : null;
     const path = new Path2D();
+    const selectedPath = new Path2D();
+    const hoveredPath = new Path2D();
     points.forEach((point, index) => {
         const next = points[(index + 1) % points.length];
         const isWrapSegment = index === points.length - 1;
         const nextX = isWrapSegment ? 1 : next.x;
         const a = pointToCanvas(point);
         const b = { x: nextX * width, y: (1 - (next.y + 1) / 2) * height };
-        const c1 = { x: (point.x + point.outX) * width, y: (1 - (point.y + point.outY + 1) / 2) * height };
-        const c2 = { x: (nextX + next.inX) * width, y: (1 - (next.y + next.inY + 1) / 2) * height };
         if (index === 0) path.moveTo(a.x, a.y);
         if (curveMode === "linear") {
             path.lineTo(b.x, b.y);
+            if (index === selectedSegment) {
+                selectedPath.moveTo(a.x, a.y); selectedPath.lineTo(b.x, b.y);
+            }
+            if (index === hoveredSegment && index !== selectedSegment) {
+                hoveredPath.moveTo(a.x, a.y); hoveredPath.lineTo(b.x, b.y);
+            }
         } else {
+            const segment = spline[index];
+            const h = segment.x1 - segment.x0;
+            const c1 = waveToCanvas(segment.x0 + h / 3, segment.y0 + segment.m0 * h / 3, width, height);
+            const c2 = waveToCanvas(segment.x1 - h / 3, segment.y1 - segment.m1 * h / 3, width, height);
             path.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, b.x, b.y);
+            if (index === selectedSegment) {
+                selectedPath.moveTo(a.x, a.y); selectedPath.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, b.x, b.y);
+            }
+            if (index === hoveredSegment && index !== selectedSegment) {
+                hoveredPath.moveTo(a.x, a.y); hoveredPath.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, b.x, b.y);
+            }
         }
     });
     ctx.save();
@@ -133,24 +183,43 @@ function drawWave() {
     ctx.strokeStyle = "#a69cff"; ctx.lineWidth = 3; ctx.stroke(path);
     ctx.restore();
     ctx.strokeStyle = "rgba(72,214,194,.45)"; ctx.lineWidth = 1; ctx.stroke(path);
+    if (curveMode === "spline" && hoveredSegment !== null) {
+        if (hoveredSegment !== selectedSegment) {
+            ctx.strokeStyle = "#48d6c2"; ctx.lineWidth = 5; ctx.stroke(hoveredPath);
+        }
+        drawCurveGuide(points, spline, hoveredSegment, width, height);
+    }
+    if (curveMode === "spline") {
+        ctx.strokeStyle = "#ffbd68"; ctx.lineWidth = 4; ctx.stroke(selectedPath);
+    }
     drawHandles();
-    updateActiveWaveforms();
+    if (updateAudio) updateActiveWaveforms();
+}
+function drawCurveGuide(points, spline, segmentIndex, width, height) {
+    const position = getSegmentCanvasPoint(points, segmentIndex, .5, width, height, spline);
+    const curve = Math.round((points[segmentIndex].curve ?? 1) * 100);
+    const label = `↕ カーブ ${curve}%`;
+    ctx.save();
+    ctx.font = "600 12px system-ui, sans-serif";
+    const textWidth = ctx.measureText(label).width;
+    const boxWidth = textWidth + 20;
+    const boxHeight = 26;
+    const boxX = clamp(position.x - boxWidth / 2, 8, width - boxWidth - 8);
+    const boxY = clamp(position.y - 42, 8, height - boxHeight - 8);
+    ctx.strokeStyle = "rgba(72,214,194,.7)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(position.x, position.y - 7); ctx.lineTo(position.x, boxY + boxHeight); ctx.stroke();
+    ctx.fillStyle = "rgba(16,19,29,.94)";
+    ctx.strokeStyle = "rgba(72,214,194,.85)";
+    ctx.beginPath(); ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#d9fffa";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(label, boxX + boxWidth / 2, boxY + boxHeight / 2);
+    ctx.restore();
 }
 function drawHandles() {
     const point = currentPoints()[selectedPoint];
     if (!point) return;
-    const p = pointToCanvas(point);
-    const rect = canvas.getBoundingClientRect();
-    if (curveMode === "bezier") {
-        const handles = [
-            { x: (point.x + point.inX) * rect.width, y: (1 - (point.y + point.inY + 1) / 2) * rect.height, color: "#48d6c2" },
-            { x: (point.x + point.outX) * rect.width, y: (1 - (point.y + point.outY + 1) / 2) * rect.height, color: "#ffbd68" },
-        ];
-        handles.forEach((handle) => {
-            ctx.strokeStyle = `${handle.color}88`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(handle.x, handle.y); ctx.stroke();
-            ctx.fillStyle = handle.color; ctx.fillRect(handle.x - 4, handle.y - 4, 8, 8);
-        });
-    }
     currentPoints().forEach((node, index) => {
         const position = pointToCanvas(node);
         ctx.beginPath(); ctx.arc(position.x, position.y, index === selectedPoint ? 7 : 5, 0, Math.PI * 2);
@@ -159,6 +228,25 @@ function drawHandles() {
     });
 }
 
+function distanceToSegment(point, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const lengthSquared = dx * dx + dy * dy;
+    if (!lengthSquared) return Math.hypot(point.x - start.x, point.y - start.y);
+    const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared, 0, 1);
+    return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+}
+function getSegmentCanvasPoint(points, index, t, width, height, spline) {
+    const segment = spline ? spline[index] : null;
+    const start = points[index];
+    const next = points[(index + 1) % points.length];
+    const endX = index === points.length - 1 ? 1 : next.x;
+    const x = start.x + (endX - start.x) * t;
+    const y = curveMode === "linear"
+        ? start.y + (next.y - start.y) * t
+        : evaluateSpline(segment, t);
+    return waveToCanvas(x, y, width, height);
+}
 function findHit(event) {
     const point = canvasToPoint(event);
     const rect = canvas.getBoundingClientRect();
@@ -168,11 +256,15 @@ function findHit(event) {
         const x = Math.abs((node.x - point.x) * rect.width);
         const y = Math.abs((node.y - point.y) * rect.height / 2);
         if (Math.hypot(x, y) < 16) return { type: "point", index: i };
-        if (curveMode === "bezier" && i === selectedPoint) {
-            const handles = [{ x: node.x + node.inX, y: node.y + node.inY, type: "in" }, { x: node.x + node.outX, y: node.y + node.outY, type: "out" }];
-            for (const handle of handles) {
-                if (Math.hypot((handle.x - point.x) * rect.width, (handle.y - point.y) * rect.height / 2) < 14) return { type: handle.type, index: i };
-            }
+    }
+    const spline = curveMode === "spline" ? getSplineModel(nodes) : null;
+    const canvasPoint = { x: point.x * rect.width, y: (1 - (point.y + 1) / 2) * rect.height };
+    for (let i = 0; i < nodes.length; i += 1) {
+        let previous = getSegmentCanvasPoint(nodes, i, 0, rect.width, rect.height, spline);
+        for (let step = 1; step <= 24; step += 1) {
+            const next = getSegmentCanvasPoint(nodes, i, step / 24, rect.width, rect.height, spline);
+            if (distanceToSegment(canvasPoint, previous, next) < 12) return { type: "segment", index: i };
+            previous = next;
         }
     }
     return null;
@@ -187,28 +279,65 @@ function addPointAt(point) {
     const previous = nodes[index - 1] || nodes[nodes.length - 1];
     const nextNode = nodes[index] || nodes[0];
     const y = point.y ?? ((previous.y + nextNode.y) / 2);
-    const next = { x, y, inX: -.07, inY: 0, outX: .07, outY: 0 };
+    const inheritedCurve = nodes[index - 1]?.curve ?? nodes[nodes.length - 1]?.curve ?? 1;
+    if (nodes[index - 1]) nodes[index - 1].curve = inheritedCurve;
+    const next = { x, y, curve: inheritedCurve };
     nodes.splice(index, 0, next);
     selectedPoint = index;
-    drawWave(); updateAudioHint();
+    selectedSegment = index;
+    syncUI(); drawWave(); updateAudioHint();
 }
 function removePoint(index) {
     if (currentPoints().length <= 3) return;
     currentPoints().splice(index, 1);
     selectedPoint = clamp(index - 1, 0, currentPoints().length - 1);
-    drawWave(); updateAudioHint();
+    selectedSegment = clamp(index - 1, 0, currentPoints().length - 1);
+    syncUI(); drawWave(); updateAudioHint();
 }
 function handleCanvasDown(event) {
     const hit = findHit(event);
     if (!hit) return;
     if (event.shiftKey && hit.type === "point") { removePoint(hit.index); return; }
+    if (hit.type === "segment") {
+        if (curveMode !== "spline") return;
+        selectedSegment = hit.index;
+        selectedPoint = hit.index;
+        hoveredSegment = hit.index;
+        drag = { type: "segment", index: hit.index, startY: event.clientY, startCurve: currentPoints()[hit.index].curve ?? 1 };
+        canvas.setPointerCapture(event.pointerId);
+        canvas.style.cursor = "ns-resize";
+        syncUI(); drawWave();
+        return;
+    }
     selectedPoint = hit.index;
+    selectedSegment = hit.index;
+    hoveredSegment = null;
     drag = { ...hit };
     canvas.setPointerCapture(event.pointerId);
+    canvas.style.cursor = "grabbing";
     syncUI(); drawWave();
 }
 function handleCanvasMove(event) {
-    if (!drag) return;
+    if (!drag) {
+        const hit = findHit(event);
+        const nextHoveredSegment = curveMode === "spline" && hit?.type === "segment" ? hit.index : null;
+        if (hoveredSegment !== nextHoveredSegment) {
+            hoveredSegment = nextHoveredSegment;
+            drawWave(false);
+        }
+        canvas.style.cursor = hit?.type === "segment" ? "ns-resize" : hit?.type === "point" ? "grab" : "default";
+        return;
+    }
+    if (drag.type === "segment") {
+        const node = currentPoints()[drag.index];
+        if (node) {
+            node.curve = clamp(drag.startCurve + (drag.startY - event.clientY) / 120, 0, 1);
+            $("curveRange").value = Math.round(node.curve * 100);
+            $("curveValue").textContent = `${Math.round(node.curve * 100)}%`;
+            drawWave();
+        }
+        return;
+    }
     const point = canvasToPoint(event);
     const node = currentPoints()[drag.index];
     if (drag.type === "point") {
@@ -220,24 +349,27 @@ function handleCanvasMove(event) {
             node.x = clamp(point.x, previous.x + .01, nextX - .01);
         }
         node.y = point.y;
-    } else {
-        const dx = point.x - node.x;
-        const dy = point.y - node.y;
-        node[`${drag.type}X`] = dx;
-        node[`${drag.type}Y`] = dy;
-        if ($("symmetryCheck").checked) {
-            const other = drag.type === "in" ? "out" : "in";
-            node[`${other}X`] = -dx;
-            node[`${other}Y`] = -dy;
-        }
     }
     drawWave();
 }
-function handleCanvasUp(event) { if (drag) canvas.releasePointerCapture(event.pointerId); drag = null; }
+function handleCanvasUp(event) {
+    if (drag) canvas.releasePointerCapture(event.pointerId);
+    drag = null;
+    canvas.style.cursor = hoveredSegment !== null ? "ns-resize" : "default";
+}
+function handleCanvasLeave() {
+    if (drag) return;
+    if (hoveredSegment !== null) {
+        hoveredSegment = null;
+        drawWave(false);
+    }
+    canvas.style.cursor = "default";
+}
 
 function sampleWave(points, sampleCount = getHorizontalResolution()) {
     const bitDepth = getVerticalBitDepth();
     const result = new Float32Array(sampleCount);
+    const spline = curveMode === "spline" ? getSplineModel(points) : null;
     for (let i = 0; i < sampleCount; i += 1) {
         const x = i / sampleCount;
         let segment = points.length - 1;
@@ -249,14 +381,7 @@ function sampleWave(points, sampleCount = getHorizontalResolution()) {
         const b = points[(segment + 1) % points.length];
         const endX = segment === points.length - 1 ? 1 : b.x;
         const t = clamp((x - a.x) / Math.max(.0001, endX - a.x), 0, 1);
-        const inv = 1 - t;
-        const y1 = a.y;
-        const y2 = a.y + a.outY;
-        const y3 = b.y + b.inY;
-        const y4 = b.y;
-        const value = curveMode === "linear"
-            ? y1 + (y4 - y1) * t
-            : inv ** 3 * y1 + 3 * inv ** 2 * t * y2 + 3 * inv * t ** 2 * y3 + t ** 3 * y4;
+        const value = curveMode === "linear" ? a.y + (b.y - a.y) * t : evaluateSpline(spline[segment], t);
         const peak = bitDepth === 32 ? 2147483647 : 2 ** (bitDepth - 1) - 1;
         result[i] = Math.round(clamp(value, -1, 1) * peak) / peak;
     }
@@ -515,21 +640,27 @@ function renderKeyboard() {
     });
 }
 function syncUI() {
-    $("curveValue").textContent = `${$("curveRange").value}%`;
     $("octaveLabel").textContent = `OCT ${octave}`;
-    const point = currentPoints()[selectedPoint]; $("selectionLabel").textContent = point ? `選択点 ${selectedPoint + 1} / ${currentPoints().length}` : "点を選択するとハンドルを表示";
+    const points = currentPoints();
+    selectedSegment = clamp(selectedSegment, 0, points.length - 1);
+    const curve = Math.round((points[selectedSegment]?.curve ?? 1) * 100);
+    $("curveRange").value = curve;
+    $("curveValue").textContent = `${curve}%`;
+    $("selectionLabel").textContent = `選択線 ${selectedSegment + 1} / ${points.length}`;
 }
 function updateAudioHint() { $("statusText").textContent = "波形を更新しました。鍵盤で試聴できます"; }
-function applyCurve(value) {
-    const node = currentPoints()[selectedPoint]; if (!node) return;
-    const amount = Number(value) / 100 * .7;
-    node.inX = -amount / Math.max(2, currentPoints().length); node.outX = amount / Math.max(2, currentPoints().length);
-    node.inY = 0; node.outY = 0; drawWave();
-}
 function presetPoints(name) {
-    const values = presets[name]; const points = makePoints(values); return points.map((point, index) => ({ ...point, y: point.y, outX: .4 / values.length, inX: -.4 / values.length, outY: 0, inY: 0, x: index / values.length }));
+    const values = presets[name];
+    const smooth = name === "sine" || name === "pluck";
+    const points = makePoints(values);
+    const xPositions = name === "square"
+        ? [0, .49, .51, .99]
+        : name === "saw"
+            ? values.map((_, index) => index / (values.length - 1) * .99)
+            : values.map((_, index) => index / values.length);
+    return points.map((point, index) => ({ x: xPositions[index], y: point.y, curve: smooth ? 1 : 0 }));
 }
-function setPreset(name) { waveformPoints = presetPoints(name); selectedPoint = 1; drawWave(); updateAudioHint(); }
+function setPreset(name) { waveformPoints = presetPoints(name); selectedPoint = 1; selectedSegment = 1; syncUI(); drawWave(); updateAudioHint(); }
 
 function encodeWav(samples, sampleRate, bitDepth) {
     const bytesPerSample = bitDepth === 32 ? 4 : bitDepth === 24 ? 3 : bitDepth === 8 ? 1 : 2;
@@ -559,12 +690,17 @@ async function exportWav() {
 function bindEvents() {
     setupKnobs();
     updateExportAvailability();
-    syncCurveModeUI();
-    canvas.addEventListener("pointerdown", handleCanvasDown); canvas.addEventListener("pointermove", handleCanvasMove); canvas.addEventListener("pointerup", handleCanvasUp); canvas.addEventListener("pointercancel", handleCanvasUp);
+    canvas.addEventListener("pointerdown", handleCanvasDown); canvas.addEventListener("pointermove", handleCanvasMove); canvas.addEventListener("pointerup", handleCanvasUp); canvas.addEventListener("pointercancel", handleCanvasUp); canvas.addEventListener("pointerleave", handleCanvasLeave);
     canvas.addEventListener("dblclick", (event) => addPointAt(canvasToPoint(event)));
     $("presetSelect").addEventListener("change", (event) => setPreset(event.target.value)); $("resetButton").addEventListener("click", resetWaveform);
-    $("addPointButton").addEventListener("click", () => addPointAt({ x: .5, y: 0 })); $("curveRange").addEventListener("input", (event) => { applyCurve(event.target.value); syncUI(); });
-    $("curveModeButton").addEventListener("click", toggleCurveMode);
+    $("addPointButton").addEventListener("click", () => addPointAt({ x: .5, y: 0 }));
+    $("curveRange").addEventListener("input", (event) => {
+        const point = currentPoints()[selectedSegment];
+        if (!point) return;
+        point.curve = Number(event.target.value) / 100;
+        $("curveValue").textContent = `${event.target.value}%`;
+        drawWave();
+    });
     $("octaveDown").addEventListener("click", () => { octave = clamp(octave - 1, 1, 7); syncUI(); renderKeyboard(); }); $("octaveUp").addEventListener("click", () => { octave = clamp(octave + 1, 1, 7); syncUI(); renderKeyboard(); });
     $("filterTypeSelect").addEventListener("change", updateActiveFilters);
     $("exportButton").addEventListener("click", exportWav); window.addEventListener("resize", resizeCanvas);
