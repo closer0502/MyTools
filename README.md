@@ -4,3 +4,4 @@
 - video-frame-capture: extracts frames from local videos to PNG/JPEG/WebP and bundles ranges as ZIP using JSZip via jsDelivr CDN.
 - video-audio-extractor: extracts selected audio ranges from local videos using ffmpeg.wasm via jsDelivr CDN.
 - musicxml-vsqx-converter: converts selected tracks from MusicXML, compressed MXL, or Synthesizer V SVP into VSQX 4; it preserves melody, lyrics, tempo, and time signatures while intentionally omitting singer-specific parameters.
+- wavetable-synth: draws cyclic synth waveforms with editable Bezier control points, previews them from a virtual keyboard, and exports a rendered WAV locally.

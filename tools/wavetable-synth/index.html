@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CurveTable | シンセ用ウェーブテーブル作成</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="app-header">
+            <div>
+                <a class="back-link" href="../../index.html">← MyTools</a>
+                <p class="eyebrow">CurveTable / WAVE DESIGNER</p>
+                <h1>シンセ用ウェーブテーブル作成</h1>
+                <p class="lede">1周期の波形を描き、鍵盤で音色を確認しながらWAVへ書き出します。</p>
+            </div>
+            <div class="header-status">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">クリックまたはキー入力で発音</span>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <section class="editor-panel panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="section-kicker">WAVE CANVAS</span>
+                        <h2>波形を描く</h2>
+                    </div>
+                    <div class="toolbar">
+                        <label class="compact-field">プリセット
+                            <select id="presetSelect">
+                                <option value="sine">Sine</option>
+                                <option value="triangle">Triangle</option>
+                                <option value="saw">Saw</option>
+                                <option value="square">Square</option>
+                                <option value="pluck">Pluck</option>
+                            </select>
+                        </label>
+                        <button class="ghost-button" id="addPointButton" type="button">＋ 点を追加</button>
+                        <button class="ghost-button" id="resetButton" type="button">リセット</button>
+                        <button class="ghost-button mode-button is-active" id="curveModeButton" type="button" aria-pressed="false">直線：ON</button>
+                    </div>
+                </div>
+                <div class="canvas-wrap">
+                    <canvas id="waveCanvas" aria-label="ベジェ曲線で波形を編集するキャンバス"></canvas>
+                    <div class="canvas-hint" id="canvasHint">ダブルクリック：点を追加　／　点をドラッグ：位置　／　直線モードで発音を確認　／　Shift＋クリック：削除</div>
+                </div>
+                <div class="editor-foot">
+                    <label class="range-field">
+                        <span>選択点のカーブ</span>
+                        <input id="curveRange" type="range" min="0" max="100" value="55">
+                        <output id="curveValue">55%</output>
+                    </label>
+                    <label class="check-field"><input id="symmetryCheck" type="checkbox"> 左右対称に保つ</label>
+                    <span class="selection-label" id="selectionLabel">点を選択するとハンドルを表示</span>
+                </div>
+            </section>
+
+            <aside class="side-panel">
+                <section class="panel control-panel">
+                    <div class="panel-heading compact-heading">
+                        <div><span class="section-kicker">DIGITAL GRAIN</span><h2>粗さ</h2></div>
+                        <span class="value-badge accent">XY RESOLUTION</span>
+                    </div>
+                    <div class="resolution-knobs">
+                        <div class="knob-control" data-knob="horizontal" data-min="4" data-max="4096" data-step="1" data-value="16" data-options="4,8,16,32,64,128,256,512,1024,2048,4096" data-unit="samples"><button class="knob" id="horizontalKnob" type="button" role="slider" aria-label="横サンプル数"><span class="knob-indicator"></span></button><span class="knob-label">横サンプル数</span><output class="knob-output">16 samples</output></div>
+                        <div class="knob-control" data-knob="vertical" data-min="4" data-max="32" data-step="1" data-value="16" data-options="4,5,6,7,8,16,24,32" data-unit="bits"><button class="knob" id="verticalKnob" type="button" role="slider" aria-label="縦ビット深度"><span class="knob-indicator"></span></button><span class="knob-label">縦ビット</span><output class="knob-output">16 bit</output></div>
+                    </div>
+                    <p class="microcopy">横は1周期内のサンプル数、縦は振幅のビット深度です。縦ビットはWAVの出力ビット深度にも反映されます。</p>
+                </section>
+
+                <section class="panel control-panel">
+                    <div class="panel-heading compact-heading"><div><span class="section-kicker">AMP ENV</span><h2>音量エンベロープ</h2></div></div>
+                    <div class="knob-grid">
+                        <div class="knob-control" data-knob="attack" data-min="0.001" data-max="5" data-step="0.01" data-value="0.02" data-unit="s"><button class="knob" id="attackKnob" type="button" role="slider" aria-label="Attack"><span class="knob-indicator"></span></button><span class="knob-label">Attack</span><output class="knob-output">0.02 s</output></div>
+                        <div class="knob-control" data-knob="decay" data-min="0.001" data-max="5" data-step="0.01" data-value="0.18" data-unit="s"><button class="knob" id="decayKnob" type="button" role="slider" aria-label="Decay"><span class="knob-indicator"></span></button><span class="knob-label">Decay</span><output class="knob-output">0.18 s</output></div>
+                        <div class="knob-control" data-knob="sustain" data-min="0" data-max="1" data-step="0.01" data-value="0.72" data-unit="percent"><button class="knob" id="sustainKnob" type="button" role="slider" aria-label="Sustain"><span class="knob-indicator"></span></button><span class="knob-label">Sustain</span><output class="knob-output">72%</output></div>
+                        <div class="knob-control" data-knob="release" data-min="0.01" data-max="8" data-step="0.01" data-value="0.35" data-unit="s"><button class="knob" id="releaseKnob" type="button" role="slider" aria-label="Release"><span class="knob-indicator"></span></button><span class="knob-label">Release</span><output class="knob-output">0.35 s</output></div>
+                    </div>
+                </section>
+
+                <section class="panel control-panel">
+                    <div class="panel-heading compact-heading"><div><span class="section-kicker">FILTER</span><h2>フィルター</h2></div></div>
+                    <div class="filter-row">
+                        <label class="compact-field">タイプ<select id="filterTypeSelect"><option value="lowpass">ローパス</option><option value="highpass">ハイパス</option><option value="bandpass">バンドパス</option></select></label>
+                        <div class="knob-control filter-knob" data-knob="cutoff" data-min="40" data-max="20000" data-step="10" data-value="20000" data-unit="hz"><button class="knob" id="cutoffKnob" type="button" role="slider" aria-label="Cutoff"><span class="knob-indicator"></span></button><span class="knob-label">Cutoff</span><output class="knob-output">20.0 kHz</output></div>
+                        <div class="knob-control filter-knob" data-knob="resonance" data-min="0.0001" data-max="30" data-step="0.1" data-value="0.0001" data-unit="number"><button class="knob" id="resonanceKnob" type="button" role="slider" aria-label="Resonance"><span class="knob-indicator"></span></button><span class="knob-label">Reso</span><output class="knob-output">0.0</output></div>
+                    </div>
+                </section>
+            </aside>
+
+            <section class="keyboard-panel panel">
+                <div class="keyboard-heading">
+                    <div><span class="section-kicker">PLAYGROUND</span><h2>仮想キーボード</h2></div>
+                    <div class="keyboard-meta"><span id="octaveLabel">OCT 4</span><button class="mini-button" id="octaveDown" type="button">−</button><button class="mini-button" id="octaveUp" type="button">＋</button><span class="key-hint">PC: A W S E D F T G Y H U J K</span></div>
+                </div>
+                <div class="keyboard" id="keyboard"></div>
+            </section>
+
+            <section class="export-panel panel">
+                <div><span class="section-kicker">OUTPUT</span><h2>書き出し</h2><p>現在の波形を、シンセで使える1周期分として書き出します。</p></div>
+                <div class="export-controls">
+                    <button class="primary-button" id="exportButton" type="button">↓ WAVを書き出す</button>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
