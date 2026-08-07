@@ -24,8 +24,14 @@ let waveformPoints = [];
 let curveMode = "spline";
 let selectedPoint = 1;
 let selectedSegment = 1;
+let selectedPoints = new Set([1]);
 let hoveredSegment = null;
 let drag = null;
+let selectionBox = null;
+let magnetMode = false;
+let collisionPoints = new Set();
+let horizontalGrid = 8;
+let verticalGrid = 8;
 let audioContext = null;
 let activeVoices = new Map();
 let octave = 4;
@@ -49,6 +55,9 @@ function getVerticalBitDepth() { return getResolutionValue("vertical", 16); }
 function resetWaveform() {
     const base = makePoints(presets.sine);
     waveformPoints = clonePoints(base);
+    collisionPoints.clear();
+    selectedPoints = new Set([1]);
+    selectedPoint = 1;
     selectedSegment = 1;
     syncUI();
 }
@@ -77,17 +86,17 @@ function drawGrid(width, height) {
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = "#10131d";
     ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(124, 133, 166, .13)";
+    ctx.strokeStyle = magnetMode ? "rgba(124, 133, 166, .065)" : "rgba(124, 133, 166, .13)";
     ctx.lineWidth = 1;
-    for (let i = 1; i < 8; i += 1) {
-        const x = width * i / 8;
+    for (let i = 1; i < horizontalGrid; i += 1) {
+        const x = width * i / horizontalGrid;
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
     }
-    for (let i = 1; i < 8; i += 1) {
-        const y = height * i / 8;
+    for (let i = 1; i < verticalGrid; i += 1) {
+        const y = height * i / verticalGrid;
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
     }
-    ctx.strokeStyle = "rgba(255,255,255,.32)";
+    ctx.strokeStyle = magnetMode ? "rgba(255,255,255,.18)" : "rgba(255,255,255,.32)";
     ctx.beginPath(); ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2); ctx.stroke();
 }
 function getSplineModel(points) {
@@ -193,6 +202,7 @@ function drawWave(updateAudio = true) {
         ctx.strokeStyle = "#ffbd68"; ctx.lineWidth = 4; ctx.stroke(selectedPath);
     }
     drawHandles();
+    drawSelectionBox();
     if (updateAudio) updateActiveWaveforms();
 }
 function drawCurveGuide(points, spline, segmentIndex, width, height) {
@@ -218,14 +228,28 @@ function drawCurveGuide(points, spline, segmentIndex, width, height) {
     ctx.restore();
 }
 function drawHandles() {
-    const point = currentPoints()[selectedPoint];
-    if (!point) return;
     currentPoints().forEach((node, index) => {
         const position = pointToCanvas(node);
-        ctx.beginPath(); ctx.arc(position.x, position.y, index === selectedPoint ? 7 : 5, 0, Math.PI * 2);
-        ctx.fillStyle = index === selectedPoint ? "#ffbd68" : "#f3f5ff"; ctx.fill();
+        const isSelected = selectedPoints.has(index);
+        ctx.beginPath(); ctx.arc(position.x, position.y, isSelected ? 7 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = collisionPoints.has(index) ? "#ff6262" : isSelected ? "#ffbd68" : "#f3f5ff"; ctx.fill();
         ctx.strokeStyle = "#11141e"; ctx.lineWidth = 2; ctx.stroke();
     });
+}
+function drawSelectionBox() {
+    if (!selectionBox) return;
+    const x = Math.min(selectionBox.startX, selectionBox.endX);
+    const y = Math.min(selectionBox.startY, selectionBox.endY);
+    const width = Math.abs(selectionBox.endX - selectionBox.startX);
+    const height = Math.abs(selectionBox.endY - selectionBox.startY);
+    ctx.save();
+    ctx.fillStyle = "rgba(72,214,194,.12)";
+    ctx.strokeStyle = "#48d6c2";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 4]);
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeRect(x, y, width, height);
+    ctx.restore();
 }
 
 function distanceToSegment(point, start, end) {
@@ -269,6 +293,26 @@ function findHit(event) {
     }
     return null;
 }
+function canvasLocalPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+function updateBoxSelection() {
+    if (!selectionBox) return;
+    const rect = canvas.getBoundingClientRect();
+    const left = Math.min(selectionBox.startX, selectionBox.endX);
+    const right = Math.max(selectionBox.startX, selectionBox.endX);
+    const top = Math.min(selectionBox.startY, selectionBox.endY);
+    const bottom = Math.max(selectionBox.startY, selectionBox.endY);
+    selectedPoints = new Set(currentPoints().map((point, index) => {
+        const position = pointToCanvas(point);
+        return position.x >= left && position.x <= right && position.y >= top && position.y <= bottom ? index : null;
+    }).filter((index) => index !== null));
+    selectedPoint = selectedPoints.size ? Math.min(...selectedPoints) : -1;
+    selectedSegment = selectedPoints.size === 1 ? selectedPoint : null;
+    if (rect.width <= 0 || rect.height <= 0) selectedPoints.clear();
+    syncUI();
+}
 function addPointAt(point) {
     const nodes = currentPoints();
     const sortedPoint = clamp(point.x, .01, .99);
@@ -283,6 +327,7 @@ function addPointAt(point) {
     if (nodes[index - 1]) nodes[index - 1].curve = inheritedCurve;
     const next = { x, y, curve: inheritedCurve };
     nodes.splice(index, 0, next);
+    selectedPoints = new Set([index]);
     selectedPoint = index;
     selectedSegment = index;
     syncUI(); drawWave(); updateAudioHint();
@@ -290,29 +335,151 @@ function addPointAt(point) {
 function removePoint(index) {
     if (currentPoints().length <= 3) return;
     currentPoints().splice(index, 1);
-    selectedPoint = clamp(index - 1, 0, currentPoints().length - 1);
-    selectedSegment = clamp(index - 1, 0, currentPoints().length - 1);
+    collisionPoints.clear();
+    selectedPoints = new Set([...selectedPoints]
+        .filter((selectedIndex) => selectedIndex !== index)
+        .map((selectedIndex) => selectedIndex > index ? selectedIndex - 1 : selectedIndex));
+    selectedPoint = selectedPoints.size ? Math.min(...selectedPoints) : -1;
+    selectedSegment = selectedPoints.size === 1 ? selectedPoint : null;
     syncUI(); drawWave(); updateAudioHint();
+}
+function getSelectionSnapshot() {
+    return new Map([...selectedPoints].sort((a, b) => a - b).map((index) => [index, { x: currentPoints()[index].x, y: currentPoints()[index].y }]));
+}
+function snapX(value) { return clamp(Math.round(value * horizontalGrid) / horizontalGrid, 0, 1); }
+function snapY(value) { return clamp(Math.round(((value + 1) / 2) * verticalGrid) / verticalGrid * 2 - 1, -1, 1); }
+function applySelectionDelta(snapshot, rawDx, rawDy) {
+    if (!snapshot.size) return;
+    const points = currentPoints();
+    const indices = [...snapshot.keys()].sort((a, b) => a - b);
+    const selected = new Set(indices);
+    let minDx = -Infinity;
+    let maxDx = Infinity;
+    let hasMovableX = false;
+    indices.forEach((index) => {
+        const original = snapshot.get(index);
+        if (index === 0) return;
+        hasMovableX = true;
+        minDx = Math.max(minDx, 0.01 - original.x);
+        maxDx = Math.min(maxDx, 0.99 - original.x);
+        if (!selected.has(index - 1)) minDx = Math.max(minDx, points[index - 1].x + 0.01 - original.x);
+        if (index < points.length - 1 && !selected.has(index + 1)) maxDx = Math.min(maxDx, points[index + 1].x - 0.01 - original.x);
+    });
+    const dx = hasMovableX ? clamp(rawDx, minDx, maxDx) : 0;
+    const minY = Math.max(...indices.map((index) => -1 - snapshot.get(index).y));
+    const maxY = Math.min(...indices.map((index) => 1 - snapshot.get(index).y));
+    const dy = clamp(rawDy, minY, maxY);
+    const targets = new Map();
+    indices.forEach((index) => {
+        const original = snapshot.get(index);
+        let x = index === 0 ? 0 : original.x + dx;
+        let y = original.y + dy;
+        if (magnetMode) {
+            x = index === 0 ? 0 : snapX(x);
+            y = snapY(y);
+        }
+        targets.set(index, { x, y });
+    });
+    indices.forEach((index) => {
+        const target = targets.get(index);
+        if (index > 0) {
+            const previousX = selected.has(index - 1) ? targets.get(index - 1).x : points[index - 1].x;
+            const nextX = index < points.length - 1
+                ? selected.has(index + 1) ? targets.get(index + 1).x : points[index + 1].x
+                : 1;
+            target.x = clamp(target.x, previousX, nextX);
+        }
+        points[index].x = index === 0 ? 0 : target.x;
+        points[index].y = target.y;
+    });
+    collisionPoints = new Set();
+    if (magnetMode) {
+        for (let i = 0; i < points.length; i += 1) {
+            for (let j = i + 1; j < points.length; j += 1) {
+                if (Math.abs(points[i].x - points[j].x) < 0.000001) {
+                    collisionPoints.add(i); collisionPoints.add(j);
+                }
+            }
+        }
+    }
+}
+function removePointIndices(indices) {
+    const unique = [...new Set(indices)].sort((a, b) => a - b);
+    if (!unique.length) return 0;
+    const removable = Math.min(unique.length, Math.max(0, currentPoints().length - 3));
+    const removed = new Set(unique.slice(0, removable));
+    const oldSelected = [...selectedPoints];
+    [...removed].sort((a, b) => b - a).forEach((index) => currentPoints().splice(index, 1));
+    selectedPoints = new Set(oldSelected
+        .filter((index) => !removed.has(index))
+        .map((index) => index - [...removed].filter((removedIndex) => removedIndex < index).length));
+    selectedPoint = selectedPoints.size ? Math.min(...selectedPoints) : -1;
+    selectedSegment = selectedPoints.size === 1 ? selectedPoint : null;
+    return removed.size;
+}
+function resolveMagnetCollisions(movedIndices) {
+    if (!magnetMode || !collisionPoints.size) return 0;
+    const moved = new Set(movedIndices);
+    const groups = new Map();
+    currentPoints().forEach((point, index) => {
+        const key = point.x.toFixed(6);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(index);
+    });
+    const remove = [];
+    groups.forEach((group) => {
+        if (group.length < 2) return;
+        const keep = group.find((index) => moved.has(index)) ?? group[0];
+        group.forEach((index) => { if (index !== keep) remove.push(index); });
+    });
+    const removedCount = removePointIndices(remove);
+    collisionPoints.clear();
+    return removedCount;
+}
+function moveSelectionByKeyboard(dx, dy) {
+    if (!selectedPoints.size) return;
+    const movedIndices = [...selectedPoints];
+    applySelectionDelta(getSelectionSnapshot(), dx, dy);
+    const removedCount = resolveMagnetCollisions(movedIndices);
+    syncUI();
+    drawWave();
+    if (removedCount) updateAudioHint();
 }
 function handleCanvasDown(event) {
     const hit = findHit(event);
-    if (!hit) return;
+    if (!hit) {
+        const local = canvasLocalPoint(event);
+        selectedPoints.clear();
+        selectedPoint = -1;
+        selectedSegment = null;
+        hoveredSegment = null;
+        selectionBox = { startX: local.x, startY: local.y, endX: local.x, endY: local.y };
+        drag = { type: "selection" };
+        canvas.setPointerCapture(event.pointerId);
+        canvas.style.cursor = "crosshair";
+        syncUI(); drawWave(false);
+        return;
+    }
     if (event.shiftKey && hit.type === "point") { removePoint(hit.index); return; }
     if (hit.type === "segment") {
         if (curveMode !== "spline") return;
+        selectedPoints.clear();
         selectedSegment = hit.index;
-        selectedPoint = hit.index;
+        selectedPoint = -1;
         hoveredSegment = hit.index;
+        selectionBox = null;
         drag = { type: "segment", index: hit.index, startY: event.clientY, startCurve: currentPoints()[hit.index].curve ?? 1 };
         canvas.setPointerCapture(event.pointerId);
         canvas.style.cursor = "ns-resize";
         syncUI(); drawWave();
         return;
     }
+    if (!selectedPoints.has(hit.index)) selectedPoints = new Set([hit.index]);
     selectedPoint = hit.index;
     selectedSegment = hit.index;
     hoveredSegment = null;
-    drag = { ...hit };
+    selectionBox = null;
+    drag = { type: "move-selection", startX: event.clientX, startY: event.clientY, snapshot: getSelectionSnapshot() };
     canvas.setPointerCapture(event.pointerId);
     canvas.style.cursor = "grabbing";
     syncUI(); drawWave();
@@ -338,24 +505,37 @@ function handleCanvasMove(event) {
         }
         return;
     }
-    const point = canvasToPoint(event);
-    const node = currentPoints()[drag.index];
-    if (drag.type === "point") {
-        if (drag.index === 0) {
-            node.x = 0;
-        } else {
-            const previous = currentPoints()[drag.index - 1];
-            const nextX = drag.index === currentPoints().length - 1 ? 1 : currentPoints()[drag.index + 1].x;
-            node.x = clamp(point.x, previous.x + .01, nextX - .01);
-        }
-        node.y = point.y;
+    if (drag.type === "selection") {
+        const local = canvasLocalPoint(event);
+        selectionBox.endX = local.x;
+        selectionBox.endY = local.y;
+        updateBoxSelection();
+        drawWave(false);
+        return;
     }
-    drawWave();
+    if (drag.type === "move-selection") {
+        const rect = canvas.getBoundingClientRect();
+        const dx = (event.clientX - drag.startX) / rect.width;
+        const dy = -(event.clientY - drag.startY) / rect.height * 2;
+        applySelectionDelta(drag.snapshot, dx, dy);
+        drawWave();
+    }
 }
 function handleCanvasUp(event) {
-    if (drag) canvas.releasePointerCapture(event.pointerId);
+    let removedCount = 0;
+    const movedSelection = drag?.type === "move-selection";
+    if (movedSelection) removedCount = resolveMagnetCollisions(drag.snapshot.keys());
+    if (drag?.type === "selection") {
+        selectionBox = null;
+        syncUI();
+        drawWave(false);
+    }
+    if (drag && canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     drag = null;
     canvas.style.cursor = hoveredSegment !== null ? "ns-resize" : "default";
+    if (movedSelection) {
+        syncUI(); drawWave(); updateAudioHint();
+    }
 }
 function handleCanvasLeave() {
     if (drag) return;
@@ -366,8 +546,7 @@ function handleCanvasLeave() {
     canvas.style.cursor = "default";
 }
 
-function sampleWave(points, sampleCount = getHorizontalResolution()) {
-    const bitDepth = getVerticalBitDepth();
+function sampleWave(points, sampleCount = getHorizontalResolution(), bitDepth = getVerticalBitDepth()) {
     const result = new Float32Array(sampleCount);
     const spline = curveMode === "spline" ? getSplineModel(points) : null;
     for (let i = 0; i < sampleCount; i += 1) {
@@ -382,8 +561,13 @@ function sampleWave(points, sampleCount = getHorizontalResolution()) {
         const endX = segment === points.length - 1 ? 1 : b.x;
         const t = clamp((x - a.x) / Math.max(.0001, endX - a.x), 0, 1);
         const value = curveMode === "linear" ? a.y + (b.y - a.y) * t : evaluateSpline(spline[segment], t);
-        const peak = bitDepth === 32 ? 2147483647 : 2 ** (bitDepth - 1) - 1;
-        result[i] = Math.round(clamp(value, -1, 1) * peak) / peak;
+        const normalized = clamp(value, -1, 1);
+        if (bitDepth === null) {
+            result[i] = normalized;
+        } else {
+            const peak = bitDepth === 32 ? 2147483647 : 2 ** (bitDepth - 1) - 1;
+            result[i] = Math.round(normalized * peak) / peak;
+        }
     }
     return result;
 }
@@ -642,13 +826,38 @@ function renderKeyboard() {
 function syncUI() {
     $("octaveLabel").textContent = `OCT ${octave}`;
     const points = currentPoints();
-    selectedSegment = clamp(selectedSegment, 0, points.length - 1);
+    if (selectedSegment !== null) selectedSegment = clamp(selectedSegment, 0, points.length - 1);
+    const hasCurveSelection = selectedSegment !== null && selectedPoints.size <= 1;
     const curve = Math.round((points[selectedSegment]?.curve ?? 1) * 100);
+    $("curveRange").disabled = !hasCurveSelection;
     $("curveRange").value = curve;
     $("curveValue").textContent = `${curve}%`;
-    $("selectionLabel").textContent = `選択線 ${selectedSegment + 1} / ${points.length}`;
+    $("selectionLabel").textContent = selectedPoints.size > 1
+        ? `${selectedPoints.size}点を選択中`
+        : selectedPoints.size === 1
+            ? `選択点 ${selectedPoint + 1} / ${points.length}`
+            : selectedSegment !== null
+                ? `選択線 ${selectedSegment + 1} / ${points.length}`
+                : "選択なし";
 }
 function updateAudioHint() { $("statusText").textContent = "波形を更新しました。鍵盤で試聴できます"; }
+function updateMagnetUI() {
+    const button = $("magnetButton");
+    button.textContent = magnetMode ? "マグネット：ON" : "マグネット：OFF";
+    button.classList.toggle("is-active", magnetMode);
+    button.setAttribute("aria-pressed", String(magnetMode));
+}
+function setGridValue(axis, rawValue) {
+    const value = clamp(Math.round(Number(rawValue) || 8), 4, 64);
+    if (axis === "horizontal") {
+        horizontalGrid = value;
+        $("horizontalGridInput").value = value;
+    } else {
+        verticalGrid = value;
+        $("verticalGridInput").value = value;
+    }
+    drawWave(false);
+}
 function presetPoints(name) {
     const values = presets[name];
     const smooth = name === "sine" || name === "pluck";
@@ -660,7 +869,18 @@ function presetPoints(name) {
             : values.map((_, index) => index / values.length);
     return points.map((point, index) => ({ x: xPositions[index], y: point.y, curve: smooth ? 1 : 0 }));
 }
-function setPreset(name) { waveformPoints = presetPoints(name); selectedPoint = 1; selectedSegment = 1; syncUI(); drawWave(); updateAudioHint(); }
+function normalizeWaveform() {
+    const peak = Math.max(...currentPoints().map((point) => Math.abs(point.y)));
+    if (peak < 0.000001) {
+        $("statusText").textContent = "波形が中心線上のためノーマライズできません";
+        return;
+    }
+    currentPoints().forEach((point) => { point.y = clamp(point.y / peak, -1, 1); });
+    syncUI();
+    drawWave();
+    updateAudioHint();
+}
+function setPreset(name) { waveformPoints = presetPoints(name); collisionPoints.clear(); selectedPoints = new Set([1]); selectedPoint = 1; selectedSegment = 1; syncUI(); drawWave(); updateAudioHint(); }
 
 function encodeWav(samples, sampleRate, bitDepth) {
     const bytesPerSample = bitDepth === 32 ? 4 : bitDepth === 24 ? 3 : bitDepth === 8 ? 1 : 2;
@@ -686,6 +906,21 @@ async function exportWav() {
     setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
     $("statusText").textContent = "1周期分のWAVを書き出しました";
 }
+function exportWt8() {
+    const normalizedSamples = sampleWave(currentPoints(), 256, null);
+    const bytes = new Uint8Array(256);
+    normalizedSamples.forEach((sample, index) => {
+        const signedQ7 = clamp(Math.round(sample * 127), -127, 127);
+        bytes[index] = signedQ7 < 0 ? signedQ7 + 256 : signedQ7;
+    });
+    const blob = new Blob([bytes], { type: "application/octet-stream" });
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = "waveform.wt8";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+    $("statusText").textContent = "256バイトのWT8を書き出しました";
+}
 
 function bindEvents() {
     setupKnobs();
@@ -701,10 +936,35 @@ function bindEvents() {
         $("curveValue").textContent = `${event.target.value}%`;
         drawWave();
     });
+    $("normalizeButton").addEventListener("click", normalizeWaveform);
+    updateMagnetUI();
+    $("magnetButton").addEventListener("click", () => {
+        magnetMode = !magnetMode;
+        collisionPoints.clear();
+        updateMagnetUI();
+        drawWave(false);
+    });
+    $("horizontalGridInput").addEventListener("change", (event) => setGridValue("horizontal", event.target.value));
+    $("verticalGridInput").addEventListener("change", (event) => setGridValue("vertical", event.target.value));
     $("octaveDown").addEventListener("click", () => { octave = clamp(octave - 1, 1, 7); syncUI(); renderKeyboard(); }); $("octaveUp").addEventListener("click", () => { octave = clamp(octave + 1, 1, 7); syncUI(); renderKeyboard(); });
     $("filterTypeSelect").addEventListener("change", updateActiveFilters);
-    $("exportButton").addEventListener("click", exportWav); window.addEventListener("resize", resizeCanvas);
-    document.addEventListener("keydown", (event) => { if (event.repeat || event.target.matches("input, select, textarea")) return; const note = NOTE_KEYS.find((item) => item.key === event.key.toLowerCase()); if (note) { const key = document.querySelector(`[data-key="${note.key}"]`); startVoice({ ...note, midi: note.midi + (octave - 4) * 12 }, key); } });
+    $("exportButton").addEventListener("click", exportWav); $("exportWt8Button").addEventListener("click", exportWt8); window.addEventListener("resize", resizeCanvas);
+    document.addEventListener("keydown", (event) => {
+        if (event.target.matches("input, select, textarea")) return;
+        const step = event.shiftKey ? .02 : .005;
+        const arrowMoves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+        if (selectedPoints.size && arrowMoves[event.key]) {
+            event.preventDefault();
+            moveSelectionByKeyboard(...arrowMoves[event.key]);
+            return;
+        }
+        if (event.repeat) return;
+        const note = NOTE_KEYS.find((item) => item.key === event.key.toLowerCase());
+        if (note) {
+            const key = document.querySelector(`[data-key="${note.key}"]`);
+            startVoice({ ...note, midi: note.midi + (octave - 4) * 12 }, key);
+        }
+    });
     document.addEventListener("keyup", (event) => { const note = NOTE_KEYS.find((item) => item.key === event.key.toLowerCase()); if (note) stopVoice(note); });
 }
 

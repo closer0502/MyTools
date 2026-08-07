@@ -40,18 +40,22 @@
                         </label>
                         <button class="ghost-button" id="addPointButton" type="button">＋ 点を追加</button>
                         <button class="ghost-button" id="resetButton" type="button">リセット</button>
+                        <button class="ghost-button mode-button" id="magnetButton" type="button" aria-pressed="false">マグネット：OFF</button>
+                        <label class="number-field">横グリッド<input id="horizontalGridInput" type="number" min="4" max="64" step="1" value="8"></label>
+                        <label class="number-field">縦グリッド<input id="verticalGridInput" type="number" min="4" max="64" step="1" value="8"></label>
                     </div>
                 </div>
                 <div class="canvas-wrap">
                     <canvas id="waveCanvas" aria-label="単調スプライン曲線で波形を編集するキャンバス"></canvas>
-                    <div class="canvas-hint" id="canvasHint">ダブルクリック：点を追加　／　点をドラッグ：位置　／　線を上下ドラッグ：カーブ　／　Shift＋クリック：削除</div>
                 </div>
+                <div class="canvas-hint" id="canvasHint">ダブルクリック：点を追加　／　点をドラッグ：選択点を移動　／　空白をドラッグ：範囲選択　／　矢印キー：移動　／　線を上下ドラッグ：カーブ　／　Shift＋クリック：削除</div>
                 <div class="editor-foot">
                     <label class="range-field">
                         <span>選択線のカーブ</span>
                         <input id="curveRange" type="range" min="0" max="100" value="100">
                         <output id="curveValue">100%</output>
                     </label>
+                    <button class="ghost-button" id="normalizeButton" type="button">ノーマライズ</button>
                     <span class="selection-label" id="selectionLabel">点を選択してください</span>
                 </div>
             </section>
@@ -101,6 +105,7 @@
                 <div><span class="section-kicker">OUTPUT</span><h2>書き出し</h2><p>現在の波形を、シンセで使える1周期分として書き出します。</p></div>
                 <div class="export-controls">
                     <button class="primary-button" id="exportButton" type="button">↓ WAVを書き出す</button>
+                    <button class="ghost-button" id="exportWt8Button" type="button">↓ WT8を書き出す</button>
                 </div>
             </section>
         </main>

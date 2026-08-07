@@ -43,7 +43,7 @@ select:focus, input:focus { border-color: var(--accent); }
 .mode-button:not(.is-active) { color: var(--warm); border-color: rgba(255,189,104,.45); background: rgba(255,189,104,.06); }
 .canvas-wrap { position: relative; margin-top: 19px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #10131d; }
 #waveCanvas { display: block; width: 100%; height: min(54vw, 440px); min-height: 290px; touch-action: none; }
-.canvas-hint { position: absolute; left: 14px; bottom: 11px; color: #737b96; font-size: 11px; pointer-events: none; }
+.canvas-hint { margin-top: 10px; color: #737b96; font-size: 11px; line-height: 1.6; pointer-events: none; }
 .editor-foot { display: flex; align-items: center; gap: 20px; margin-top: 15px; flex-wrap: wrap; }
 .range-field { display: grid; grid-template-columns: auto minmax(110px, 190px) auto; align-items: center; gap: 9px; color: var(--muted); font-size: 11px; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
