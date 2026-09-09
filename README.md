@@ -1,5 +1,7 @@
 # https://closer0502.github.io/MyTools/
 
+- sprite-sheet-preview: previews local sprite sheets with equal grid slicing, row/range playback, frame stepping, 1–60 FPS, loop/once playback, zoom, and transparency backgrounds. Uses the shared root stylesheet and requires no external JavaScript libraries.
+
 - pitch-shifter: uses SoundTouchJS (LGPL-2.1) via jsDelivr CDN for real-time pitch shifting while keeping tempo.
 - video-frame-capture: extracts frames from local videos to PNG/JPEG/WebP and bundles ranges as ZIP using JSZip via jsDelivr CDN.
 - video-audio-extractor: extracts selected audio ranges from local videos using ffmpeg.wasm via jsDelivr CDN.

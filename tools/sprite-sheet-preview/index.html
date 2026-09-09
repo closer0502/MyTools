@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スプライトシート・プレビュー - MyTools</title>
+    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+<div class="page-shell">
+    <a class="back-link" href="../../index.html#images">← ツール一覧</a>
+    <header class="page-header">
+        <div class="page-title">
+            <span class="eyebrow">Sprite Preview</span>
+            <h1>スプライトシート・<wbr>プレビュー</h1>
+            <p class="lede">画像を分割して、動きをすぐに確認。画像はブラウザ内で処理します。</p>
+        </div>
+    </header>
+    <main class="workspace">
+        <section class="panel settings" aria-label="画像と再生設定">
+            <h2>01 <span>画像と分割</span></h2>
+            <label class="drop-zone" id="dropZone">
+                <strong>画像をドロップ / 選択</strong>
+                <span>静止画 PNG・WebP・JPEG</span>
+                <input id="file" type="file" accept="image/png,image/webp,image/jpeg">
+            </label>
+            <p id="fileInfo" class="muted file-info">画像を読み込んでください。</p>
+            <div class="pair">
+                <label>横の分割数（列）<input id="columns" type="number" min="1" max="512" step="1" value="1"></label>
+                <label>縦の分割数（行）<input id="rows" type="number" min="1" max="512" step="1" value="1"></label>
+            </div>
+            <p id="gridInfo" class="muted">等間隔・余白なしの画像に対応します。</p>
+            <p id="error" role="alert" hidden></p>
+            <h2>02 <span>再生設定</span></h2>
+            <label>再生対象<select id="mode"><option value="all">全体を再生</option><option value="row">指定した1行を再生</option></select></label>
+            <label id="rowLabel" hidden>再生する行<input id="row" type="number" min="1" step="1" value="1"></label>
+            <label>全体の再生順<select id="order"><option value="horizontal">左 → 右、上 → 下</option><option value="vertical">上 → 下、左 → 右</option></select></label>
+            <div class="pair">
+                <label>開始コマ<input id="start" type="number" min="1" step="1" value="1"></label>
+                <label>終了コマ<input id="end" type="number" min="1" step="1" value="1"></label>
+            </div>
+            <p class="muted small">番号は選択した対象・再生順の中で1から数えます。</p>
+            <div class="pair">
+                <label>FPS<input id="fps" type="number" min="1" max="60" step="1" value="12"></label>
+                <label>繰り返し<select id="repeat"><option value="loop">ループ</option><option value="once">1回再生</option></select></label>
+            </div>
+        </section>
+        <div class="viewers">
+            <section class="panel">
+                <div class="panel-heading"><h2>プレビュー</h2><span id="position" class="muted">未読み込み</span></div>
+                <div id="stage" class="stage checker"><p id="placeholder">ここにアニメーションを表示します</p><canvas id="preview" hidden aria-label="現在のコマ"></canvas></div>
+                <div class="transport">
+                    <button id="play" class="pill-button" disabled>再生</button>
+                    <button id="first" disabled>先頭へ</button>
+                    <button id="previous" disabled aria-label="前のコマ">← 前</button>
+                    <button id="next" disabled aria-label="次のコマ">次 →</button>
+                </div>
+                <input id="scrub" type="range" min="1" max="1" value="1" aria-label="表示するコマ" disabled>
+                <div class="display-controls">
+                    <label>倍率<select id="zoom"><option value="fit">フィット</option><option value="1">等倍</option><option value="2">2倍</option><option value="4">4倍</option></select></label>
+                    <label>背景<select id="background"><option value="checker">市松模様</option><option value="white">白</option><option value="black">黒</option></select></label>
+                    <label class="check"><input id="smoothing" type="checkbox">補間する</label>
+                </div>
+                <p class="muted small">Space：再生 / 一時停止　← →：コマ送り</p>
+            </section>
+            <section class="panel">
+                <div class="panel-heading"><h2>シート全体</h2></div>
+                <p class="muted small">クリックでコマへ移動。行再生ではクリックした行に切り替わります。再生中はそのまま再生を続けます。青枠は現在のコマ、青い面は再生範囲です。</p>
+                <div class="sheet-wrap"><canvas id="sheet" class="checker" hidden aria-label="分割したスプライトシート。クリックでコマを選択"></canvas><p id="sheetEmpty" class="muted">読み込んだ画像と分割線を表示します。</p></div>
+                <p class="muted small">透明なコマも再生します。末尾の空きコマは終了コマで除外できます。外周余白・コマ間隔には対応していません。</p>
+            </section>
+        </div>
+    </main>
+</div>
+</body>
+</html>
