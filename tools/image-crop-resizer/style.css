@@ -384,7 +384,8 @@ label input[type="number"] {
 .canvas-frame {
     position: relative;
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    /* Keep the preview edge square so image pixels at the corners are visible. */
+    border-radius: 0;
     background: #0d1525;
     overflow: hidden;
     min-height: 260px;
