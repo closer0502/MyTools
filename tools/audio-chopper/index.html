@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音声チョッパー - MyTools</title>
+    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="core.js" defer></script>
+    <script src="script.js" defer></script>
+</head>
+<body>
+<div class="page-shell chop-shell">
+    <a class="back-link" href="../../index.html#audio">← ツール一覧</a>
+    <header class="page-header">
+        <div class="page-title">
+            <span class="eyebrow">Audio Chopper</span>
+            <h1>音声チョッパー</h1>
+            <p class="lede">区切って、聴いて、必要な音だけ。音声はブラウザ内で処理します。</p>
+        </div>
+    </header>
+    <main>
+        <section class="panel import-panel" id="dropZone" aria-label="音声の読み込み">
+            <div><h2>01 音声を読み込む</h2><p id="fileInfo" class="muted">音声ファイルをここにドロップしてください。</p></div>
+            <label class="file-button">音声ファイルを選択<input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac,.aif,.aiff"></label>
+        </section>
+        <p id="status" role="status" aria-live="polite">WAV・MP3など、ブラウザが読み込める音声に対応します。</p>
+        <section class="panel timeline-panel" aria-label="波形とマーカー">
+            <div class="section-top"><h2>02 波形に区切りを置く</h2><span id="viewInfo" class="mono muted">音声未読み込み</span></div>
+            <p class="hint">全体波形で移動 → マーカーレーンをクリックして追加 → 波形の区間をクリックして選択。区切りのつまみはドラッグできます。</p>
+            <div class="overview-wrap"><canvas id="overview" height="64" aria-label="全体波形。クリックまたはドラッグで表示範囲を移動"></canvas><div id="overviewWindow"></div></div>
+            <div class="toolbar">
+                <button id="zoomIn" disabled>＋ 拡大</button><button id="zoomOut" disabled>− 縮小</button><button id="fit" disabled>全体表示</button>
+                <label class="pan-label">表示位置<input id="pan" type="range" min="0" max="1000" value="0" disabled></label>
+                <button id="undo" disabled>元に戻す</button><button id="redo" disabled>やり直す</button>
+            </div>
+            <div id="detail" class="detail">
+                <canvas id="wave" height="260" aria-label="拡大波形。クリックで区間選択"></canvas>
+                <div id="markerLane" aria-label="クリックしてマーカー追加"><span class="lane-hint">＋ ここをクリックして区切りを追加</span></div>
+                <div id="markers"></div><div id="playhead" hidden></div>
+                <div id="emptyWave">音声を読み込むと波形が表示されます</div>
+            </div>
+            <div class="toolbar transport">
+                <button id="play" class="primary" disabled>▶ 選択区間を試聴</button><button id="stop" disabled>■ 停止</button>
+                <label class="check-label"><input id="loop" type="checkbox">ループ</label>
+                <span id="selectionInfo" class="mono muted">区間未選択</span>
+                <button id="deleteMarker" disabled>選択マーカーを削除</button>
+            </div>
+        </section>
+        <section class="panel" aria-label="区間一覧と保存">
+            <div class="section-top"><h2>03 欲しい区間を保存</h2><span id="count" class="muted">0区間</span></div>
+            <div class="toolbar"><button id="selectAll" disabled>すべて保存対象にする</button><button id="selectNone" disabled>すべて外す</button><span class="hint">チェックした区間をまとめて保存できます。時刻は「分:秒.ミリ秒」または秒数で入力。</span></div>
+            <div class="table-scroll"><table><thead><tr><th>保存</th><th>区間名</th><th>開始</th><th>終了</th><th>長さ</th><th>操作</th></tr></thead><tbody id="regions"><tr><td colspan="6" class="empty-table">音声を読み込んで、区切りを追加してください。</td></tr></tbody></table></div>
+            <div class="export-bar">
+                <div class="fade-control"><label for="fade">フェード・イン／アウト共通</label><div class="inline"><input id="fade" type="number" min="0" max="10000" step="1" value="0"><span>ms</span></div><small class="muted">0msでオフ。短い区間では片側を区間長の半分までに制限。試聴にも反映します。</small></div>
+                <div class="export-action"><span class="muted">WAV / 16bit PCM · デコード後のレートとチャンネル数</span><button id="exportZip" class="primary" disabled>選択区間をZIP保存</button></div>
+            </div>
+            <p id="exportStatus" role="status" aria-live="polite">個別のWAV保存もできます。ZIP保存時のみライブラリを読み込みます。</p>
+        </section>
+    </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,56 @@
+.chop-shell { max-width: 1440px; }
+.back-link { color: var(--muted); display: inline-block; margin-bottom: 20px; }
+.page-header { margin-bottom: 24px; grid-template-columns: 1fr; }
+.panel { padding: 24px; background: var(--panel); border: 1px solid var(--border); border-radius: 18px; margin-bottom: 20px; min-width: 0; }
+h2 { font-size: 17px; margin: 0; }
+p { margin: 8px 0; }
+.muted, .hint { color: var(--muted); }
+.hint { font-size: 12px; }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.section-top, .import-panel, .toolbar, .export-bar, .inline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.section-top, .import-panel, .export-bar { justify-content: space-between; }
+.import-panel.dragover { border-color: var(--accent); background: var(--accent-soft); }
+button, input { font: inherit; }
+button, .file-button { border: 1px solid #34435b; border-radius: 8px; background: #1a263b; color: var(--ink); padding: 8px 12px; cursor: pointer; font-size: 13px; }
+button:hover:not(:disabled), .file-button:hover { border-color: var(--accent); background: #223b50; }
+button:disabled { opacity: .4; cursor: default; }
+button.primary, .file-button { background: #163e51; border-color: #337d99; color: #d5f8ff; }
+button:focus-visible, input:focus-visible, .file-button:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
+.file-button { position: relative; overflow: hidden; }
+.file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+input[type=text], input[type=number] { min-width: 0; border: 1px solid #34435b; border-radius: 6px; color: var(--ink); background: #0d1728; padding: 7px 9px; }
+input[type=checkbox], input[type=range] { accent-color: var(--accent); }
+input[type=checkbox] { width: 17px; height: 17px; cursor: pointer; }
+.toolbar { margin: 12px 0; }
+.pan-label, .check-label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pan-label { flex: 1; min-width: 180px; white-space: nowrap; }.pan-label input { flex: 1; width: 0; min-width: 80px; }
+.overview-wrap { position: relative; height: 64px; background: #09111e; border-radius: 8px; overflow: hidden; margin-top: 20px; touch-action: none; }
+canvas { display: block; width: 100%; }
+#overview { height: 64px; cursor: crosshair; }
+#overviewWindow { position: absolute; top: 0; bottom: 0; border: 2px solid var(--accent); background: #38bdf815; pointer-events: none; }
+.detail { height: 260px; position: relative; background: #09111e; border: 1px solid #2b3950; border-radius: 8px; overflow: hidden; touch-action: none; }
+#wave { height: 260px; cursor: pointer; }
+#markerLane { position: absolute; top: 0; left: 0; right: 0; height: 34px; background: #1c2944b0; border-bottom: 1px solid #34435b; cursor: crosshair; }
+.lane-hint { font-size: 11px; color: #9eb2ca; padding-left: 10px; pointer-events: none; }
+#markers { position: absolute; inset: 0; pointer-events: none; }
+.marker { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid #fbbf24; }
+.marker button { position: absolute; left: -10px; top: 0; width: 20px; padding: 0; height: 33px; background: #ac7d14; color: #fff; border: 0; border-radius: 0 0 4px 4px; pointer-events: auto; cursor: ew-resize; font-size: 10px; touch-action: none; }
+.marker.active { border-left: 2px solid #ffe6a3; }.marker.active button { background: #ffe6a3; color: #172034; outline: 2px solid #ffe6a3; }
+#playhead { position: absolute; top: 34px; bottom: 0; width: 2px; background: white; pointer-events: none; }
+#emptyWave { position: absolute; inset: 70px 0 0; display: grid; place-items: center; color: var(--muted); pointer-events: none; font-size: 13px; }
+#emptyWave[hidden] { display: none; }
+.transport { margin-bottom: 0; } #deleteMarker { margin-left: auto; }
+.table-scroll { overflow: auto; max-height: 390px; margin-top: 12px; }
+table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+th { background: #162037; position: sticky; top: 0; z-index: 1; white-space: nowrap; font-weight: 500; color: #9eafc7; }
+td, th { padding: 10px; border-bottom: 1px solid #263249; }
+tbody tr { cursor: pointer; } tbody tr.selected { background: #16374a; } tbody tr.excluded { color: #8291a9; }
+td input.name { width: 100%; min-width: 130px; } td input.time { width: 112px; font-family: var(--font-mono); font-size: 12px; }
+td.actions { white-space: nowrap; } td.actions button + button { margin-left: 6px; }
+.empty-table { text-align: center; padding: 32px; color: var(--muted); }
+.export-bar { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; align-items: flex-end; gap: 24px; }
+.fade-control { display: grid; gap: 7px; max-width: 490px; font-size: 13px; }.fade-control input { width: 100px; }
+.export-action { display: grid; gap: 8px; text-align: right; font-size: 12px; }
+#status, #exportStatus { font-size: 13px; min-height: 22px; overflow-wrap: anywhere; } #status { margin: -6px 4px 18px; }
+.error { color: #fda4af; } #fileInfo { overflow-wrap: anywhere; font-size: 13px; }
+@media(max-width: 700px) { .panel { padding: 15px; }.chop-shell { padding-top: 24px; }.export-action { width: 100%; text-align: left; }.pan-label { flex-basis: 100%; } #deleteMarker { margin-left: 0; }.section-top { align-items: flex-start; } }
