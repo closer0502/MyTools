@@ -27,11 +27,14 @@ input[type=checkbox] { width: 17px; height: 17px; cursor: pointer; }
 .overview-wrap { position: relative; height: 64px; background: #09111e; border-radius: 8px; overflow: hidden; margin-top: 20px; touch-action: none; }
 canvas { display: block; width: 100%; }
 #overview { height: 64px; cursor: crosshair; }
-#overviewWindow { position: absolute; top: 0; bottom: 0; border: 2px solid var(--accent); background: #38bdf815; pointer-events: none; }
+#overviewWindow { position: absolute; top: 0; bottom: 0; border: 2px solid var(--accent); background: #38bdf815; pointer-events: auto; cursor: grab; touch-action: none; }
+#overviewWindow:active { cursor: grabbing; }
+.overview-resize { position: absolute; top: -2px; bottom: -2px; width: 13px; background: #58d9f6; border: 1px solid #d4f8ff; box-shadow: 0 0 0 1px #0a1b2b; cursor: ew-resize; z-index: 1; }
+.overview-resize--start { left: -7px; border-radius: 4px 0 0 4px; }.overview-resize--end { right: -7px; border-radius: 0 4px 4px 0; }
 .detail { height: 260px; position: relative; background: #09111e; border: 1px solid #2b3950; border-radius: 8px; overflow: hidden; touch-action: none; }
 #wave { height: 260px; cursor: pointer; }
-#markerLane { position: absolute; top: 0; left: 0; right: 0; height: 34px; background: #1c2944b0; border-bottom: 1px solid #34435b; cursor: crosshair; }
-.lane-hint { font-size: 11px; color: #9eb2ca; padding-left: 10px; pointer-events: none; }
+#markerLane { position: absolute; top: 0; left: 0; right: 0; height: 34px; display: flex; align-items: center; background: linear-gradient(90deg, #1e3852 0%, #193047 55%, #172940 100%); border-bottom: 1px solid #4d7690; cursor: crosshair; box-shadow: inset 0 1px 0 rgba(163, 225, 242, .14); }
+.lane-hint { display: inline-flex; align-items: center; min-height: 24px; margin-left: 8px; padding: 1px 10px; border: 1px solid #5f9ab2; border-radius: 5px; background: #214b61; color: #e4fbff; font-size: 12px; font-weight: 700; letter-spacing: .015em; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); pointer-events: none; }
 #markers { position: absolute; inset: 0; pointer-events: none; }
 .marker { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid #fbbf24; }
 .marker button { position: absolute; left: -10px; top: 0; width: 20px; padding: 0; height: 33px; background: #ac7d14; color: #fff; border: 0; border-radius: 0 0 4px 4px; pointer-events: auto; cursor: ew-resize; font-size: 10px; touch-action: none; }

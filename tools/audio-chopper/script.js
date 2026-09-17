@@ -1,12 +1,12 @@
 (() => {
     'use strict';
     const C = window.ChopCore;
-    const ids = ['file', 'dropZone', 'fileInfo', 'status', 'overview', 'overviewWindow', 'zoomIn', 'zoomOut', 'fit', 'pan', 'undo', 'redo', 'detail', 'wave', 'markerLane', 'markers', 'playhead', 'emptyWave', 'viewInfo', 'play', 'stop', 'loop', 'selectionInfo', 'deleteMarker', 'regions', 'count', 'selectAll', 'selectNone', 'fade', 'outputRate', 'outputBits', 'outputChannels', 'normalize', 'outputSummary', 'exportZip', 'exportStatus'];
+    const ids = ['file', 'dropZone', 'fileInfo', 'status', 'overview', 'overviewWindow', 'fit', 'detail', 'wave', 'markerLane', 'markers', 'playhead', 'emptyWave', 'viewInfo', 'play', 'stop', 'loop', 'selectionInfo', 'deleteMarker', 'regions', 'count', 'selectAll', 'selectNone', 'fade', 'outputRate', 'outputBits', 'outputChannels', 'normalize', 'outputSummary', 'exportZip', 'exportStatus'];
     const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
     let buffer = null, context = null, fileName = '', regions = [], nextId = 1, sourceBitDepth = null, sourceSampleRate = null;
     let selected = null, selectedMarker = null, viewStart = 0, viewLength = 1;
     let undo = [], redo = [], peaks = [], busy = false, drag = null;
-    let source = null, gainNode = null, playing = null, frame = 0, zipPromise = null;
+    let source = null, gainNode = null, playing = null, frame = 0, zipPromise = null, overviewDrag = null, overviewWindowDrag = null;
     const rate = () => buffer ? buffer.sampleRate : 1;
     const region = () => regions.find(r => r.id === selected);
     const snapshot = () => JSON.stringify({ regions, selected, selectedMarker, nextId });
@@ -21,17 +21,21 @@
     }
     function buttons() {
         const ready = !!buffer && !busy;
-        ['zoomIn', 'zoomOut', 'fit', 'pan', 'selectAll', 'selectNone', 'outputRate', 'outputBits'].forEach(id => { ui[id].disabled = !ready; });
+        ['fit', 'selectAll', 'selectNone', 'outputRate', 'outputBits'].forEach(id => { ui[id].disabled = !ready; });
         ui.outputChannels.disabled = !ready || buffer.numberOfChannels === 1;
         ui.normalize.disabled = !ready;
         ui.play.disabled = !ready || !region(); ui.stop.disabled = !source;
-        ui.undo.disabled = !ready || !undo.length; ui.redo.disabled = !ready || !redo.length;
         ui.deleteMarker.disabled = !ready || selectedMarker === null;
         ui.exportZip.disabled = !ready || !regions.some(r => r.checked);
         ui.emptyWave.hidden = !!buffer;
         ui.count.textContent = `${regions.length}区間 · 保存対象 ${regions.filter(r => r.checked).length}区間`;
         const r = region();
         ui.selectionInfo.textContent = r ? `${C.time(r.start / rate())} → ${C.time(r.end / rate())} (${C.time((r.end - r.start) / rate())})` : '区間未選択';
+    }
+    function renumberAutoNames() {
+        regions.forEach((r, index) => {
+            if (r.autoName !== false) r.name = `Clip ${String(index + 1).padStart(2, '0')}`;
+        });
     }
     const tick = () => new Promise(resolve => setTimeout(resolve, 0));
     async function makePeaks(audio) {
@@ -114,7 +118,7 @@
             buffer = decoded; peaks = built; fileName = file.name.replace(/\.[^.]+$/, '');
             sourceSampleRate = wavMetadata?.sampleRate || buffer.sampleRate;
             setOutputDefaults(sourceSampleRate, sourceBitDepth);
-            nextId = 2; regions = [{ id: 1, start: 0, end: buffer.length, name: '区間 01', checked: true }];
+            nextId = 2; regions = [{ id: 1, start: 0, end: buffer.length, name: 'Clip 01', autoName: true, checked: true }];
             selected = 1; selectedMarker = null; undo = []; redo = [];
             viewStart = 0; viewLength = buffer.length;
             const sourceBitsLabel = sourceBitDepth === '32f' ? '32 bit float' : `${sourceBitDepth} bit`;
@@ -172,7 +176,6 @@
         }
         waveform(ctx, width, 65, height - 75, viewStart, viewLength, '#83d8e6');
         ui.viewInfo.textContent = `${C.time(viewStart / rate())} — ${C.time((viewStart + viewLength) / rate())}`;
-        ui.pan.value = buffer.length === viewLength ? 0 : Math.round(viewStart / (buffer.length - viewLength) * 1000);
         ui.overviewWindow.style.left = `${viewStart / buffer.length * 100}%`;
         ui.overviewWindow.style.width = `${viewLength / buffer.length * 100}%`;
         drawMarkers();
@@ -204,7 +207,7 @@
             const cell = child => { const td = document.createElement('td'); if (typeof child === 'string') td.textContent = child; else td.append(child); row.append(td); return td; };
             const check = document.createElement('input'); check.type = 'checkbox'; check.checked = r.checked; check.setAttribute('aria-label', `${r.name}を保存対象にする`);
             check.addEventListener('change', () => { saveHistory(); r.checked = check.checked; row.classList.toggle('excluded', !r.checked); draw(); buttons(); }); cell(check);
-            cell(field(r.name, 'name', `区間 ${index + 1}の名前`, input => { saveHistory(); r.name = input.value.trim() || `区間 ${index + 1}`; input.value = r.name; buttons(); }));
+            cell(field(r.name, 'name', `Clip ${index + 1}の名前`, input => { saveHistory(); const automatic = `Clip ${String(index + 1).padStart(2, '0')}`, value = input.value.trim(); r.autoName = !value || value === automatic; r.name = value || automatic; input.value = r.name; buttons(); }));
             const start = field(C.time(r.start / rate()), 'time', `区間 ${index + 1}の開始時刻`, input => editTime(index - 1, input)); start.disabled = index === 0; cell(start);
             const end = field(C.time(r.end / rate()), 'time', `区間 ${index + 1}の終了時刻`, input => editTime(index, input)); end.disabled = index === regions.length - 1; cell(end);
             const duration = cell(C.time((r.end - r.start) / rate())); duration.className = 'mono';
@@ -216,7 +219,7 @@
             row.addEventListener('click', e => { if (!e.target.closest('button, input')) choose(r.id, true); }); ui.regions.append(row);
         });
     }
-    function render() { table(); draw(); drawOverview(); buttons(); }
+    function render() { renumberAutoNames(); table(); draw(); drawOverview(); buttons(); }
     function choose(id, reveal = false) {
         stop(); selected = id; selectedMarker = null;
         const r = region();
@@ -235,7 +238,7 @@
             status('境界に近すぎます。拡大してから区切りを追加してください。'); return;
         }
         stop(); saveHistory(); const r = regions[index], id = nextId++;
-        regions.splice(index, 1, { ...r, end: sample }, { ...r, id, start: sample, name: `区間 ${String(id).padStart(2, '0')}` });
+        regions.splice(index, 1, { ...r, end: sample }, { ...r, id, start: sample, name: `Clip ${String(index + 2).padStart(2, '0')}`, autoName: true });
         selectedMarker = r.id; selected = r.id; render(); status('区切りを追加しました。つまみをドラッグして調整できます。');
     }
     function moveBoundary(index, value) {
@@ -257,13 +260,6 @@
         stop(); saveHistory(); const left = regions[index], right = regions[index + 1];
         regions.splice(index, 2, { ...left, end: right.end, checked: left.checked || right.checked });
         selected = left.id; selectedMarker = null; render(); status('左右の区間を結合しました。名前は左側、保存対象はどちらかがオンなら引き継ぎます。');
-    }
-    function zoom(factor) {
-        if (!buffer) return;
-        const r = region(), mid = r ? (r.start + r.end) / 2 : viewStart + viewLength / 2;
-        const center = mid >= viewStart && mid <= viewStart + viewLength ? mid : viewStart + viewLength / 2;
-        viewLength = C.clamp(Math.round(viewLength * factor), Math.min(buffer.length, Math.round(rate() * .05)), buffer.length);
-        viewStart = C.clamp(Math.round(center - viewLength / 2), 0, buffer.length - viewLength); draw();
     }
     function fadeMs() { return C.clamp(Number(ui.fade.value) || 0, 0, 10000); }
     function outputRate() { return Number(ui.outputRate.value) || buffer.sampleRate; }
@@ -414,18 +410,68 @@
         const handle = e.target.closest('[data-marker]'); if (!handle) return;
         if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); selectedMarker = Number(handle.dataset.marker); deleteMarker(); }
     });
-    function panOverview(e) {
-        if (!buffer || busy) return;
-        const rect = ui.overview.getBoundingClientRect(); viewStart = C.clamp(Math.round((e.clientX - rect.left) / rect.width * buffer.length - viewLength / 2), 0, buffer.length - viewLength); draw();
+    function overviewSample(event) {
+        const rect = ui.overview.getBoundingClientRect();
+        return C.clamp(Math.round((event.clientX - rect.left) / rect.width * buffer.length), 0, buffer.length);
     }
-    ui.overview.addEventListener('pointerdown', e => { if (!buffer || busy) return; ui.overview.setPointerCapture(e.pointerId); panOverview(e); });
-    ui.overview.addEventListener('pointermove', e => { if (ui.overview.hasPointerCapture(e.pointerId)) panOverview(e); });
-    ui.overview.addEventListener('pointerup', e => { if (ui.overview.hasPointerCapture(e.pointerId)) ui.overview.releasePointerCapture(e.pointerId); });
-    ui.pan.addEventListener('input', () => { viewStart = Math.round(Number(ui.pan.value) / 1000 * (buffer.length - viewLength)); draw(); });
-    ui.zoomIn.addEventListener('click', () => zoom(.5)); ui.zoomOut.addEventListener('click', () => zoom(2));
+    function overviewDelta(event) {
+        const rect = ui.overview.getBoundingClientRect();
+        return Math.round((event.clientX - overviewWindowDrag.startX) / rect.width * buffer.length);
+    }
+    ui.overviewWindow.addEventListener('pointerdown', e => {
+        if (!buffer || busy) return;
+        e.stopPropagation(); e.preventDefault();
+        const edge = e.target.closest('[data-edge]')?.dataset.edge || 'move';
+        overviewWindowDrag = { mode: edge, startX: e.clientX, start: viewStart, end: viewStart + viewLength };
+        ui.overviewWindow.setPointerCapture(e.pointerId);
+    });
+    ui.overviewWindow.addEventListener('pointermove', e => {
+        if (!overviewWindowDrag || !ui.overviewWindow.hasPointerCapture(e.pointerId)) return;
+        const delta = overviewDelta(e), minimum = Math.max(1, Math.round(rate() * .05));
+        if (overviewWindowDrag.mode === 'start') {
+            const start = C.clamp(overviewWindowDrag.start + delta, 0, overviewWindowDrag.end - minimum);
+            viewStart = start; viewLength = overviewWindowDrag.end - start;
+        } else if (overviewWindowDrag.mode === 'end') {
+            const end = C.clamp(overviewWindowDrag.end + delta, overviewWindowDrag.start + minimum, buffer.length);
+            viewStart = overviewWindowDrag.start; viewLength = end - overviewWindowDrag.start;
+        } else {
+            viewLength = overviewWindowDrag.end - overviewWindowDrag.start;
+            viewStart = C.clamp(overviewWindowDrag.start + delta, 0, buffer.length - viewLength);
+        }
+        draw();
+    });
+    const endOverviewWindowDrag = e => {
+        if (!overviewWindowDrag) return;
+        overviewWindowDrag = null;
+        if (ui.overviewWindow.hasPointerCapture(e.pointerId)) ui.overviewWindow.releasePointerCapture(e.pointerId);
+    };
+    ui.overviewWindow.addEventListener('pointerup', endOverviewWindowDrag);
+    ui.overviewWindow.addEventListener('pointercancel', endOverviewWindowDrag);
+    ui.overview.addEventListener('pointerdown', e => {
+        if (!buffer || busy) return;
+        ui.overview.setPointerCapture(e.pointerId);
+        overviewDrag = { startX: e.clientX, startSample: overviewSample(e), moved: false };
+    });
+    ui.overview.addEventListener('pointermove', e => {
+        if (!overviewDrag || !ui.overview.hasPointerCapture(e.pointerId)) return;
+        const endSample = overviewSample(e);
+        if (Math.abs(e.clientX - overviewDrag.startX) >= 4) overviewDrag.moved = true;
+        if (!overviewDrag.moved) return;
+        const start = Math.min(overviewDrag.startSample, endSample), end = Math.max(overviewDrag.startSample, endSample);
+        if (end - start < Math.max(1, Math.round(rate() * .05))) return;
+        viewStart = start; viewLength = end - start; draw();
+    });
+    ui.overview.addEventListener('pointerup', e => {
+        if (!overviewDrag) return;
+        if (!overviewDrag.moved) {
+            const center = overviewSample(e);
+            viewStart = C.clamp(Math.round(center - viewLength / 2), 0, buffer.length - viewLength); draw();
+        }
+        overviewDrag = null;
+        if (ui.overview.hasPointerCapture(e.pointerId)) ui.overview.releasePointerCapture(e.pointerId);
+    });
+    ui.overview.addEventListener('pointercancel', () => { overviewDrag = null; });
     ui.fit.addEventListener('click', () => { viewStart = 0; viewLength = buffer.length; draw(); });
-    ui.undo.addEventListener('click', () => { if (undo.length) { redo.push(snapshot()); restore(undo.pop()); } });
-    ui.redo.addEventListener('click', () => { if (redo.length) { undo.push(snapshot()); restore(redo.pop()); } });
     ui.deleteMarker.addEventListener('click', deleteMarker);
     ui.play.addEventListener('click', play); ui.stop.addEventListener('click', stop);
     ui.fade.addEventListener('change', () => { if (source || playing) { stop(); status('フェード時間を変更しました。再度試聴すると反映されます。'); } });

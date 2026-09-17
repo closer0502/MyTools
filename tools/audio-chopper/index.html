@@ -28,12 +28,8 @@
         <section class="panel timeline-panel" aria-label="波形とマーカー">
             <div class="section-top"><h2>02 波形に区切りを置く</h2><span id="viewInfo" class="mono muted">音声未読み込み</span></div>
             <p class="hint">全体波形で移動 → マーカーレーンをクリックして追加 → 波形の区間をクリックして選択。区切りのつまみはドラッグできます。</p>
-            <div class="overview-wrap"><canvas id="overview" height="64" aria-label="全体波形。クリックまたはドラッグで表示範囲を移動"></canvas><div id="overviewWindow"></div></div>
-            <div class="toolbar">
-                <button id="zoomIn" disabled>＋ 拡大</button><button id="zoomOut" disabled>− 縮小</button><button id="fit" disabled>全体表示</button>
-                <label class="pan-label">表示位置<input id="pan" type="range" min="0" max="1000" value="0" disabled></label>
-                <button id="undo" disabled>元に戻す</button><button id="redo" disabled>やり直す</button>
-            </div>
+            <div class="overview-wrap"><canvas id="overview" height="64" aria-label="全体波形。範囲外をドラッグして表示範囲を選択"></canvas><div id="overviewWindow" aria-label="表示範囲。中央をドラッグして移動、左右端をドラッグして幅を変更"><span class="overview-resize overview-resize--start" data-edge="start"></span><span class="overview-resize overview-resize--end" data-edge="end"></span></div></div>
+            <div class="toolbar overview-toolbar"><button id="fit" disabled>全体表示</button></div>
             <div id="detail" class="detail">
                 <canvas id="wave" height="260" aria-label="拡大波形。クリックで区間選択"></canvas>
                 <div id="markerLane" aria-label="クリックしてマーカー追加"><span class="lane-hint">＋ ここをクリックして区切りを追加</span></div>
