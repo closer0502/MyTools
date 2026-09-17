@@ -443,7 +443,7 @@ input[type="range"] {
 
 .video-frame {
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: 0;
     background: #0d1525;
     overflow: hidden;
 }
@@ -458,7 +458,7 @@ input[type="range"] {
 .canvas-frame {
     position: relative;
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: 0;
     background: #0d1525;
     overflow: hidden;
     min-height: 240px;
