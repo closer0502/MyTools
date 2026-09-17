@@ -212,7 +212,7 @@
             const end = field(C.time(r.end / rate()), 'time', `区間 ${index + 1}の終了時刻`, input => editTime(index, input)); end.disabled = index === regions.length - 1; cell(end);
             const duration = cell(C.time((r.end - r.start) / rate())); duration.className = 'mono';
             const actions = document.createElement('div');
-            for (const [label, action] of [['▶ 試聴', () => { choose(r.id, true); play(); }], ['WAV保存', () => exportOne(r)]]) {
+            for (const [label, action] of [['▶ 試聴', () => choose(r.id, true)], ['保存', () => exportOne(r)]]) {
                 const button = document.createElement('button'); button.textContent = label; button.type = 'button'; button.addEventListener('click', action); actions.append(button);
             }
             cell(actions).className = 'actions';
@@ -225,6 +225,7 @@
         const r = region();
         if (reveal && r && (r.end <= viewStart || r.start >= viewStart + viewLength)) viewStart = C.clamp((r.start + r.end - viewLength) / 2, 0, buffer.length - viewLength);
         render();
+        play();
     }
     function sampleAt(event, element = ui.detail) {
         const rect = element.getBoundingClientRect(); return Math.round(viewStart + C.clamp((event.clientX - rect.left) / rect.width, 0, 1) * viewLength);
