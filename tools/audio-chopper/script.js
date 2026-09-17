@@ -1,9 +1,9 @@
 (() => {
     'use strict';
     const C = window.ChopCore;
-    const ids = ['file', 'dropZone', 'fileInfo', 'status', 'overview', 'overviewWindow', 'zoomIn', 'zoomOut', 'fit', 'pan', 'undo', 'redo', 'detail', 'wave', 'markerLane', 'markers', 'playhead', 'emptyWave', 'viewInfo', 'play', 'stop', 'loop', 'selectionInfo', 'deleteMarker', 'regions', 'count', 'selectAll', 'selectNone', 'fade', 'exportZip', 'exportStatus'];
+    const ids = ['file', 'dropZone', 'fileInfo', 'status', 'overview', 'overviewWindow', 'zoomIn', 'zoomOut', 'fit', 'pan', 'undo', 'redo', 'detail', 'wave', 'markerLane', 'markers', 'playhead', 'emptyWave', 'viewInfo', 'play', 'stop', 'loop', 'selectionInfo', 'deleteMarker', 'regions', 'count', 'selectAll', 'selectNone', 'fade', 'outputRate', 'outputBits', 'outputChannels', 'normalize', 'outputSummary', 'exportZip', 'exportStatus'];
     const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
-    let buffer = null, context = null, fileName = '', regions = [], nextId = 1;
+    let buffer = null, context = null, fileName = '', regions = [], nextId = 1, sourceBitDepth = null, sourceSampleRate = null;
     let selected = null, selectedMarker = null, viewStart = 0, viewLength = 1;
     let undo = [], redo = [], peaks = [], busy = false, drag = null;
     let source = null, gainNode = null, playing = null, frame = 0, zipPromise = null;
@@ -21,7 +21,9 @@
     }
     function buttons() {
         const ready = !!buffer && !busy;
-        ['zoomIn', 'zoomOut', 'fit', 'pan', 'selectAll', 'selectNone'].forEach(id => { ui[id].disabled = !ready; });
+        ['zoomIn', 'zoomOut', 'fit', 'pan', 'selectAll', 'selectNone', 'outputRate', 'outputBits'].forEach(id => { ui[id].disabled = !ready; });
+        ui.outputChannels.disabled = !ready || buffer.numberOfChannels === 1;
+        ui.normalize.disabled = !ready;
         ui.play.disabled = !ready || !region(); ui.stop.disabled = !source;
         ui.undo.disabled = !ready || !undo.length; ui.redo.disabled = !ready || !redo.length;
         ui.deleteMarker.disabled = !ready || selectedMarker === null;
@@ -55,6 +57,45 @@
         }
         return result;
     }
+    function detectWavMetadata(bytes) {
+        if (bytes.byteLength < 36) return null;
+        const view = new DataView(bytes), ascii = (offset, length) => String.fromCharCode(...new Uint8Array(bytes, offset, length));
+        if (ascii(0, 4) !== 'RIFF' || ascii(8, 4) !== 'WAVE') return null;
+        let offset = 12;
+        while (offset + 8 <= bytes.byteLength) {
+            const id = ascii(offset, 4), size = view.getUint32(offset + 4, true);
+            if (id === 'fmt ' && size >= 16 && offset + 8 + size <= bytes.byteLength) {
+                const format = view.getUint16(offset + 8, true), bits = view.getUint16(offset + 8 + 14, true);
+                const sampleRate = view.getUint32(offset + 8 + 4, true);
+                if (format === 1 && [8, 16, 24, 32].includes(bits)) return { bitDepth: bits, sampleRate };
+                if (format === 3 && bits === 32) return { bitDepth: '32f', sampleRate };
+                if (format === 0xfffe && size >= 40) {
+                    const subtype = view.getUint32(offset + 8 + 24, true);
+                    if (subtype === 1 && [8, 16, 24, 32].includes(bits)) return { bitDepth: bits, sampleRate };
+                    if (subtype === 3 && bits === 32) return { bitDepth: '32f', sampleRate };
+                }
+                return null;
+            }
+            offset += 8 + size + (size % 2);
+        }
+        return null;
+    }
+    function setOutputDefaults(sampleRate, bits) {
+        const rateValue = String(sampleRate), rateOption = [...ui.outputRate.options].find(option => option.value === rateValue);
+        if (!rateOption) { const option = document.createElement('option'); option.value = rateValue; option.textContent = `${(sampleRate / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 })} kHz`; ui.outputRate.append(option); }
+        ui.outputRate.value = rateValue;
+        const bitValue = String(bits || 16), bitOption = [...ui.outputBits.options].find(option => option.value === bitValue);
+        ui.outputBits.value = bitOption ? bitValue : '16';
+        ui.outputChannels.value = buffer.numberOfChannels === 1 ? 'mono' : 'same';
+        ui.normalize.value = 'off';
+        updateOutputSummary();
+    }
+    function updateOutputSummary() {
+        const bits = ui.outputBits.value === '32f' ? '32 bit float' : `${ui.outputBits.value || '—'} bit PCM`;
+        const channels = !buffer ? '—' : ui.outputChannels.value === 'mono' ? 'モノラル' : ui.outputChannels.value === 'stereo' ? 'ステレオ' : `${buffer.numberOfChannels}ch`;
+        const normalize = ui.normalize?.value && ui.normalize.value !== 'off' ? ` / ノーマライズ ${ui.normalize.value} dBFS` : '';
+        ui.outputSummary.textContent = `WAV / ${bits} / ${ui.outputRate.value ? `${Number(ui.outputRate.value).toLocaleString()} Hz` : '読み込み後に設定'} / ${channels}${normalize}`;
+    }
     async function load(file) {
         if (!file || busy) return;
         if (file.type.startsWith('video/') || (!file.type.startsWith('audio/') && !/\.(wav|mp3|m4a|aac|ogg|flac|aiff?|opus)$/i.test(file.name))) {
@@ -63,17 +104,23 @@
         stop(); setBusy(true); status('音声を読み込み中…');
         try {
             context ||= new AudioContext();
-            const decoded = await context.decodeAudioData(await file.arrayBuffer());
+            const bytes = await file.arrayBuffer();
+            const wavMetadata = detectWavMetadata(bytes);
+            sourceBitDepth = wavMetadata?.bitDepth || 16;
+            const decoded = await context.decodeAudioData(bytes.slice(0));
             if (!decoded.length) throw new Error('音声が空です。');
             status('波形を作成中…');
             const built = await makePeaks(decoded);
             buffer = decoded; peaks = built; fileName = file.name.replace(/\.[^.]+$/, '');
+            sourceSampleRate = wavMetadata?.sampleRate || buffer.sampleRate;
+            setOutputDefaults(sourceSampleRate, sourceBitDepth);
             nextId = 2; regions = [{ id: 1, start: 0, end: buffer.length, name: '区間 01', checked: true }];
             selected = 1; selectedMarker = null; undo = []; redo = [];
             viewStart = 0; viewLength = buffer.length;
-            ui.fileInfo.textContent = `${file.name} · ${C.time(buffer.duration)} · ${buffer.sampleRate.toLocaleString()} Hz / ${buffer.numberOfChannels} ch`;
+            const sourceBitsLabel = sourceBitDepth === '32f' ? '32 bit float' : `${sourceBitDepth} bit`;
+            ui.fileInfo.textContent = `${file.name} · ${C.time(buffer.duration)} · ${sourceSampleRate.toLocaleString()} Hz / ${buffer.numberOfChannels} ch / ${sourceBitsLabel}`;
             status('マーカーレーンをクリックして区切りを追加してください。');
-            status('WAV / 16bit PCMで保存します。', false, ui.exportStatus);
+            status(`WAV / ${sourceBitDepth === '32f' ? '32bit float' : `${sourceBitDepth}bit PCM`} / ${sourceSampleRate.toLocaleString()} Hzを初期設定にしました。`, false, ui.exportStatus);
             render();
         } catch (error) { status(`読み込めませんでした。対応する音声ファイルか確認してください。${error.message ? ` (${error.message})` : ''}`, true); }
         finally { ui.file.value = ''; setBusy(false); }
@@ -219,6 +266,52 @@
         viewStart = C.clamp(Math.round(center - viewLength / 2), 0, buffer.length - viewLength); draw();
     }
     function fadeMs() { return C.clamp(Number(ui.fade.value) || 0, 0, 10000); }
+    function outputRate() { return Number(ui.outputRate.value) || buffer.sampleRate; }
+    function outputBits() { return ui.outputBits.value || String(sourceBitDepth || 16); }
+    function outputChannelCount() {
+        if (ui.outputChannels.value === 'mono') return 1;
+        if (ui.outputChannels.value === 'stereo') return 2;
+        return buffer.numberOfChannels;
+    }
+    function copyRegionBuffer(r) {
+        const frames = Math.max(1, r.end - r.start), channels = outputChannelCount(), output = context.createBuffer(channels, frames, buffer.sampleRate);
+        if (channels === 1 && buffer.numberOfChannels > 1) {
+            const mixed = new Float32Array(frames), left = buffer.getChannelData(0), right = buffer.getChannelData(1);
+            for (let i = 0; i < frames; i++) mixed[i] = (left[r.start + i] + right[r.start + i]) * 0.5;
+            output.copyToChannel(mixed, 0);
+        } else {
+            for (let channel = 0; channel < channels; channel++) output.copyToChannel(buffer.getChannelData(Math.min(channel, buffer.numberOfChannels - 1)).subarray(r.start, r.end), channel);
+        }
+        return output;
+    }
+    async function outputBufferFor(r) {
+        const targetRate = outputRate(), input = copyRegionBuffer(r);
+        if (targetRate === input.sampleRate) return input;
+        const frames = Math.max(1, Math.round(input.duration * targetRate));
+        const offline = new OfflineAudioContext(input.numberOfChannels, frames, targetRate);
+        const source = offline.createBufferSource(); source.buffer = input; source.connect(offline.destination);
+        source.start(0);
+        return offline.startRendering();
+    }
+    function normalizeBuffer(input) {
+        const targetDb = Number(ui.normalize.value);
+        if (!Number.isFinite(targetDb)) return input;
+        let peak = 0;
+        for (let channel = 0; channel < input.numberOfChannels; channel++) for (const sample of input.getChannelData(channel)) peak = Math.max(peak, Math.abs(sample));
+        if (!peak) return input;
+        const gain = (10 ** (targetDb / 20)) / peak;
+        if (Math.abs(gain - 1) < 1e-6) return input;
+        const output = context.createBuffer(input.numberOfChannels, input.length, input.sampleRate);
+        for (let channel = 0; channel < input.numberOfChannels; channel++) {
+            const source = input.getChannelData(channel), target = output.getChannelData(channel);
+            for (let i = 0; i < source.length; i++) target[i] = source[i] * gain;
+        }
+        return output;
+    }
+    async function prepareOutputBuffer(r) {
+        const output = await outputBufferFor(r);
+        return ui.normalize.value === 'off' ? output : normalizeBuffer(output);
+    }
     function stop() {
         cancelAnimationFrame(frame);
         if (source) { source.onended = null; try { source.stop(); } catch (_) { /* already ended */ } source.disconnect(); }
@@ -262,7 +355,7 @@
     async function exportOne(r) {
         if (busy) return;
         stop(); setBusy(true); status('WAVを書き出し中…', false, ui.exportStatus);
-        try { await tick(); download(new Blob([C.encodeWav(buffer, r.start, r.end, fadeMs())], { type: 'audio/wav' }), outputName(r)); status('WAVのダウンロードを開始しました。', false, ui.exportStatus); }
+        try { await tick(); const output = await prepareOutputBuffer(r); download(new Blob([C.encodeWav(output, 0, output.length, fadeMs(), outputBits())], { type: 'audio/wav' }), outputName(r)); status('WAVのダウンロードを開始しました。', false, ui.exportStatus); }
         catch (error) { status(`保存できませんでした: ${error.message}`, true, ui.exportStatus); }
         finally { setBusy(false); }
     }
@@ -285,7 +378,7 @@
             const Zip = await loadZip(), zip = new Zip(), fade = fadeMs();
             for (let i = 0; i < chosen.length; i++) {
                 status(`WAV作成中 ${i + 1} / ${chosen.length}`, false, ui.exportStatus); await tick();
-                const r = chosen[i]; zip.file(outputName(r), C.encodeWav(buffer, r.start, r.end, fade));
+                const r = chosen[i], output = await prepareOutputBuffer(r); zip.file(outputName(r), C.encodeWav(output, 0, output.length, fade, outputBits()));
             }
             const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, info => status(`ZIP作成中 ${Math.round(info.percent)}%`, false, ui.exportStatus));
             download(blob, `${C.safeName(fileName)}_chops.zip`); status(`${chosen.length}区間のZIPダウンロードを開始しました。`, false, ui.exportStatus);
@@ -335,10 +428,11 @@
     ui.redo.addEventListener('click', () => { if (redo.length) { undo.push(snapshot()); restore(redo.pop()); } });
     ui.deleteMarker.addEventListener('click', deleteMarker);
     ui.play.addEventListener('click', play); ui.stop.addEventListener('click', stop);
-    ui.fade.addEventListener('change', () => { ui.fade.value = Math.round(fadeMs()); if (source || playing) { stop(); status('フェード時間を変更しました。再度試聴すると反映されます。'); } });
+    ui.fade.addEventListener('change', () => { if (source || playing) { stop(); status('フェード時間を変更しました。再度試聴すると反映されます。'); } });
+    ui.outputRate.addEventListener('change', updateOutputSummary); ui.outputBits.addEventListener('change', updateOutputSummary); ui.outputChannels.addEventListener('change', updateOutputSummary); ui.normalize.addEventListener('change', updateOutputSummary);
     ui.selectAll.addEventListener('click', () => { saveHistory(); regions.forEach(r => { r.checked = true; }); render(); });
     ui.selectNone.addEventListener('click', () => { saveHistory(); regions.forEach(r => { r.checked = false; }); render(); });
     ui.exportZip.addEventListener('click', exportZip);
     new ResizeObserver(() => { draw(); drawOverview(); }).observe(ui.detail);
-    buttons();
+    updateOutputSummary(); buttons();
 })();

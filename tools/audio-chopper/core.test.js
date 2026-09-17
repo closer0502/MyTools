@@ -29,3 +29,12 @@ test('zero fade preserves audio; names and time input are handled safely', () =>
     assert.equal(C.parseTime('72.125'), 72.125); assert.ok(Number.isNaN(C.parseTime('bad')));
     assert.equal(C.safeName('../bad:name?'), '.._bad_name_');
 });
+test('supports selectable 8-bit, 24-bit, and 32-bit float WAV output', () => {
+    const input = audio([[0, 1, -1]], 44100);
+    const eight = new DataView(C.encodeWav(input, 0, 3, 0, 8));
+    assert.equal(eight.getUint16(34, true), 8); assert.deepEqual([44, 45, 46].map(at => eight.getUint8(at)), [128, 255, 0]);
+    const twentyFour = new DataView(C.encodeWav(input, 0, 3, 0, 24));
+    assert.equal(twentyFour.getUint16(34, true), 24); assert.equal(twentyFour.getUint32(24, true), 44100); assert.equal(twentyFour.getUint8(44), 0);
+    const float = new DataView(C.encodeWav(input, 0, 3, 0, '32f'));
+    assert.equal(float.getUint16(20, true), 3); assert.equal(float.getFloat32(44, true), 0);
+});

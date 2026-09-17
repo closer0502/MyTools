@@ -52,8 +52,15 @@
             <div class="toolbar"><button id="selectAll" disabled>すべて保存対象にする</button><button id="selectNone" disabled>すべて外す</button><span class="hint">チェックした区間をまとめて保存できます。時刻は「分:秒.ミリ秒」または秒数で入力。</span></div>
             <div class="table-scroll"><table><thead><tr><th>保存</th><th>区間名</th><th>開始</th><th>終了</th><th>長さ</th><th>操作</th></tr></thead><tbody id="regions"><tr><td colspan="6" class="empty-table">音声を読み込んで、区切りを追加してください。</td></tr></tbody></table></div>
             <div class="export-bar">
-                <div class="fade-control"><label for="fade">フェード・イン／アウト共通</label><div class="inline"><input id="fade" type="number" min="0" max="10000" step="1" value="0"><span>ms</span></div><small class="muted">0msでオフ。短い区間では片側を区間長の半分までに制限。試聴にも反映します。</small></div>
-                <div class="export-action"><span class="muted">WAV / 16bit PCM · デコード後のレートとチャンネル数</span><button id="exportZip" class="primary" disabled>選択区間をZIP保存</button></div>
+                <div class="export-heading"><strong>出力設定</strong><span class="muted">個別保存・ZIP保存 共通</span></div>
+                <div class="output-fields">
+                    <label>サンプルレート<select id="outputRate"><option value="" selected>読み込み後に設定</option><option value="8000">8 kHz</option><option value="16000">16 kHz</option><option value="22050">22.05 kHz</option><option value="32000">32 kHz</option><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option><option value="88200">88.2 kHz</option><option value="96000">96 kHz</option></select></label>
+                    <label>ビット深度<select id="outputBits"><option value="" selected>読み込み後に設定</option><option value="8">8 bit PCM</option><option value="16">16 bit PCM</option><option value="24">24 bit PCM</option><option value="32">32 bit PCM</option><option value="32f">32 bit float</option></select></label>
+                    <label>チャンネル<select id="outputChannels"><option value="same" selected>入力に合わせる</option><option value="mono">モノラル</option><option value="stereo">ステレオ</option></select></label>
+                    <label>ノーマライズ<select id="normalize"><option value="off" selected>オフ</option><option value="0">0 dBFS</option><option value="-3">-3 dBFS</option><option value="-6">-6 dBFS</option></select></label>
+                    <label>フェード<select id="fade"><option value="0" selected>0 ms（オフ）</option><option value="5">5 ms</option><option value="10">10 ms</option></select></label>
+                </div>
+                <div class="output-action"><span id="outputSummary" class="muted">WAV / 読み込み後に設定</span><button id="exportZip" class="primary" disabled>選択区間をZIP保存</button></div>
             </div>
             <p id="exportStatus" role="status" aria-live="polite">個別のWAV保存もできます。ZIP保存時のみライブラリを読み込みます。</p>
         </section>

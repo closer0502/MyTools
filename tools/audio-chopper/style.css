@@ -48,9 +48,10 @@ tbody tr { cursor: pointer; } tbody tr.selected { background: #16374a; } tbody t
 td input.name { width: 100%; min-width: 130px; } td input.time { width: 112px; font-family: var(--font-mono); font-size: 12px; }
 td.actions { white-space: nowrap; } td.actions button + button { margin-left: 6px; }
 .empty-table { text-align: center; padding: 32px; color: var(--muted); }
-.export-bar { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; align-items: flex-end; gap: 24px; }
-.fade-control { display: grid; gap: 7px; max-width: 490px; font-size: 13px; }.fade-control input { width: 100px; }
-.export-action { display: grid; gap: 8px; text-align: right; font-size: 12px; }
+.export-bar { border-top: 1px solid var(--border); padding-top: 20px; margin-top: 20px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: 20px; }
+.export-heading { display: grid; gap: 5px; min-width: 168px; font-size: 13px; align-self: start; }.output-fields { display: grid; grid-template-columns: repeat(5, minmax(112px, 1fr)); align-items: end; gap: 10px; }.output-fields > label { display: grid; gap: 6px; font-size: 12px; min-width: 0; }.output-fields select { min-width: 0; width: 100%; }
+.output-action { display: grid; gap: 8px; text-align: right; font-size: 12px; min-width: 206px; }
 #status, #exportStatus { font-size: 13px; min-height: 22px; overflow-wrap: anywhere; } #status { margin: -6px 4px 18px; }
 .error { color: #fda4af; } #fileInfo { overflow-wrap: anywhere; font-size: 13px; }
-@media(max-width: 700px) { .panel { padding: 15px; }.chop-shell { padding-top: 24px; }.export-action { width: 100%; text-align: left; }.pan-label { flex-basis: 100%; } #deleteMarker { margin-left: 0; }.section-top { align-items: flex-start; } }
+@media(max-width: 1120px) { .export-bar { grid-template-columns: 1fr; align-items: start; }.output-fields { grid-template-columns: repeat(5, minmax(112px, 1fr)); }.output-action { width: 100%; text-align: left; grid-template-columns: 1fr auto; align-items: center; } }
+@media(max-width: 700px) { .panel { padding: 15px; }.chop-shell { padding-top: 24px; }.output-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }.output-action { grid-template-columns: 1fr; }.pan-label { flex-basis: 100%; } #deleteMarker { margin-left: 0; }.section-top { align-items: flex-start; } }
